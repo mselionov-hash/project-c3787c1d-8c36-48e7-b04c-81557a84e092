@@ -9,6 +9,7 @@ interface Profile {
   passport_series: string | null;
   passport_number: string | null;
   address: string | null;
+  phone: string | null;
 }
 
 interface AuthContextType {
