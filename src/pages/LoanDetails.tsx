@@ -6,6 +6,7 @@ import { generateLoanPDF } from '@/lib/pdf';
 import SignaturePad from '@/components/SignaturePad';
 import PaymentModal from '@/components/PaymentModal';
 import SendLoanModal from '@/components/SendLoanModal';
+import SbpPaymentSection from '@/components/SbpPaymentSection';
 import { Button } from '@/components/ui/button';
 import { toast } from 'sonner';
 import {
@@ -319,6 +320,9 @@ const LoanDetails = () => {
           </div>
         </div>
 
+        {/* SBP Payment */}
+        <SbpPaymentSection loan={loan} payments={payments} onSuccess={fetchAll} />
+
         {/* Payments */}
         <div className="card-elevated p-7">
           <div className="flex items-center justify-between mb-5">
@@ -329,7 +333,7 @@ const LoanDetails = () => {
             {canPay && (
               <Button onClick={() => setShowPayment(true)} className="gap-2 rounded-xl" size="sm">
                 <Banknote className="w-4 h-4" />
-                Отправить деньги
+                Другой способ
               </Button>
             )}
           </div>

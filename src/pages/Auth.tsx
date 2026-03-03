@@ -12,6 +12,7 @@ import { useEffect } from 'react';
 const Auth = () => {
   const [isLogin, setIsLogin] = useState(true);
   const [name, setName] = useState('');
+  const [phone, setPhone] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [submitting, setSubmitting] = useState(false);
@@ -41,7 +42,7 @@ const Auth = () => {
         const { error } = await supabase.auth.signUp({
           email,
           password,
-          options: { data: { full_name: name.trim() } },
+          options: { data: { full_name: name.trim(), phone: phone.trim() } },
         });
         if (error) throw error;
         toast.success('Регистрация успешна! Проверьте email для подтверждения.');
@@ -125,10 +126,16 @@ const Auth = () => {
 
             <form onSubmit={handleSubmit} className="space-y-5">
               {!isLogin && (
-                <div className="space-y-2">
-                  <Label htmlFor="name" className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">ФИО</Label>
-                  <Input id="name" placeholder="Иванов Иван Иванович" value={name} onChange={e => setName(e.target.value)} className="h-12 rounded-xl bg-muted/50 border-border/50 focus:bg-card" />
-                </div>
+                <>
+                  <div className="space-y-2">
+                    <Label htmlFor="name" className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">ФИО</Label>
+                    <Input id="name" placeholder="Иванов Иван Иванович" value={name} onChange={e => setName(e.target.value)} className="h-12 rounded-xl bg-muted/50 border-border/50 focus:bg-card" />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="phone" className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Телефон</Label>
+                    <Input id="phone" type="tel" placeholder="+7 999 123 45 67" value={phone} onChange={e => setPhone(e.target.value)} className="h-12 rounded-xl bg-muted/50 border-border/50 focus:bg-card" />
+                  </div>
+                </>
               )}
               <div className="space-y-2">
                 <Label htmlFor="email" className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Email</Label>
