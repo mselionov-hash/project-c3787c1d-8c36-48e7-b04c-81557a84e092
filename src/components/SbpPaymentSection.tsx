@@ -8,6 +8,7 @@ import { toast } from 'sonner';
 import { Banknote, Copy, CheckCircle2, Upload, Loader2, Smartphone, QrCode } from 'lucide-react';
 import { QRCodeSVG } from 'qrcode.react';
 import BorrowerPaymentMethodPicker from '@/components/BorrowerPaymentMethodPicker';
+import { generateSbpEmvQr } from '@/lib/emvco-qr';
 import type { Tables } from '@/integrations/supabase/types';
 
 type Loan = Tables<'loans'>;
@@ -224,14 +225,23 @@ const SbpPaymentSection = ({ loan, payments, onSuccess }: SbpPaymentSectionProps
                 {showQr ? 'Скрыть QR-код' : 'Показать QR-код для оплаты'}
               </Button>
 
-              {showQr && sbpLink && (
+              {showQr && selectedMethod?.phone && (
                 <div className="flex flex-col items-center gap-3 p-6 rounded-xl bg-muted/30 border border-border/50">
-                  <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Оплата через QR СБП</p>
+                  <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Оплата через QR СБП (NSPK EMVCo)</p>
                   <div className="bg-white p-4 rounded-xl">
-                    <QRCodeSVG value={sbpLink} size={200} />
+                    <QRCodeSVG
+                      value={generateSbpEmvQr({
+                        phone: selectedMethod.phone,
+                        amount: Number(loan.amount),
+                        recipientName: loan.borrower_name,
+                        city: loan.city,
+                        comment: paymentComment,
+                      })}
+                      size={200}
+                    />
                   </div>
                   <p className="text-xs text-muted-foreground text-center max-w-[240px]">
-                    Отсканируйте QR-код камерой или банковским приложением
+                    Отсканируйте QR-код банковским приложением (Сбер, Т-Банк, ВТБ и др.)
                   </p>
                 </div>
               )}
