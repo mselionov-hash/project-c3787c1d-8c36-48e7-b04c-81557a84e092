@@ -171,6 +171,48 @@ export type Database = {
         }
         Relationships: []
       }
+      payment_methods: {
+        Row: {
+          bank_name: string | null
+          card_holder: string | null
+          card_number: string | null
+          created_at: string
+          id: string
+          is_default: boolean
+          label: string
+          method_type: string
+          phone: string | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          bank_name?: string | null
+          card_holder?: string | null
+          card_number?: string | null
+          created_at?: string
+          id?: string
+          is_default?: boolean
+          label?: string
+          method_type: string
+          phone?: string | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          bank_name?: string | null
+          card_holder?: string | null
+          card_number?: string | null
+          created_at?: string
+          id?: string
+          is_default?: boolean
+          label?: string
+          method_type?: string
+          phone?: string | null
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       profiles: {
         Row: {
           address: string | null

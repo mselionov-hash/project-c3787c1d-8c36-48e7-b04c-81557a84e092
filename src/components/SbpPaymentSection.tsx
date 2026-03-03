@@ -5,11 +5,23 @@ import { Label } from '@/components/ui/label';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 import { toast } from 'sonner';
-import { Banknote, Copy, ExternalLink, CheckCircle2, Upload, Loader2, Smartphone } from 'lucide-react';
+import { Banknote, Copy, ExternalLink, CheckCircle2, Upload, Loader2, Smartphone, CreditCard } from 'lucide-react';
+import BorrowerPaymentMethodPicker from '@/components/BorrowerPaymentMethodPicker';
 import type { Tables } from '@/integrations/supabase/types';
 
 type Loan = Tables<'loans'>;
 type Payment = Tables<'loan_payments'>;
+
+interface PaymentMethod {
+  id: string;
+  method_type: 'sbp' | 'card';
+  label: string;
+  phone: string | null;
+  card_number: string | null;
+  card_holder: string | null;
+  bank_name: string | null;
+  is_default: boolean;
+}
 
 interface SbpPaymentSectionProps {
   loan: Loan;
@@ -19,8 +31,7 @@ interface SbpPaymentSectionProps {
 
 const SbpPaymentSection = ({ loan, payments, onSuccess }: SbpPaymentSectionProps) => {
   const { user } = useAuth();
-  const [borrowerPhone, setBorrowerPhone] = useState('');
-  const [loadingPhone, setLoadingPhone] = useState(true);
+  const [selectedMethod, setSelectedMethod] = useState<PaymentMethod | null>(null);
   const [transactionId, setTransactionId] = useState('');
   const [transferDate, setTransferDate] = useState(new Date().toISOString().split('T')[0]);
   const [screenshot, setScreenshot] = useState<File | null>(null);
@@ -32,34 +43,6 @@ const SbpPaymentSection = ({ loan, payments, onSuccess }: SbpPaymentSectionProps
   const confirmedPayment = payments.find(p => p.status === 'confirmed');
   const canPay = isLender && ['fully_signed', 'awaiting_payment', 'draft', 'signed_by_lender', 'signed_by_borrower'].includes(loan.status) && !confirmedPayment;
 
-  useEffect(() => {
-    if (loan.borrower_id) {
-      supabase
-        .from('profiles')
-        .select('phone')
-        .eq('user_id', loan.borrower_id)
-        .single()
-        .then(({ data }) => {
-          setBorrowerPhone((data as any)?.phone || '');
-          setLoadingPhone(false);
-        });
-    } else {
-      setLoadingPhone(false);
-    }
-  }, [loan.borrower_id]);
-
-  const sbpLink = borrowerPhone
-    ? `sbp://pay?phone=${encodeURIComponent(borrowerPhone)}&amount=${loan.amount}&comment=${encodeURIComponent(`Перевод по договору займа №${loanNumber}`)}`
-    : '';
-
-  const handleOpenSbp = () => {
-    if (!sbpLink) {
-      toast.error('Номер телефона заёмщика не указан');
-      return;
-    }
-    window.location.href = sbpLink;
-  };
-
   const handleCopy = async (text: string, label: string) => {
     await navigator.clipboard.writeText(text);
     setCopied(label);
@@ -67,9 +50,22 @@ const SbpPaymentSection = ({ loan, payments, onSuccess }: SbpPaymentSectionProps
     setTimeout(() => setCopied(null), 2000);
   };
 
+  const handleOpenSbp = () => {
+    if (!selectedMethod?.phone) {
+      toast.error('Выберите СБП реквизит с номером телефона');
+      return;
+    }
+    const link = `sbp://pay?phone=${encodeURIComponent(selectedMethod.phone)}&amount=${loan.amount}&comment=${encodeURIComponent(`Перевод по договору займа №${loanNumber}`)}`;
+    window.location.href = link;
+  };
+
   const handleConfirmPayment = async () => {
     if (!user || !transactionId.trim()) {
       toast.error('Укажите ID транзакции');
+      return;
+    }
+    if (!selectedMethod) {
+      toast.error('Выберите реквизиты для оплаты');
       return;
     }
 
@@ -92,9 +88,9 @@ const SbpPaymentSection = ({ loan, payments, onSuccess }: SbpPaymentSectionProps
       const { error } = await supabase.from('loan_payments').insert({
         loan_id: loan.id,
         payer_id: user.id,
-        transfer_method: 'sbp',
+        transfer_method: selectedMethod.method_type,
         transfer_amount: Number(loan.amount),
-        bank_name: 'СБП',
+        bank_name: selectedMethod.bank_name || (selectedMethod.method_type === 'sbp' ? 'СБП' : 'Карта'),
         payment_reference: `Перевод по договору займа №${loanNumber}`,
         transaction_id: transactionId.trim(),
         transfer_date: transferDate,
@@ -118,71 +114,99 @@ const SbpPaymentSection = ({ loan, payments, onSuccess }: SbpPaymentSectionProps
 
   const inputClass = "h-11 rounded-xl bg-muted/50 border-border/50 focus:bg-card";
 
-  const paymentDetails = [
+  // Build payment details based on selected method
+  const paymentDetails = selectedMethod ? [
     { label: 'Номер договора', value: loanNumber },
     { label: 'Сумма', value: `${Number(loan.amount).toLocaleString('ru-RU')} ₽` },
-    { label: 'Телефон заёмщика', value: borrowerPhone || 'Не указан' },
+    ...(selectedMethod.method_type === 'sbp'
+      ? [{ label: 'Телефон (СБП)', value: selectedMethod.phone || '' }]
+      : [
+          { label: 'Номер карты', value: selectedMethod.card_number || '' },
+          ...(selectedMethod.card_holder ? [{ label: 'Держатель', value: selectedMethod.card_holder }] : []),
+        ]),
+    ...(selectedMethod.bank_name ? [{ label: 'Банк', value: selectedMethod.bank_name }] : []),
     { label: 'Назначение', value: `Перевод по договору займа №${loanNumber}` },
-  ];
+  ] : [];
 
   return (
     <div className="card-elevated p-7">
       <div className="flex items-center gap-3 mb-6">
         <div className="w-10 h-10 rounded-xl bg-accent/10 flex items-center justify-center">
-          <Smartphone className="w-5 h-5 text-accent" />
+          <Banknote className="w-5 h-5 text-accent" />
         </div>
         <div>
-          <h3 className="text-sm font-semibold uppercase tracking-wider">Оплата через СБП</h3>
-          <p className="text-xs text-muted-foreground">Система Быстрых Платежей</p>
+          <h3 className="text-sm font-semibold uppercase tracking-wider">Оплата займа</h3>
+          <p className="text-xs text-muted-foreground">Выберите реквизиты заёмщика</p>
         </div>
       </div>
 
+      {/* Borrower payment methods picker */}
+      {loan.borrower_id ? (
+        <div className="mb-6">
+          <BorrowerPaymentMethodPicker
+            borrowerId={loan.borrower_id}
+            loanAmount={Number(loan.amount)}
+            loanNumber={loanNumber}
+            onSelectMethod={setSelectedMethod}
+          />
+        </div>
+      ) : (
+        <div className="p-4 rounded-xl bg-warning/5 border border-warning/20 text-sm mb-6">
+          <p className="font-semibold text-warning">Заёмщик не привязан</p>
+          <p className="text-muted-foreground text-xs mt-1">Сначала отправьте договор заёмщику</p>
+        </div>
+      )}
+
       {/* Payment details with copy */}
-      <div className="space-y-3 mb-6">
-        {paymentDetails.map(({ label, value }) => (
-          <div key={label} className="flex items-center justify-between p-3 rounded-xl bg-muted/50">
-            <div>
-              <p className="text-xs text-muted-foreground">{label}</p>
-              <p className="font-medium text-sm">{value}</p>
-            </div>
-            <button
-              onClick={() => handleCopy(value, label)}
-              className="p-2 rounded-lg hover:bg-muted transition-colors text-muted-foreground hover:text-foreground"
-            >
-              {copied === label ? (
-                <CheckCircle2 className="w-4 h-4 text-accent" />
-              ) : (
-                <Copy className="w-4 h-4" />
-              )}
-            </button>
-          </div>
-        ))}
-      </div>
-
-      {/* Copy all details */}
-      <Button
-        variant="outline"
-        className="w-full rounded-xl gap-2 mb-4"
-        onClick={() => {
-          const allDetails = paymentDetails.map(d => `${d.label}: ${d.value}`).join('\n');
-          handleCopy(allDetails, 'Все реквизиты');
-        }}
-      >
-        <Copy className="w-4 h-4" />
-        Скопировать все реквизиты
-      </Button>
-
-      {canPay && (
+      {selectedMethod && paymentDetails.length > 0 && (
         <>
-          {/* SBP button */}
+          <div className="space-y-3 mb-6">
+            {paymentDetails.map(({ label, value }) => (
+              <div key={label} className="flex items-center justify-between p-3 rounded-xl bg-muted/50">
+                <div>
+                  <p className="text-xs text-muted-foreground">{label}</p>
+                  <p className="font-medium text-sm">{value}</p>
+                </div>
+                <button
+                  onClick={() => handleCopy(value, label)}
+                  className="p-2 rounded-lg hover:bg-muted transition-colors text-muted-foreground hover:text-foreground"
+                >
+                  {copied === label ? (
+                    <CheckCircle2 className="w-4 h-4 text-accent" />
+                  ) : (
+                    <Copy className="w-4 h-4" />
+                  )}
+                </button>
+              </div>
+            ))}
+          </div>
+
           <Button
-            onClick={handleOpenSbp}
-            className="w-full h-12 rounded-xl gap-2 text-sm font-semibold mb-6"
-            disabled={!borrowerPhone || loadingPhone}
+            variant="outline"
+            className="w-full rounded-xl gap-2 mb-4"
+            onClick={() => {
+              const allDetails = paymentDetails.map(d => `${d.label}: ${d.value}`).join('\n');
+              handleCopy(allDetails, 'Все реквизиты');
+            }}
           >
-            <ExternalLink className="w-4 h-4" />
-            Оплатить через СБП
+            <Copy className="w-4 h-4" />
+            Скопировать все реквизиты
           </Button>
+        </>
+      )}
+
+      {canPay && selectedMethod && (
+        <>
+          {/* SBP button if method is SBP */}
+          {selectedMethod.method_type === 'sbp' && selectedMethod.phone && (
+            <Button
+              onClick={handleOpenSbp}
+              className="w-full h-12 rounded-xl gap-2 text-sm font-semibold mb-6"
+            >
+              <Smartphone className="w-4 h-4" />
+              Оплатить через СБП
+            </Button>
+          )}
 
           {/* Payment confirmation */}
           <div className="border-t border-border/50 pt-6">
