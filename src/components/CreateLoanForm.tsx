@@ -18,9 +18,13 @@ interface CreateLoanFormProps {
 const CreateLoanForm = ({ currentUserName, onClose, onCreated }: CreateLoanFormProps) => {
   const [lenderName, setLenderName] = useState(currentUserName);
   const [borrowerName, setBorrowerName] = useState('');
+  const [lenderPassport, setLenderPassport] = useState('');
+  const [borrowerPassport, setBorrowerPassport] = useState('');
   const [amount, setAmount] = useState('');
   const [interestRate, setInterestRate] = useState('');
+  const [penaltyRate, setPenaltyRate] = useState('0.1');
   const [repaymentDate, setRepaymentDate] = useState('');
+  const [city, setCity] = useState('Москва');
   const [notes, setNotes] = useState('');
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -35,9 +39,13 @@ const CreateLoanForm = ({ currentUserName, onClose, onCreated }: CreateLoanFormP
       id: crypto.randomUUID(),
       lenderName: lenderName.trim(),
       borrowerName: borrowerName.trim(),
+      lenderPassport: lenderPassport.trim(),
+      borrowerPassport: borrowerPassport.trim(),
       amount: parseFloat(amount),
       interestRate: parseFloat(interestRate),
+      penaltyRate: parseFloat(penaltyRate),
       repaymentDate,
+      city: city.trim(),
       notes: notes.trim(),
       createdAt: new Date().toISOString(),
       createdBy: currentUserName,
@@ -68,70 +76,55 @@ const CreateLoanForm = ({ currentUserName, onClose, onCreated }: CreateLoanFormP
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
               <Label htmlFor="lender">Займодавец *</Label>
-              <Input
-                id="lender"
-                value={lenderName}
-                onChange={e => setLenderName(e.target.value)}
-                placeholder="ФИО займодавца"
-              />
+              <Input id="lender" value={lenderName} onChange={e => setLenderName(e.target.value)} placeholder="ФИО займодавца" />
             </div>
             <div className="space-y-2">
+              <Label htmlFor="lenderPassport">Паспорт займодавца</Label>
+              <Input id="lenderPassport" value={lenderPassport} onChange={e => setLenderPassport(e.target.value)} placeholder="Серия и номер" />
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-2">
               <Label htmlFor="borrower">Заёмщик *</Label>
-              <Input
-                id="borrower"
-                value={borrowerName}
-                onChange={e => setBorrowerName(e.target.value)}
-                placeholder="ФИО заёмщика"
-              />
+              <Input id="borrower" value={borrowerName} onChange={e => setBorrowerName(e.target.value)} placeholder="ФИО заёмщика" />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="borrowerPassport">Паспорт заёмщика</Label>
+              <Input id="borrowerPassport" value={borrowerPassport} onChange={e => setBorrowerPassport(e.target.value)} placeholder="Серия и номер" />
             </div>
           </div>
 
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
               <Label htmlFor="amount">Сумма (₽) *</Label>
-              <Input
-                id="amount"
-                type="number"
-                min="0"
-                step="0.01"
-                value={amount}
-                onChange={e => setAmount(e.target.value)}
-                placeholder="100 000"
-              />
+              <Input id="amount" type="number" min="0" step="0.01" value={amount} onChange={e => setAmount(e.target.value)} placeholder="100 000" />
             </div>
             <div className="space-y-2">
               <Label htmlFor="rate">Процентная ставка (%) *</Label>
-              <Input
-                id="rate"
-                type="number"
-                min="0"
-                step="0.1"
-                value={interestRate}
-                onChange={e => setInterestRate(e.target.value)}
-                placeholder="12"
-              />
+              <Input id="rate" type="number" min="0" step="0.1" value={interestRate} onChange={e => setInterestRate(e.target.value)} placeholder="12" />
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <Label htmlFor="penalty">Неустойка за просрочку (%/день)</Label>
+              <Input id="penalty" type="number" min="0" step="0.01" value={penaltyRate} onChange={e => setPenaltyRate(e.target.value)} placeholder="0.1" />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="city">Город</Label>
+              <Input id="city" value={city} onChange={e => setCity(e.target.value)} placeholder="Москва" />
             </div>
           </div>
 
           <div className="space-y-2">
             <Label htmlFor="date">Дата возврата *</Label>
-            <Input
-              id="date"
-              type="date"
-              value={repaymentDate}
-              onChange={e => setRepaymentDate(e.target.value)}
-            />
+            <Input id="date" type="date" value={repaymentDate} onChange={e => setRepaymentDate(e.target.value)} />
           </div>
 
           <div className="space-y-2">
             <Label htmlFor="notes">Примечания</Label>
-            <Textarea
-              id="notes"
-              value={notes}
-              onChange={e => setNotes(e.target.value)}
-              placeholder="Дополнительные условия..."
-              rows={3}
-            />
+            <Textarea id="notes" value={notes} onChange={e => setNotes(e.target.value)} placeholder="Дополнительные условия..." rows={3} />
           </div>
 
           <Button type="submit" className="w-full gap-2">
