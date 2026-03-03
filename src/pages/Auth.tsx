@@ -3,42 +3,53 @@ import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { saveUser, findUser, setCurrentUser, getUsers } from '@/lib/store';
+import { supabase } from '@/integrations/supabase/client';
+import { useAuth } from '@/hooks/useAuth';
 import { toast } from 'sonner';
-import { ArrowRight, Shield, TrendingUp, Users } from 'lucide-react';
+import { ArrowRight, Shield, TrendingUp, Users, Loader2 } from 'lucide-react';
+import { useEffect } from 'react';
 
 const Auth = () => {
   const [isLogin, setIsLogin] = useState(true);
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [submitting, setSubmitting] = useState(false);
   const navigate = useNavigate();
+  const { user } = useAuth();
 
-  const handleSubmit = (e: React.FormEvent) => {
+  useEffect(() => {
+    if (user) navigate('/dashboard');
+  }, [user, navigate]);
+
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    setSubmitting(true);
 
-    if (isLogin) {
-      const user = getUsers().find(u => u.email === email);
-      if (!user) {
-        toast.error('Пользователь не найден');
-        return;
+    try {
+      if (isLogin) {
+        const { error } = await supabase.auth.signInWithPassword({ email, password });
+        if (error) throw error;
+        toast.success('Добро пожаловать!');
+        navigate('/dashboard');
+      } else {
+        if (!name.trim()) {
+          toast.error('Введите ваше имя');
+          setSubmitting(false);
+          return;
+        }
+        const { error } = await supabase.auth.signUp({
+          email,
+          password,
+          options: { data: { full_name: name.trim() } },
+        });
+        if (error) throw error;
+        toast.success('Регистрация успешна! Проверьте email для подтверждения.');
       }
-      setCurrentUser(user);
-      toast.success('Добро пожаловать!');
-      navigate('/');
-    } else {
-      if (!name.trim() || !email.trim()) {
-        toast.error('Заполните все поля');
-        return;
-      }
-      if (findUser(email)) {
-        toast.error('Пользователь с таким email уже существует');
-        return;
-      }
-      const user = { id: crypto.randomUUID(), name: name.trim(), email: email.trim() };
-      saveUser(user);
-      setCurrentUser(user);
-      toast.success('Регистрация успешна!');
-      navigate('/');
+    } catch (err: any) {
+      toast.error(err.message || 'Произошла ошибка');
+    } finally {
+      setSubmitting(false);
     }
   };
 
@@ -51,17 +62,15 @@ const Auth = () => {
           <div className="absolute bottom-20 right-20 w-96 h-96 rounded-full bg-primary-foreground blur-3xl" />
         </div>
         <div className="relative z-10 max-w-md">
-          <h1 className="text-4xl font-bold text-primary-foreground mb-4 font-display">
-            P2P Займы
-          </h1>
+          <h1 className="text-4xl font-bold text-primary-foreground mb-4 font-display">P2P Займы</h1>
           <p className="text-primary-foreground/70 text-lg mb-10 leading-relaxed">
-            Современная платформа для оформления займов между физическими лицами с автоматической генерацией документов.
+            Современная платформа для оформления займов между физическими лицами с электронными подписями и автоматической генерацией документов.
           </p>
           <div className="space-y-5">
             {[
-              { icon: Shield, text: 'Юридически корректные договоры' },
-              { icon: TrendingUp, text: 'Отслеживание всех займов' },
-              { icon: Users, text: 'Простое управление контрагентами' },
+              { icon: Shield, text: 'Электронные подписи и юридическая прослеживаемость' },
+              { icon: TrendingUp, text: 'Отслеживание платежей и статусов' },
+              { icon: Users, text: 'Подтверждение передачи денежных средств' },
             ].map(({ icon: Icon, text }) => (
               <div key={text} className="flex items-center gap-3">
                 <div className="w-10 h-10 rounded-xl bg-primary-foreground/10 flex items-center justify-center">
@@ -90,7 +99,7 @@ const Auth = () => {
               {isLogin ? 'Войти в аккаунт' : 'Создать аккаунт'}
             </h2>
             <p className="text-muted-foreground mt-1.5">
-              {isLogin ? 'Введите ваш email для входа' : 'Заполните данные для регистрации'}
+              {isLogin ? 'Введите ваш email и пароль' : 'Заполните данные для регистрации'}
             </p>
           </div>
 
@@ -117,30 +126,22 @@ const Auth = () => {
             <form onSubmit={handleSubmit} className="space-y-5">
               {!isLogin && (
                 <div className="space-y-2">
-                  <Label htmlFor="name" className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Имя</Label>
-                  <Input
-                    id="name"
-                    placeholder="Иван Иванов"
-                    value={name}
-                    onChange={e => setName(e.target.value)}
-                    className="h-12 rounded-xl bg-muted/50 border-border/50 focus:bg-card"
-                  />
+                  <Label htmlFor="name" className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">ФИО</Label>
+                  <Input id="name" placeholder="Иванов Иван Иванович" value={name} onChange={e => setName(e.target.value)} className="h-12 rounded-xl bg-muted/50 border-border/50 focus:bg-card" />
                 </div>
               )}
               <div className="space-y-2">
                 <Label htmlFor="email" className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Email</Label>
-                <Input
-                  id="email"
-                  type="email"
-                  placeholder="ivan@example.com"
-                  value={email}
-                  onChange={e => setEmail(e.target.value)}
-                  className="h-12 rounded-xl bg-muted/50 border-border/50 focus:bg-card"
-                />
+                <Input id="email" type="email" placeholder="ivan@example.com" value={email} onChange={e => setEmail(e.target.value)} className="h-12 rounded-xl bg-muted/50 border-border/50 focus:bg-card" />
               </div>
-              <Button type="submit" className="w-full h-12 rounded-xl gap-2 text-sm font-semibold">
+              <div className="space-y-2">
+                <Label htmlFor="password" className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Пароль</Label>
+                <Input id="password" type="password" placeholder="Минимум 6 символов" value={password} onChange={e => setPassword(e.target.value)} className="h-12 rounded-xl bg-muted/50 border-border/50 focus:bg-card" />
+              </div>
+              <Button type="submit" disabled={submitting} className="w-full h-12 rounded-xl gap-2 text-sm font-semibold">
+                {submitting ? <Loader2 className="w-4 h-4 animate-spin" /> : null}
                 {isLogin ? 'Войти' : 'Зарегистрироваться'}
-                <ArrowRight className="w-4 h-4" />
+                {!submitting && <ArrowRight className="w-4 h-4" />}
               </Button>
             </form>
           </div>

@@ -1,40 +1,58 @@
-import { useState, useCallback } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { getCurrentUser, setCurrentUser, getUserLoansAsLender, getUserLoansAsBorrower } from '@/lib/store';
-import LoanCard from '@/components/LoanCard';
-import CreateLoanForm from '@/components/CreateLoanForm';
+import { useState, useEffect } from 'react';
+import { useNavigate, Link } from 'react-router-dom';
+import { useAuth } from '@/hooks/useAuth';
+import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
-import { Plus, LogOut, ArrowUpRight, ArrowDownLeft, Wallet, FileText, TrendingUp } from 'lucide-react';
-import { useEffect } from 'react';
+import { Plus, LogOut, ArrowUpRight, ArrowDownLeft, Wallet, FileText, TrendingUp, Eye } from 'lucide-react';
+import type { Tables } from '@/integrations/supabase/types';
+
+type Loan = Tables<'loans'>;
+
+const statusLabels: Record<string, { label: string; class: string }> = {
+  draft: { label: 'Черновик', class: 'bg-muted text-muted-foreground' },
+  awaiting_signature: { label: 'Ожидает подписи', class: 'bg-warning/10 text-warning' },
+  signed_by_lender: { label: 'Подписан займодавцем', class: 'bg-primary/10 text-primary' },
+  signed_by_borrower: { label: 'Подписан заёмщиком', class: 'bg-primary/10 text-primary' },
+  fully_signed: { label: 'Полностью подписан', class: 'bg-accent/10 text-accent' },
+  awaiting_payment: { label: 'Ожидает оплаты', class: 'bg-warning/10 text-warning' },
+  active: { label: 'Активный', class: 'bg-accent/10 text-accent' },
+  completed: { label: 'Завершён', class: 'bg-muted text-muted-foreground' },
+  overdue: { label: 'Просрочен', class: 'bg-destructive/10 text-destructive' },
+};
 
 const Dashboard = () => {
   const navigate = useNavigate();
-  const [user, setUser] = useState(getCurrentUser());
-  const [showForm, setShowForm] = useState(false);
-  const [refreshKey, setRefreshKey] = useState(0);
+  const { user, profile, loading, signOut } = useAuth();
+  const [loans, setLoans] = useState<Loan[]>([]);
+  const [loadingLoans, setLoadingLoans] = useState(true);
 
   useEffect(() => {
-    if (!user) navigate('/auth');
-  }, [user, navigate]);
+    if (!loading && !user) navigate('/auth');
+  }, [user, loading, navigate]);
 
-  const refresh = useCallback(() => setRefreshKey(k => k + 1), []);
+  useEffect(() => {
+    if (user) fetchLoans();
+  }, [user]);
 
-  if (!user) return null;
-
-  const issuedLoans = getUserLoansAsLender(user.name);
-  const takenLoans = getUserLoansAsBorrower(user.name);
-
-  const totalIssued = issuedLoans.reduce((s, l) => s + l.amount, 0);
-  const totalTaken = takenLoans.reduce((s, l) => s + l.amount, 0);
-
-  const handleLogout = () => {
-    setCurrentUser(null);
-    setUser(null);
+  const fetchLoans = async () => {
+    const { data } = await supabase
+      .from('loans')
+      .select('*')
+      .order('created_at', { ascending: false });
+    setLoans(data || []);
+    setLoadingLoans(false);
   };
 
+  if (loading || !user) return null;
+
+  const issuedLoans = loans.filter(l => l.lender_id === user.id);
+  const takenLoans = loans.filter(l => l.borrower_id === user.id);
+  const totalIssued = issuedLoans.reduce((s, l) => s + Number(l.amount), 0);
+  const totalTaken = takenLoans.reduce((s, l) => s + Number(l.amount), 0);
+  const displayName = profile?.full_name || user.email?.split('@')[0] || 'Пользователь';
+
   return (
-    <div className="min-h-screen bg-background" key={refreshKey}>
-      {/* Header */}
+    <div className="min-h-screen bg-background">
       <header className="border-b border-border/60 bg-card/60 backdrop-blur-xl sticky top-0 z-40">
         <div className="max-w-6xl mx-auto px-6 h-16 flex items-center justify-between">
           <div className="flex items-center gap-3">
@@ -46,9 +64,9 @@ const Dashboard = () => {
           <div className="flex items-center gap-4">
             <div className="hidden sm:flex items-center gap-2 px-3 py-1.5 rounded-full bg-muted">
               <div className="w-2 h-2 rounded-full bg-accent" />
-              <span className="text-sm font-medium">{user.name}</span>
+              <span className="text-sm font-medium">{displayName}</span>
             </div>
-            <button onClick={handleLogout} className="p-2.5 rounded-xl hover:bg-muted transition-colors text-muted-foreground hover:text-foreground">
+            <button onClick={signOut} className="p-2.5 rounded-xl hover:bg-muted transition-colors text-muted-foreground hover:text-foreground">
               <LogOut className="w-4 h-4" />
             </button>
           </div>
@@ -56,25 +74,24 @@ const Dashboard = () => {
       </header>
 
       <main className="max-w-6xl mx-auto px-6 py-8">
-        {/* Welcome */}
         <div className="mb-8">
-          <h1 className="text-2xl font-bold font-display">Добрый день, {user.name.split(' ')[0]} 👋</h1>
+          <h1 className="text-2xl font-bold font-display">Добрый день, {displayName.split(' ')[0]} 👋</h1>
           <p className="text-muted-foreground mt-1">Вот обзор ваших займов</p>
         </div>
 
         {/* Stats */}
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-5 mb-10">
-          <div className="card-elevated p-6 group hover:shadow-[0_2px_8px_rgba(0,0,0,0.04),0_8px_32px_rgba(0,0,0,0.08)] transition-shadow">
+          <div className="card-elevated p-6">
             <div className="flex items-center justify-between mb-4">
               <span className="stat-label">Всего договоров</span>
               <div className="w-10 h-10 rounded-xl bg-muted flex items-center justify-center">
                 <FileText className="w-5 h-5 text-muted-foreground" />
               </div>
             </div>
-            <div className="stat-value">{issuedLoans.length + takenLoans.length}</div>
-            <p className="text-xs text-muted-foreground mt-1">активных договоров</p>
+            <div className="stat-value">{loans.length}</div>
+            <p className="text-xs text-muted-foreground mt-1">договоров</p>
           </div>
-          <div className="card-elevated p-6 group hover:shadow-[0_2px_8px_rgba(0,0,0,0.04),0_8px_32px_rgba(0,0,0,0.08)] transition-shadow">
+          <div className="card-elevated p-6">
             <div className="flex items-center justify-between mb-4">
               <span className="stat-label">Выдано</span>
               <div className="w-10 h-10 rounded-xl bg-accent/10 flex items-center justify-center">
@@ -84,7 +101,7 @@ const Dashboard = () => {
             <div className="stat-value text-accent">{totalIssued.toLocaleString('ru-RU')} ₽</div>
             <p className="text-xs text-muted-foreground mt-1">{issuedLoans.length} займов выдано</p>
           </div>
-          <div className="card-elevated p-6 group hover:shadow-[0_2px_8px_rgba(0,0,0,0.04),0_8px_32px_rgba(0,0,0,0.08)] transition-shadow">
+          <div className="card-elevated p-6">
             <div className="flex items-center justify-between mb-4">
               <span className="stat-label">Получено</span>
               <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center">
@@ -99,68 +116,95 @@ const Dashboard = () => {
         {/* Action */}
         <div className="flex items-center justify-between mb-6">
           <h2 className="text-xl font-bold font-display">Мои займы</h2>
-          <Button onClick={() => setShowForm(true)} className="gap-2 rounded-xl h-11 px-5">
+          <Button onClick={() => navigate('/loans/create')} className="gap-2 rounded-xl h-11 px-5">
             <Plus className="w-4 h-4" />
             Новый договор
           </Button>
         </div>
 
-        {/* Loans issued */}
-        {issuedLoans.length > 0 && (
-          <div className="mb-8">
-            <div className="flex items-center gap-2 mb-4">
-              <div className="w-1.5 h-5 rounded-full bg-accent" />
-              <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">
-                Выданные займы
-              </h3>
-            </div>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-              {issuedLoans.map(loan => (
-                <LoanCard key={loan.id} loan={loan} type="issued" />
-              ))}
-            </div>
-          </div>
-        )}
-
-        {/* Loans taken */}
-        {takenLoans.length > 0 && (
-          <div className="mb-8">
-            <div className="flex items-center gap-2 mb-4">
-              <div className="w-1.5 h-5 rounded-full bg-primary" />
-              <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">
-                Полученные займы
-              </h3>
-            </div>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-              {takenLoans.map(loan => (
-                <LoanCard key={loan.id} loan={loan} type="taken" />
-              ))}
-            </div>
-          </div>
-        )}
-
-        {issuedLoans.length === 0 && takenLoans.length === 0 && (
+        {/* Loans list */}
+        {loadingLoans ? (
+          <div className="text-center py-16 text-muted-foreground">Загрузка...</div>
+        ) : loans.length === 0 ? (
           <div className="card-elevated p-16 text-center">
             <div className="w-16 h-16 rounded-2xl bg-muted flex items-center justify-center mx-auto mb-5">
               <Wallet className="w-8 h-8 text-muted-foreground" />
             </div>
             <p className="text-lg font-semibold font-display mb-1">У вас пока нет займов</p>
             <p className="text-sm text-muted-foreground mb-6">Создайте свой первый договор займа</p>
-            <Button onClick={() => setShowForm(true)} variant="outline" className="gap-2 rounded-xl">
+            <Button onClick={() => navigate('/loans/create')} variant="outline" className="gap-2 rounded-xl">
               <Plus className="w-4 h-4" />
               Создать договор
             </Button>
           </div>
+        ) : (
+          <div className="space-y-8">
+            {issuedLoans.length > 0 && (
+              <div>
+                <div className="flex items-center gap-2 mb-4">
+                  <div className="w-1.5 h-5 rounded-full bg-accent" />
+                  <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">Выданные займы</h3>
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+                  {issuedLoans.map(loan => (
+                    <LoanCardItem key={loan.id} loan={loan} type="issued" />
+                  ))}
+                </div>
+              </div>
+            )}
+            {takenLoans.length > 0 && (
+              <div>
+                <div className="flex items-center gap-2 mb-4">
+                  <div className="w-1.5 h-5 rounded-full bg-primary" />
+                  <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">Полученные займы</h3>
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+                  {takenLoans.map(loan => (
+                    <LoanCardItem key={loan.id} loan={loan} type="taken" />
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
         )}
       </main>
+    </div>
+  );
+};
 
-      {showForm && (
-        <CreateLoanForm
-          currentUserName={user.name}
-          onClose={() => setShowForm(false)}
-          onCreated={refresh}
-        />
-      )}
+const LoanCardItem = ({ loan, type }: { loan: Tables<'loans'>; type: 'issued' | 'taken' }) => {
+  const navigate = useNavigate();
+  const status = statusLabels[loan.status] || statusLabels.draft;
+
+  return (
+    <div
+      onClick={() => navigate(`/loans/${loan.id}`)}
+      className="card-elevated p-6 hover:shadow-[0_2px_8px_rgba(0,0,0,0.04),0_8px_32px_rgba(0,0,0,0.08)] transition-all group cursor-pointer"
+    >
+      <div className="flex items-start justify-between mb-4">
+        <div className="flex items-center gap-3">
+          <div className={`w-11 h-11 rounded-xl flex items-center justify-center transition-colors ${
+            type === 'issued' ? 'bg-accent/10 group-hover:bg-accent/15' : 'bg-primary/10 group-hover:bg-primary/15'
+          }`}>
+            {type === 'issued'
+              ? <ArrowUpRight className="w-5 h-5 text-accent" />
+              : <ArrowDownLeft className="w-5 h-5 text-primary" />}
+          </div>
+          <div>
+            <p className="font-semibold text-sm">{type === 'issued' ? loan.borrower_name : loan.lender_name}</p>
+            <p className="text-xs text-muted-foreground mt-0.5">{type === 'issued' ? 'Заёмщик' : 'Займодавец'}</p>
+          </div>
+        </div>
+        <span className={`pill-badge ${status.class}`}>{status.label}</span>
+      </div>
+      <div className="stat-value mb-1">{Number(loan.amount).toLocaleString('ru-RU')} ₽</div>
+      <div className="flex items-center justify-between mt-4 pt-4 border-t border-border/50">
+        <div className="flex items-center gap-4 text-xs text-muted-foreground">
+          <span>{Number(loan.interest_rate)}%</span>
+          <span>до {new Date(loan.repayment_date).toLocaleDateString('ru-RU')}</span>
+        </div>
+        <Eye className="w-4 h-4 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity" />
+      </div>
     </div>
   );
 };
