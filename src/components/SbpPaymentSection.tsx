@@ -1,11 +1,12 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 import { toast } from 'sonner';
-import { Banknote, Copy, ExternalLink, CheckCircle2, Upload, Loader2, Smartphone, CreditCard } from 'lucide-react';
+import { Banknote, Copy, CheckCircle2, Upload, Loader2, Smartphone, QrCode } from 'lucide-react';
+import { QRCodeSVG } from 'qrcode.react';
 import BorrowerPaymentMethodPicker from '@/components/BorrowerPaymentMethodPicker';
 import type { Tables } from '@/integrations/supabase/types';
 
@@ -37,6 +38,7 @@ const SbpPaymentSection = ({ loan, payments, onSuccess }: SbpPaymentSectionProps
   const [screenshot, setScreenshot] = useState<File | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [copied, setCopied] = useState<string | null>(null);
+  const [showQr, setShowQr] = useState(false);
 
   const isLender = user?.id === loan.lender_id;
   const loanNumber = loan.id.slice(0, 8).toUpperCase();
@@ -50,13 +52,18 @@ const SbpPaymentSection = ({ loan, payments, onSuccess }: SbpPaymentSectionProps
     setTimeout(() => setCopied(null), 2000);
   };
 
+  const paymentComment = `По договору займа №${loanNumber}`;
+
+  const sbpLink = selectedMethod?.phone
+    ? `sbp://pay?phone=${encodeURIComponent(selectedMethod.phone)}&amount=${loan.amount}&comment=${encodeURIComponent(paymentComment)}`
+    : '';
+
   const handleOpenSbp = () => {
-    if (!selectedMethod?.phone) {
+    if (!sbpLink) {
       toast.error('Выберите СБП реквизит с номером телефона');
       return;
     }
-    const link = `sbp://pay?phone=${encodeURIComponent(selectedMethod.phone)}&amount=${loan.amount}&comment=${encodeURIComponent(`Перевод по договору займа №${loanNumber}`)}`;
-    window.location.href = link;
+    window.location.href = sbpLink;
   };
 
   const handleConfirmPayment = async () => {
@@ -91,7 +98,7 @@ const SbpPaymentSection = ({ loan, payments, onSuccess }: SbpPaymentSectionProps
         transfer_method: selectedMethod.method_type,
         transfer_amount: Number(loan.amount),
         bank_name: selectedMethod.bank_name || (selectedMethod.method_type === 'sbp' ? 'СБП' : 'Карта'),
-        payment_reference: `Перевод по договору займа №${loanNumber}`,
+        payment_reference: paymentComment,
         transaction_id: transactionId.trim(),
         transfer_date: transferDate,
         screenshot_url: screenshotUrl,
@@ -125,7 +132,7 @@ const SbpPaymentSection = ({ loan, payments, onSuccess }: SbpPaymentSectionProps
           ...(selectedMethod.card_holder ? [{ label: 'Держатель', value: selectedMethod.card_holder }] : []),
         ]),
     ...(selectedMethod.bank_name ? [{ label: 'Банк', value: selectedMethod.bank_name }] : []),
-    { label: 'Назначение', value: `Перевод по договору займа №${loanNumber}` },
+    { label: 'Назначение', value: paymentComment },
   ] : [];
 
   return (
@@ -199,13 +206,36 @@ const SbpPaymentSection = ({ loan, payments, onSuccess }: SbpPaymentSectionProps
         <>
           {/* SBP button if method is SBP */}
           {selectedMethod.method_type === 'sbp' && selectedMethod.phone && (
-            <Button
-              onClick={handleOpenSbp}
-              className="w-full h-12 rounded-xl gap-2 text-sm font-semibold mb-6"
-            >
-              <Smartphone className="w-4 h-4" />
-              Оплатить через СБП
-            </Button>
+            <div className="space-y-3 mb-6">
+              <Button
+                onClick={handleOpenSbp}
+                className="w-full h-12 rounded-xl gap-2 text-sm font-semibold"
+              >
+                <Smartphone className="w-4 h-4" />
+                Оплатить через банковское приложение (СБП)
+              </Button>
+
+              <Button
+                variant="outline"
+                className="w-full rounded-xl gap-2"
+                onClick={() => setShowQr(!showQr)}
+              >
+                <QrCode className="w-4 h-4" />
+                {showQr ? 'Скрыть QR-код' : 'Показать QR-код для оплаты'}
+              </Button>
+
+              {showQr && sbpLink && (
+                <div className="flex flex-col items-center gap-3 p-6 rounded-xl bg-muted/30 border border-border/50">
+                  <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Оплата через QR СБП</p>
+                  <div className="bg-white p-4 rounded-xl">
+                    <QRCodeSVG value={sbpLink} size={200} />
+                  </div>
+                  <p className="text-xs text-muted-foreground text-center max-w-[240px]">
+                    Отсканируйте QR-код камерой или банковским приложением
+                  </p>
+                </div>
+              )}
+            </div>
           )}
 
           {/* Payment confirmation */}
