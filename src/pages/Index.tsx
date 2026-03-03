@@ -1,14 +1,16 @@
 import { useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { getCurrentUser } from '@/lib/store';
+import { useAuth } from '@/hooks/useAuth';
 
 const Index = () => {
   const navigate = useNavigate();
+  const { user, loading } = useAuth();
 
   useEffect(() => {
-    const user = getCurrentUser();
-    navigate(user ? '/dashboard' : '/auth');
-  }, [navigate]);
+    if (!loading) {
+      navigate(user ? '/dashboard' : '/auth');
+    }
+  }, [user, loading, navigate]);
 
   return null;
 };
