@@ -59,12 +59,38 @@ const SbpPaymentSection = ({ loan, payments, onSuccess }: SbpPaymentSectionProps
     ? `sbp://pay?phone=${encodeURIComponent(selectedMethod.phone)}&amount=${loan.amount}&comment=${encodeURIComponent(paymentComment)}`
     : '';
 
+  const sberLink = selectedMethod?.phone
+    ? `sberbankonline://transfer?recipientPhone=${encodeURIComponent(selectedMethod.phone)}&amount=${loan.amount}&currency=RUB&comment=${encodeURIComponent(paymentComment)}`
+    : '';
+
+  const tbankLink = selectedMethod?.phone
+    ? `bank100000000004://transfer?phone=${encodeURIComponent(selectedMethod.phone)}&amount=${loan.amount}&comment=${encodeURIComponent(paymentComment)}`
+    : '';
+
+  const [qrLink, setQrLink] = useState<string>('');
+
   const handleOpenSbp = () => {
     if (!sbpLink) {
       toast.error('Выберите СБП реквизит с номером телефона');
       return;
     }
     window.location.href = sbpLink;
+  };
+
+  const handleOpenSber = () => {
+    if (!sberLink) {
+      toast.error('Выберите реквизит с номером телефона');
+      return;
+    }
+    window.location.href = sberLink;
+  };
+
+  const handleOpenTbank = () => {
+    if (!tbankLink) {
+      toast.error('Выберите реквизит с номером телефона');
+      return;
+    }
+    window.location.href = tbankLink;
   };
 
   const handleConfirmPayment = async () => {
@@ -208,40 +234,77 @@ const SbpPaymentSection = ({ loan, payments, onSuccess }: SbpPaymentSectionProps
           {/* SBP button if method is SBP */}
           {selectedMethod.method_type === 'sbp' && selectedMethod.phone && (
             <div className="space-y-3 mb-6">
+              {/* Bank-specific deep links */}
+              <Button
+                onClick={handleOpenSber}
+                className="w-full h-12 rounded-xl gap-2 text-sm font-semibold bg-[hsl(120,60%,35%)] hover:bg-[hsl(120,60%,30%)] text-white"
+              >
+                <Smartphone className="w-4 h-4" />
+                Перевести через Сбер
+              </Button>
+
+              <Button
+                onClick={handleOpenTbank}
+                className="w-full h-12 rounded-xl gap-2 text-sm font-semibold bg-[hsl(45,90%,50%)] hover:bg-[hsl(45,90%,45%)] text-[hsl(0,0%,10%)]"
+              >
+                <Smartphone className="w-4 h-4" />
+                Перевести через Т-Банк
+              </Button>
+
               <Button
                 onClick={handleOpenSbp}
+                variant="outline"
                 className="w-full h-12 rounded-xl gap-2 text-sm font-semibold"
               >
                 <Smartphone className="w-4 h-4" />
-                Оплатить через банковское приложение (СБП)
+                Оплатить через СБП (любой банк)
               </Button>
 
-              <Button
-                variant="outline"
-                className="w-full rounded-xl gap-2"
-                onClick={() => setShowQr(!showQr)}
-              >
-                <QrCode className="w-4 h-4" />
-                {showQr ? 'Скрыть QR-код' : 'Показать QR-код для оплаты'}
-              </Button>
+              {/* QR buttons */}
+              <div className="grid grid-cols-2 gap-2">
+                <Button
+                  variant="outline"
+                  className="rounded-xl gap-2 text-xs"
+                  onClick={() => { setQrLink(sberLink); setShowQr(!showQr || qrLink !== sberLink); }}
+                >
+                  <QrCode className="w-4 h-4" />
+                  QR Сбер
+                </Button>
+                <Button
+                  variant="outline"
+                  className="rounded-xl gap-2 text-xs"
+                  onClick={() => { setShowQr(!showQr || qrLink !== 'emvco'); setQrLink('emvco'); }}
+                >
+                  <QrCode className="w-4 h-4" />
+                  QR СБП (NSPK)
+                </Button>
+              </div>
 
               {showQr && selectedMethod?.phone && (
                 <div className="flex flex-col items-center gap-3 p-6 rounded-xl bg-muted/30 border border-border/50">
-                  <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Оплата через QR СБП (NSPK EMVCo)</p>
+                  <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                    {qrLink === 'emvco' ? 'QR СБП (NSPK EMVCo)' : 'QR для Сбербанк'}
+                  </p>
                   <div className="bg-white p-4 rounded-xl">
                     <QRCodeSVG
-                      value={generateSbpEmvQr({
-                        phone: selectedMethod.phone,
-                        amount: Number(loan.amount),
-                        recipientName: loan.borrower_name,
-                        city: loan.city,
-                        comment: paymentComment,
-                      })}
+                      value={
+                        qrLink === 'emvco'
+                          ? generateSbpEmvQr({
+                              phone: selectedMethod.phone,
+                              amount: Number(loan.amount),
+                              recipientName: loan.borrower_name,
+                              city: loan.city,
+                              comment: paymentComment,
+                            })
+                          : qrLink
+                      }
                       size={200}
                     />
                   </div>
-                  <p className="text-xs text-muted-foreground text-center max-w-[240px]">
-                    Отсканируйте QR-код банковским приложением (Сбер, Т-Банк, ВТБ и др.)
+                  <p className="text-xs text-muted-foreground text-center max-w-[260px]">
+                    {qrLink === 'emvco'
+                      ? 'Отсканируйте банковским приложением (Сбер, Т-Банк, ВТБ и др.)'
+                      : 'Отсканируйте камерой смартфона — откроется приложение Сбербанк'}
                   </p>
                 </div>
               )}
