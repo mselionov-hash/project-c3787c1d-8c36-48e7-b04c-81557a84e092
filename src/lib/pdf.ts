@@ -1,5 +1,12 @@
 import jsPDF from 'jspdf';
 
+interface SignatureData {
+  role: string;
+  signature_data: string;
+  signed_at: string;
+  signer_ip: string | null;
+}
+
 interface LoanPDFData {
   id: string;
   lender_name: string;
@@ -18,6 +25,7 @@ interface LoanPDFData {
   created_at: string;
   transaction_id?: string;
   transfer_date?: string;
+  signatures?: SignatureData[];
 }
 
 export function generateLoanPDF(loan: LoanPDFData) {
@@ -91,7 +99,6 @@ export function generateLoanPDF(loan: LoanPDFData) {
   addWrappedText('3.1. Передача денежных средств осуществляется путем банковского перевода либо иным способом, согласованным сторонами.');
   addWrappedText('3.2. Моментом передачи денежных средств считается момент их зачисления на счет Заемщика.');
 
-  // Payment confirmation
   if (loan.transaction_id && loan.transfer_date) {
     checkPage();
     y += 2;
@@ -113,18 +120,66 @@ export function generateLoanPDF(loan: LoanPDFData) {
   addWrappedText('6.1. Настоящий договор вступает в силу с момента его подписания сторонами.');
   addWrappedText('6.2. Договор составлен в электронной форме и подписан электронной подписью сторон.');
 
-  // Signatures
+  // Signatures section
   checkPage();
   y += 10;
-  doc.setLineWidth(0.3);
-  doc.text('Займодавец:', margin, y);
-  doc.text('Заемщик:', pageWidth / 2 + 10, y);
+
+  const lenderSig = loan.signatures?.find(s => s.role === 'lender');
+  const borrowerSig = loan.signatures?.find(s => s.role === 'borrower');
+
+  const sigLeftX = margin;
+  const sigRightX = pageWidth / 2 + 10;
+
+  doc.setFontSize(10);
+  doc.text('Займодавец:', sigLeftX, y);
+  doc.text('Заемщик:', sigRightX, y);
   y += 7;
-  doc.text(loan.lender_name, margin, y);
-  doc.text(loan.borrower_name, pageWidth / 2 + 10, y);
-  y += 10;
-  doc.text('Подпись: ___________________', margin, y);
-  doc.text('Подпись: ___________________', pageWidth / 2 + 10, y);
+  doc.text(loan.lender_name, sigLeftX, y);
+  doc.text(loan.borrower_name, sigRightX, y);
+  y += 5;
+
+  // Add signature images if available
+  if (lenderSig || borrowerSig) {
+    y += 3;
+    const sigHeight = 20;
+    const sigWidth = 50;
+
+    if (lenderSig) {
+      try {
+        doc.addImage(lenderSig.signature_data, 'PNG', sigLeftX, y, sigWidth, sigHeight);
+        doc.setFontSize(7);
+        doc.text(
+          `Подписано: ${new Date(lenderSig.signed_at).toLocaleString('ru-RU')}${lenderSig.signer_ip ? ` | IP: ${lenderSig.signer_ip}` : ''}`,
+          sigLeftX, y + sigHeight + 4
+        );
+      } catch (e) {
+        doc.text('Подпись: [электронная подпись]', sigLeftX, y + 5);
+      }
+    } else {
+      doc.setFontSize(10);
+      doc.text('Подпись: ___________________', sigLeftX, y + 10);
+    }
+
+    if (borrowerSig) {
+      try {
+        doc.addImage(borrowerSig.signature_data, 'PNG', sigRightX, y, sigWidth, sigHeight);
+        doc.setFontSize(7);
+        doc.text(
+          `Подписано: ${new Date(borrowerSig.signed_at).toLocaleString('ru-RU')}${borrowerSig.signer_ip ? ` | IP: ${borrowerSig.signer_ip}` : ''}`,
+          sigRightX, y + sigHeight + 4
+        );
+      } catch (e) {
+        doc.text('Подпись: [электронная подпись]', sigRightX, y + 5);
+      }
+    } else {
+      doc.setFontSize(10);
+      doc.text('Подпись: ___________________', sigRightX, y + 10);
+    }
+  } else {
+    y += 5;
+    doc.text('Подпись: ___________________', sigLeftX, y);
+    doc.text('Подпись: ___________________', sigRightX, y);
+  }
 
   doc.save(`договор-займа-${loanNumber}.pdf`);
 }
