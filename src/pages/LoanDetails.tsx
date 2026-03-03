@@ -5,11 +5,12 @@ import { supabase } from '@/integrations/supabase/client';
 import { generateLoanPDF } from '@/lib/pdf';
 import SignaturePad from '@/components/SignaturePad';
 import PaymentModal from '@/components/PaymentModal';
+import SendLoanModal from '@/components/SendLoanModal';
 import { Button } from '@/components/ui/button';
 import { toast } from 'sonner';
 import {
   ArrowLeft, Download, PenTool, Banknote, CheckCircle2, Clock, FileText,
-  User, Calendar, Percent, MapPin, AlertTriangle, Shield
+  User, Calendar, Percent, MapPin, AlertTriangle, Shield, Send
 } from 'lucide-react';
 import type { Tables } from '@/integrations/supabase/types';
 
@@ -40,6 +41,7 @@ const LoanDetails = () => {
   const [loading, setLoading] = useState(true);
   const [showSignature, setShowSignature] = useState(false);
   const [showPayment, setShowPayment] = useState(false);
+  const [showSend, setShowSend] = useState(false);
 
   useEffect(() => {
     if (!authLoading && !user) navigate('/auth');
@@ -67,7 +69,6 @@ const LoanDetails = () => {
     const role = loan.lender_id === user.id ? 'lender' : 'borrower';
 
     try {
-      // Get IP
       let ip = '';
       try {
         const res = await fetch('https://api.ipify.org?format=json');
@@ -84,7 +85,6 @@ const LoanDetails = () => {
       });
       if (error) throw error;
 
-      // Update loan status
       const lenderSigned = role === 'lender' || signatures.some(s => s.role === 'lender');
       const borrowerSigned = role === 'borrower' || signatures.some(s => s.role === 'borrower');
 
@@ -114,6 +114,12 @@ const LoanDetails = () => {
       ...loan,
       transaction_id: latestPayment?.transaction_id || undefined,
       transfer_date: latestPayment?.transfer_date || undefined,
+      signatures: signatures.map(s => ({
+        role: s.role,
+        signature_data: s.signature_data,
+        signed_at: s.signed_at,
+        signer_ip: s.signer_ip,
+      })),
     });
   };
 
@@ -134,6 +140,7 @@ const LoanDetails = () => {
   const isBorrower = user?.id === loan.borrower_id;
   const canSign = (isLender && !lenderSig) || (isBorrower && !borrowerSig);
   const canPay = ['fully_signed', 'awaiting_payment'].includes(loan.status) && isLender;
+  const canSend = isLender && !loan.borrower_id;
 
   return (
     <div className="min-h-screen bg-background">
@@ -149,6 +156,12 @@ const LoanDetails = () => {
             </div>
           </div>
           <div className="flex items-center gap-3">
+            {canSend && (
+              <Button onClick={() => setShowSend(true)} variant="outline" className="gap-2 rounded-xl">
+                <Send className="w-4 h-4" />
+                <span className="hidden sm:inline">Отправить</span>
+              </Button>
+            )}
             <Button variant="outline" onClick={handleDownloadPDF} className="gap-2 rounded-xl">
               <Download className="w-4 h-4" />
               <span className="hidden sm:inline">Скачать PDF</span>
@@ -158,6 +171,21 @@ const LoanDetails = () => {
       </header>
 
       <main className="max-w-4xl mx-auto px-6 py-8 space-y-6">
+        {/* Send notification banner */}
+        {canSend && (
+          <div className="card-elevated p-5 flex items-center gap-4 bg-primary/5 border-primary/20">
+            <Send className="w-5 h-5 text-primary" />
+            <div className="flex-1">
+              <p className="font-semibold text-sm font-display">Договор ещё не отправлен заёмщику</p>
+              <p className="text-xs text-muted-foreground">Отправьте договор, чтобы заёмщик мог его подписать в своём личном кабинете</p>
+            </div>
+            <Button onClick={() => setShowSend(true)} size="sm" className="rounded-xl gap-2">
+              <Send className="w-4 h-4" />
+              Отправить
+            </Button>
+          </div>
+        )}
+
         {/* Status banner */}
         <div className={`card-elevated p-5 flex items-center gap-4 ${status.class} border-0`}>
           <StatusIcon className="w-6 h-6" />
@@ -203,7 +231,6 @@ const LoanDetails = () => {
           </div>
 
           <div className="space-y-6">
-            {/* Lender */}
             <div className="card-elevated p-7">
               <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider mb-4">Займодавец</h3>
               <div className="flex items-center gap-3 mb-3">
@@ -218,7 +245,6 @@ const LoanDetails = () => {
               {loan.lender_address && <p className="text-xs text-muted-foreground">{loan.lender_address}</p>}
             </div>
 
-            {/* Borrower */}
             <div className="card-elevated p-7">
               <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider mb-4">Заёмщик</h3>
               <div className="flex items-center gap-3 mb-3">
@@ -231,6 +257,12 @@ const LoanDetails = () => {
                 </div>
               </div>
               {loan.borrower_address && <p className="text-xs text-muted-foreground">{loan.borrower_address}</p>}
+              {!loan.borrower_id && (
+                <p className="text-xs text-warning mt-2 flex items-center gap-1">
+                  <AlertTriangle className="w-3 h-3" />
+                  Заёмщик ещё не привязан к аккаунту
+                </p>
+              )}
             </div>
           </div>
         </div>
@@ -251,7 +283,6 @@ const LoanDetails = () => {
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            {/* Lender signature */}
             <div className={`rounded-xl border-2 p-4 ${lenderSig ? 'border-accent/30 bg-accent/5' : 'border-dashed border-border'}`}>
               <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">Займодавец</p>
               {lenderSig ? (
@@ -269,7 +300,6 @@ const LoanDetails = () => {
               )}
             </div>
 
-            {/* Borrower signature */}
             <div className={`rounded-xl border-2 p-4 ${borrowerSig ? 'border-accent/30 bg-accent/5' : 'border-dashed border-border'}`}>
               <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">Заёмщик</p>
               {borrowerSig ? (
@@ -349,6 +379,15 @@ const LoanDetails = () => {
           loanId={loan.id}
           loanAmount={Number(loan.amount)}
           onClose={() => setShowPayment(false)}
+          onSuccess={fetchAll}
+        />
+      )}
+
+      {showSend && (
+        <SendLoanModal
+          loanId={loan.id}
+          borrowerName={loan.borrower_name}
+          onClose={() => setShowSend(false)}
           onSuccess={fetchAll}
         />
       )}
