@@ -20,8 +20,14 @@ const SignaturePad = ({ onSave, onCancel, title }: SignaturePadProps) => {
 
   const handleSave = () => {
     if (sigRef.current && !sigRef.current.isEmpty()) {
-      const dataUrl = sigRef.current.getTrimmedCanvas().toDataURL('image/png');
-      onSave(dataUrl);
+      try {
+        // Use toDataURL directly instead of getTrimmedCanvas which has a broken dependency
+        const canvas = sigRef.current.getCanvas();
+        const dataUrl = canvas.toDataURL('image/png');
+        onSave(dataUrl);
+      } catch (err) {
+        console.error('Error saving signature:', err);
+      }
     }
   };
 
