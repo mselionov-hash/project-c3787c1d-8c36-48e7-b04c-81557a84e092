@@ -3,61 +3,115 @@ import { Loan } from './types';
 
 export function generateLoanPDF(loan: Loan) {
   const doc = new jsPDF();
-  
+
+  doc.addFont('/fonts/NotoSans-Regular.ttf', 'NotoSans', 'normal');
+  doc.setFont('NotoSans');
+
   const pageWidth = doc.internal.pageSize.getWidth();
-  
+  const margin = 20;
+  const usableWidth = pageWidth - margin * 2;
+  let y = 20;
+
+  const loanNumber = loan.id.slice(0, 8).toUpperCase();
+  const date = new Date(loan.createdAt).toLocaleDateString('ru-RU', {
+    day: 'numeric',
+    month: 'long',
+    year: 'numeric',
+  });
+  const totalAmount = loan.amount + (loan.amount * loan.interestRate) / 100;
+
   // Title
-  doc.setFontSize(20);
-  doc.setFont('helvetica', 'bold');
-  doc.text('DOGOVOR ZAJMA', pageWidth / 2, 30, { align: 'center' });
-  
+  doc.setFontSize(14);
+  const title = `ДОГОВОР ЗАЙМА № ${loanNumber}`;
+  doc.text(title, pageWidth / 2, y, { align: 'center' });
+  y += 10;
+
+  doc.setFontSize(11);
+  doc.text(`г. ${loan.city}`, margin, y);
+  doc.text(`«${date}»`, pageWidth - margin, y, { align: 'right' });
+  y += 12;
+
   doc.setFontSize(10);
-  doc.setFont('helvetica', 'normal');
-  doc.text(`No ${loan.id.slice(0, 8)}`, pageWidth / 2, 38, { align: 'center' });
-  doc.text(`Data sozdaniya: ${new Date(loan.createdAt).toLocaleDateString('ru-RU')}`, pageWidth / 2, 44, { align: 'center' });
 
-  // Separator
-  doc.setLineWidth(0.5);
-  doc.line(20, 50, pageWidth - 20, 50);
-
-  // Body
-  let y = 65;
-  doc.setFontSize(12);
-  
-  const addField = (label: string, value: string) => {
-    doc.setFont('helvetica', 'bold');
-    doc.text(`${label}:`, 25, y);
-    doc.setFont('helvetica', 'normal');
-    doc.text(value, 80, y);
-    y += 10;
+  const addWrappedText = (text: string) => {
+    const lines = doc.splitTextToSize(text, usableWidth);
+    doc.text(lines, margin, y);
+    y += lines.length * 5.5;
   };
 
-  addField('Zajmodavec', loan.lenderName);
-  addField('Zaemschik', loan.borrowerName);
-  addField('Summa', `${loan.amount.toLocaleString('ru-RU')} rub.`);
-  addField('Stavka', `${loan.interestRate}% godovyh`);
-  addField('Data vozvrata', new Date(loan.repaymentDate).toLocaleDateString('ru-RU'));
+  const addSection = (title: string) => {
+    y += 4;
+    doc.setFontSize(11);
+    doc.text(title, margin, y);
+    y += 7;
+    doc.setFontSize(10);
+  };
 
-  if (loan.notes) {
-    y += 5;
-    doc.setFont('helvetica', 'bold');
-    doc.text('Primechaniya:', 25, y);
-    y += 8;
-    doc.setFont('helvetica', 'normal');
-    const lines = doc.splitTextToSize(loan.notes, pageWidth - 50);
-    doc.text(lines, 25, y);
-    y += lines.length * 6;
-  }
+  // Preamble
+  addWrappedText(
+    `Гражданин Российской Федерации ${loan.lenderName}, паспорт: ${loan.lenderPassport}, именуемый в дальнейшем «Займодавец», с одной стороны, и гражданин Российской Федерации ${loan.borrowerName}, паспорт: ${loan.borrowerPassport}, именуемый в дальнейшем «Заемщик», с другой стороны, заключили настоящий договор о нижеследующем.`
+  );
+
+  // Section 1
+  addSection('1. Предмет договора');
+  addWrappedText(
+    `1.1. Займодавец передает Заемщику денежные средства в размере ${loan.amount.toLocaleString('ru-RU')} рублей.`
+  );
+  addWrappedText(
+    `1.2. Заемщик обязуется вернуть указанную сумму займа в срок до ${new Date(loan.repaymentDate).toLocaleDateString('ru-RU')}.`
+  );
+
+  // Section 2
+  addSection('2. Проценты по займу');
+  addWrappedText(
+    `2.1. За пользование денежными средствами устанавливается процентная ставка ${loan.interestRate} %.`
+  );
+  addWrappedText(
+    `2.2. Общая сумма к возврату составляет ${totalAmount.toLocaleString('ru-RU')} рублей.`
+  );
+
+  // Section 3
+  addSection('3. Порядок передачи денежных средств');
+  addWrappedText(
+    '3.1. Передача денежных средств осуществляется путем банковского перевода либо иным способом, согласованным сторонами.'
+  );
+  addWrappedText(
+    '3.2. Моментом передачи денежных средств считается момент их зачисления на счет Заемщика.'
+  );
+
+  // Section 4
+  addSection('4. Ответственность сторон');
+  addWrappedText(
+    `4.1. В случае просрочки возврата займа Заемщик обязан уплатить неустойку в размере ${loan.penaltyRate} % от суммы задолженности за каждый день просрочки.`
+  );
+
+  // Section 5
+  addSection('5. Разрешение споров');
+  addWrappedText(
+    '5.1. Все споры и разногласия, возникающие из настоящего договора, подлежат разрешению в судебном порядке в соответствии с законодательством Российской Федерации.'
+  );
+
+  // Section 6
+  addSection('6. Заключительные положения');
+  addWrappedText(
+    '6.1. Настоящий договор вступает в силу с момента его подписания сторонами.'
+  );
+  addWrappedText(
+    '6.2. Договор составлен в электронной форме и подписан электронной подписью сторон.'
+  );
 
   // Signatures
-  y += 20;
+  y += 10;
   doc.setLineWidth(0.3);
-  doc.line(25, y, 90, y);
-  doc.line(pageWidth - 90, y, pageWidth - 25, y);
-  y += 6;
-  doc.setFontSize(10);
-  doc.text('Zajmodavec', 25, y);
-  doc.text('Zaemschik', pageWidth - 90, y);
 
-  doc.save(`dogovor-zajma-${loan.id.slice(0, 8)}.pdf`);
+  doc.text('Займодавец:', margin, y);
+  doc.text('Заемщик:', pageWidth / 2 + 10, y);
+  y += 7;
+  doc.text(loan.lenderName, margin, y);
+  doc.text(loan.borrowerName, pageWidth / 2 + 10, y);
+  y += 10;
+  doc.text('Подпись: ___________________', margin, y);
+  doc.text('Подпись: ___________________', pageWidth / 2 + 10, y);
+
+  doc.save(`договор-займа-${loanNumber}.pdf`);
 }
