@@ -3,7 +3,7 @@ import { useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
 import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
-import { Plus, LogOut, ArrowUpRight, ArrowDownLeft, Wallet, FileText, TrendingUp, Eye } from 'lucide-react';
+import { Plus, LogOut, ArrowUpRight, ArrowDownLeft, Wallet, FileText, TrendingUp, Eye, UserCircle } from 'lucide-react';
 import type { Tables } from '@/integrations/supabase/types';
 
 type Loan = Tables<'loans'>;
@@ -66,6 +66,9 @@ const Dashboard = () => {
               <div className="w-2 h-2 rounded-full bg-accent" />
               <span className="text-sm font-medium">{displayName}</span>
             </div>
+            <button onClick={() => navigate('/profile')} className="p-2.5 rounded-xl hover:bg-muted transition-colors text-muted-foreground hover:text-foreground" title="Профиль">
+              <UserCircle className="w-4 h-4" />
+            </button>
             <button onClick={signOut} className="p-2.5 rounded-xl hover:bg-muted transition-colors text-muted-foreground hover:text-foreground">
               <LogOut className="w-4 h-4" />
             </button>
