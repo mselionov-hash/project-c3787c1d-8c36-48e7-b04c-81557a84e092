@@ -54,37 +54,37 @@ const Dashboard = () => {
   return (
     <div className="min-h-screen bg-background">
       <header className="border-b border-border/60 bg-card/60 backdrop-blur-xl sticky top-0 z-40">
-        <div className="max-w-6xl mx-auto px-6 h-16 flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <div className="w-9 h-9 rounded-xl bg-primary flex items-center justify-center">
+        <div className="max-w-6xl mx-auto px-4 sm:px-6 h-14 sm:h-16 flex items-center justify-between">
+          <div className="flex items-center gap-2 sm:gap-3">
+            <div className="w-8 h-8 sm:w-9 sm:h-9 rounded-xl bg-primary flex items-center justify-center">
               <TrendingUp className="w-4 h-4 text-primary-foreground" />
             </div>
-            <span className="font-bold text-lg font-display">P2P Займы</span>
+            <span className="font-bold text-base sm:text-lg font-display">P2P Займы</span>
           </div>
-          <div className="flex items-center gap-4">
+          <div className="flex items-center gap-2 sm:gap-4">
             <div className="hidden sm:flex items-center gap-2 px-3 py-1.5 rounded-full bg-muted">
               <div className="w-2 h-2 rounded-full bg-accent" />
               <span className="text-sm font-medium">{displayName}</span>
             </div>
-            <button onClick={() => navigate('/profile')} className="p-2.5 rounded-xl hover:bg-muted transition-colors text-muted-foreground hover:text-foreground" title="Профиль">
-              <UserCircle className="w-4 h-4" />
+            <button onClick={() => navigate('/profile')} className="p-2 sm:p-2.5 rounded-xl hover:bg-muted transition-colors text-muted-foreground hover:text-foreground" title="Профиль">
+              <UserCircle className="w-5 h-5" />
             </button>
-            <button onClick={signOut} className="p-2.5 rounded-xl hover:bg-muted transition-colors text-muted-foreground hover:text-foreground">
-              <LogOut className="w-4 h-4" />
+            <button onClick={signOut} className="p-2 sm:p-2.5 rounded-xl hover:bg-muted transition-colors text-muted-foreground hover:text-foreground" title="Выйти">
+              <LogOut className="w-5 h-5" />
             </button>
           </div>
         </div>
       </header>
 
-      <main className="max-w-6xl mx-auto px-6 py-8">
-        <div className="mb-8">
-          <h1 className="text-2xl font-bold font-display">Добрый день, {displayName.split(' ')[0]} 👋</h1>
-          <p className="text-muted-foreground mt-1">Вот обзор ваших займов</p>
+      <main className="max-w-6xl mx-auto px-4 sm:px-6 py-6 sm:py-8">
+        <div className="mb-6 sm:mb-8">
+          <h1 className="text-xl sm:text-2xl font-bold font-display">Добрый день, {displayName.split(' ')[0]} 👋</h1>
+          <p className="text-muted-foreground mt-1 text-sm">Вот обзор ваших займов</p>
         </div>
 
         {/* Stats */}
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-5 mb-10">
-          <div className="card-elevated p-6">
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 sm:gap-5 mb-8 sm:mb-10">
+          <div className="card-elevated p-5 sm:p-6">
             <div className="flex items-center justify-between mb-4">
               <span className="stat-label">Всего договоров</span>
               <div className="w-10 h-10 rounded-xl bg-muted flex items-center justify-center">
@@ -94,7 +94,7 @@ const Dashboard = () => {
             <div className="stat-value">{loans.length}</div>
             <p className="text-xs text-muted-foreground mt-1">договоров</p>
           </div>
-          <div className="card-elevated p-6">
+          <div className="card-elevated p-5 sm:p-6">
             <div className="flex items-center justify-between mb-4">
               <span className="stat-label">Выдано</span>
               <div className="w-10 h-10 rounded-xl bg-accent/10 flex items-center justify-center">
@@ -104,7 +104,7 @@ const Dashboard = () => {
             <div className="stat-value text-accent">{totalIssued.toLocaleString('ru-RU')} ₽</div>
             <p className="text-xs text-muted-foreground mt-1">{issuedLoans.length} займов выдано</p>
           </div>
-          <div className="card-elevated p-6">
+          <div className="card-elevated p-5 sm:p-6">
             <div className="flex items-center justify-between mb-4">
               <span className="stat-label">Получено</span>
               <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center">
@@ -117,11 +117,12 @@ const Dashboard = () => {
         </div>
 
         {/* Action */}
-        <div className="flex items-center justify-between mb-6">
-          <h2 className="text-xl font-bold font-display">Мои займы</h2>
-          <Button onClick={() => navigate('/loans/create')} className="gap-2 rounded-xl h-11 px-5">
+        <div className="flex items-center justify-between mb-5 sm:mb-6">
+          <h2 className="text-lg sm:text-xl font-bold font-display">Мои займы</h2>
+          <Button onClick={() => navigate('/loans/create')} className="gap-2 rounded-xl h-10 sm:h-11 px-4 sm:px-5 text-sm">
             <Plus className="w-4 h-4" />
-            Новый договор
+            <span className="hidden sm:inline">Новый договор</span>
+            <span className="sm:hidden">Создать</span>
           </Button>
         </div>
 

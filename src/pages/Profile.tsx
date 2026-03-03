@@ -67,18 +67,18 @@ const Profile = () => {
   return (
     <div className="min-h-screen bg-background">
       <header className="border-b border-border/60 bg-card/60 backdrop-blur-xl sticky top-0 z-40">
-        <div className="max-w-3xl mx-auto px-6 h-16 flex items-center gap-4">
+        <div className="max-w-3xl mx-auto px-4 sm:px-6 h-14 sm:h-16 flex items-center gap-3 sm:gap-4">
           <button onClick={() => navigate('/dashboard')} className="p-2 rounded-xl hover:bg-muted transition-colors text-muted-foreground hover:text-foreground">
             <ArrowLeft className="w-5 h-5" />
           </button>
-          <h1 className="font-bold font-display">Мой профиль</h1>
+          <h1 className="font-bold font-display text-base sm:text-lg">Мой профиль</h1>
         </div>
       </header>
 
-      <main className="max-w-3xl mx-auto px-6 py-8 space-y-8">
+      <main className="max-w-3xl mx-auto px-4 sm:px-6 py-6 sm:py-8 space-y-6 sm:space-y-8">
         {/* Personal info */}
-        <div className="card-elevated p-7">
-          <div className="flex items-center gap-3 mb-6">
+        <div className="card-elevated p-5 sm:p-7">
+          <div className="flex items-center gap-3 mb-5 sm:mb-6">
             <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center">
               <User className="w-5 h-5 text-primary" />
             </div>
@@ -122,8 +122,8 @@ const Profile = () => {
         </div>
 
         {/* Payment methods */}
-        <div className="card-elevated p-7">
-          <div className="flex items-center gap-3 mb-6">
+        <div className="card-elevated p-5 sm:p-7">
+          <div className="flex items-center gap-3 mb-5 sm:mb-6">
             <div className="w-10 h-10 rounded-xl bg-accent/10 flex items-center justify-center">
               <CreditCard className="w-5 h-5 text-accent" />
             </div>
