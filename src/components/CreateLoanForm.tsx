@@ -59,75 +59,82 @@ const CreateLoanForm = ({ currentUserName, onClose, onCreated }: CreateLoanFormP
     onClose();
   };
 
+  const inputClass = "h-11 rounded-xl bg-muted/50 border-border/50 focus:bg-card";
+
   return (
-    <div className="fixed inset-0 bg-foreground/20 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-      <div className="card-glass w-full max-w-lg max-h-[90vh] overflow-y-auto p-6">
-        <div className="flex items-center justify-between mb-6">
-          <div className="flex items-center gap-2">
-            <FileText className="w-5 h-5 text-accent" />
-            <h2 className="text-lg font-bold">Новый договор займа</h2>
+    <div className="fixed inset-0 bg-foreground/15 backdrop-blur-md z-50 flex items-center justify-center p-4">
+      <div className="card-elevated w-full max-w-lg max-h-[90vh] overflow-y-auto p-7">
+        <div className="flex items-center justify-between mb-7">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center">
+              <FileText className="w-5 h-5 text-primary" />
+            </div>
+            <div>
+              <h2 className="text-lg font-bold font-display">Новый договор</h2>
+              <p className="text-xs text-muted-foreground">Заполните данные займа</p>
+            </div>
           </div>
-          <button onClick={onClose} className="p-1 rounded-lg hover:bg-muted transition-colors">
+          <button onClick={onClose} className="p-2 rounded-xl hover:bg-muted transition-colors text-muted-foreground hover:text-foreground">
             <X className="w-5 h-5" />
           </button>
         </div>
 
-        <form onSubmit={handleSubmit} className="space-y-4">
+        <form onSubmit={handleSubmit} className="space-y-5">
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
-              <Label htmlFor="lender">Займодавец *</Label>
-              <Input id="lender" value={lenderName} onChange={e => setLenderName(e.target.value)} placeholder="ФИО займодавца" />
+              <Label htmlFor="lender" className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Займодавец *</Label>
+              <Input id="lender" value={lenderName} onChange={e => setLenderName(e.target.value)} placeholder="ФИО займодавца" className={inputClass} />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="lenderPassport">Паспорт займодавца</Label>
-              <Input id="lenderPassport" value={lenderPassport} onChange={e => setLenderPassport(e.target.value)} placeholder="Серия и номер" />
+              <Label htmlFor="lenderPassport" className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Паспорт</Label>
+              <Input id="lenderPassport" value={lenderPassport} onChange={e => setLenderPassport(e.target.value)} placeholder="Серия и номер" className={inputClass} />
             </div>
           </div>
 
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
-              <Label htmlFor="borrower">Заёмщик *</Label>
-              <Input id="borrower" value={borrowerName} onChange={e => setBorrowerName(e.target.value)} placeholder="ФИО заёмщика" />
+              <Label htmlFor="borrower" className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Заёмщик *</Label>
+              <Input id="borrower" value={borrowerName} onChange={e => setBorrowerName(e.target.value)} placeholder="ФИО заёмщика" className={inputClass} />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="borrowerPassport">Паспорт заёмщика</Label>
-              <Input id="borrowerPassport" value={borrowerPassport} onChange={e => setBorrowerPassport(e.target.value)} placeholder="Серия и номер" />
-            </div>
-          </div>
-
-          <div className="grid grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <Label htmlFor="amount">Сумма (₽) *</Label>
-              <Input id="amount" type="number" min="0" step="0.01" value={amount} onChange={e => setAmount(e.target.value)} placeholder="100 000" />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="rate">Процентная ставка (%) *</Label>
-              <Input id="rate" type="number" min="0" step="0.1" value={interestRate} onChange={e => setInterestRate(e.target.value)} placeholder="12" />
+              <Label htmlFor="borrowerPassport" className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Паспорт</Label>
+              <Input id="borrowerPassport" value={borrowerPassport} onChange={e => setBorrowerPassport(e.target.value)} placeholder="Серия и номер" className={inputClass} />
             </div>
           </div>
 
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
-              <Label htmlFor="penalty">Неустойка за просрочку (%/день)</Label>
-              <Input id="penalty" type="number" min="0" step="0.01" value={penaltyRate} onChange={e => setPenaltyRate(e.target.value)} placeholder="0.1" />
+              <Label htmlFor="amount" className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Сумма (₽) *</Label>
+              <Input id="amount" type="number" min="0" step="0.01" value={amount} onChange={e => setAmount(e.target.value)} placeholder="100 000" className={inputClass} />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="city">Город</Label>
-              <Input id="city" value={city} onChange={e => setCity(e.target.value)} placeholder="Москва" />
+              <Label htmlFor="rate" className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Ставка (%) *</Label>
+              <Input id="rate" type="number" min="0" step="0.1" value={interestRate} onChange={e => setInterestRate(e.target.value)} placeholder="12" className={inputClass} />
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <Label htmlFor="penalty" className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Неустойка (%/день)</Label>
+              <Input id="penalty" type="number" min="0" step="0.01" value={penaltyRate} onChange={e => setPenaltyRate(e.target.value)} placeholder="0.1" className={inputClass} />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="city" className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Город</Label>
+              <Input id="city" value={city} onChange={e => setCity(e.target.value)} placeholder="Москва" className={inputClass} />
             </div>
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="date">Дата возврата *</Label>
-            <Input id="date" type="date" value={repaymentDate} onChange={e => setRepaymentDate(e.target.value)} />
+            <Label htmlFor="date" className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Дата возврата *</Label>
+            <Input id="date" type="date" value={repaymentDate} onChange={e => setRepaymentDate(e.target.value)} className={inputClass} />
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="notes">Примечания</Label>
-            <Textarea id="notes" value={notes} onChange={e => setNotes(e.target.value)} placeholder="Дополнительные условия..." rows={3} />
+            <Label htmlFor="notes" className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Примечания</Label>
+            <Textarea id="notes" value={notes} onChange={e => setNotes(e.target.value)} placeholder="Дополнительные условия..." rows={3} className="rounded-xl bg-muted/50 border-border/50 focus:bg-card" />
           </div>
 
-          <Button type="submit" className="w-full gap-2">
+          <Button type="submit" className="w-full h-12 rounded-xl gap-2 text-sm font-semibold">
             <FileText className="w-4 h-4" />
             Создать и скачать PDF
           </Button>
