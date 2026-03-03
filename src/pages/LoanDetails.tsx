@@ -146,24 +146,24 @@ const LoanDetails = () => {
   return (
     <div className="min-h-screen bg-background">
       <header className="border-b border-border/60 bg-card/60 backdrop-blur-xl sticky top-0 z-40">
-        <div className="max-w-4xl mx-auto px-6 h-16 flex items-center justify-between">
-          <div className="flex items-center gap-4">
-            <button onClick={() => navigate('/dashboard')} className="p-2 rounded-xl hover:bg-muted transition-colors text-muted-foreground hover:text-foreground">
+        <div className="max-w-4xl mx-auto px-4 sm:px-6 h-14 sm:h-16 flex items-center justify-between">
+          <div className="flex items-center gap-3 sm:gap-4 min-w-0">
+            <button onClick={() => navigate('/dashboard')} className="p-2 rounded-xl hover:bg-muted transition-colors text-muted-foreground hover:text-foreground flex-shrink-0">
               <ArrowLeft className="w-5 h-5" />
             </button>
-            <div>
-              <h1 className="font-bold font-display">Договор займа</h1>
+            <div className="min-w-0">
+              <h1 className="font-bold font-display text-sm sm:text-base truncate">Договор займа</h1>
               <p className="text-xs text-muted-foreground">№ {loan.id.slice(0, 8).toUpperCase()}</p>
             </div>
           </div>
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2 sm:gap-3 flex-shrink-0">
             {canSend && (
-              <Button onClick={() => setShowSend(true)} variant="outline" className="gap-2 rounded-xl">
+              <Button onClick={() => setShowSend(true)} variant="outline" size="sm" className="gap-1.5 sm:gap-2 rounded-xl text-xs sm:text-sm">
                 <Send className="w-4 h-4" />
                 <span className="hidden sm:inline">Отправить</span>
               </Button>
             )}
-            <Button variant="outline" onClick={handleDownloadPDF} className="gap-2 rounded-xl">
+            <Button variant="outline" onClick={handleDownloadPDF} size="sm" className="gap-1.5 sm:gap-2 rounded-xl text-xs sm:text-sm">
               <Download className="w-4 h-4" />
               <span className="hidden sm:inline">Скачать PDF</span>
             </Button>
@@ -171,7 +171,7 @@ const LoanDetails = () => {
         </div>
       </header>
 
-      <main className="max-w-4xl mx-auto px-6 py-8 space-y-6">
+      <main className="max-w-4xl mx-auto px-4 sm:px-6 py-6 sm:py-8 space-y-5 sm:space-y-6">
         {/* Send notification banner */}
         {canSend && (
           <div className="card-elevated p-5 flex items-center gap-4 bg-primary/5 border-primary/20">
