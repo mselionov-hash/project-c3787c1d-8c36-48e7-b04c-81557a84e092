@@ -182,6 +182,9 @@ export type Database = {
           label: string
           method_type: string
           phone: string | null
+          qr_image_url: string | null
+          recipient_display_name: string | null
+          transfer_link: string | null
           updated_at: string
           user_id: string
         }
@@ -195,6 +198,9 @@ export type Database = {
           label?: string
           method_type: string
           phone?: string | null
+          qr_image_url?: string | null
+          recipient_display_name?: string | null
+          transfer_link?: string | null
           updated_at?: string
           user_id: string
         }
@@ -208,6 +214,9 @@ export type Database = {
           label?: string
           method_type?: string
           phone?: string | null
+          qr_image_url?: string | null
+          recipient_display_name?: string | null
+          transfer_link?: string | null
           updated_at?: string
           user_id?: string
         }
