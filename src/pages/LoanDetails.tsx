@@ -4,20 +4,18 @@ import { useAuth } from '@/hooks/useAuth';
 import { supabase } from '@/integrations/supabase/client';
 import { generateLoanPDF } from '@/lib/pdf';
 import SignaturePad from '@/components/SignaturePad';
-import PaymentModal from '@/components/PaymentModal';
 import SendLoanModal from '@/components/SendLoanModal';
 import SbpPaymentSection from '@/components/SbpPaymentSection';
 import { Button } from '@/components/ui/button';
 import { toast } from 'sonner';
 import {
-  ArrowLeft, Download, PenTool, Banknote, CheckCircle2, Clock, FileText,
+  ArrowLeft, Download, PenTool, CheckCircle2, Clock, FileText,
   User, Calendar, Percent, MapPin, AlertTriangle, Shield, Send
 } from 'lucide-react';
 import type { Tables } from '@/integrations/supabase/types';
 
 type Loan = Tables<'loans'>;
 type Signature = Tables<'loan_signatures'>;
-type Payment = Tables<'loan_payments'>;
 
 const statusConfig: Record<string, { label: string; icon: any; class: string }> = {
   draft: { label: 'Черновик', icon: Clock, class: 'bg-muted text-muted-foreground' },
@@ -25,7 +23,6 @@ const statusConfig: Record<string, { label: string; icon: any; class: string }> 
   signed_by_lender: { label: 'Подписан займодавцем', icon: PenTool, class: 'bg-primary/10 text-primary' },
   signed_by_borrower: { label: 'Подписан заёмщиком', icon: PenTool, class: 'bg-primary/10 text-primary' },
   fully_signed: { label: 'Полностью подписан', icon: CheckCircle2, class: 'bg-accent/10 text-accent' },
-  awaiting_payment: { label: 'Ожидает оплаты', icon: Banknote, class: 'bg-warning/10 text-warning' },
   active: { label: 'Активный', icon: CheckCircle2, class: 'bg-accent/10 text-accent' },
   completed: { label: 'Завершён', icon: CheckCircle2, class: 'bg-muted text-muted-foreground' },
   overdue: { label: 'Просрочен', icon: AlertTriangle, class: 'bg-destructive/10 text-destructive' },
@@ -38,10 +35,8 @@ const LoanDetails = () => {
 
   const [loan, setLoan] = useState<Loan | null>(null);
   const [signatures, setSignatures] = useState<Signature[]>([]);
-  const [payments, setPayments] = useState<Payment[]>([]);
   const [loading, setLoading] = useState(true);
   const [showSignature, setShowSignature] = useState(false);
-  const [showPayment, setShowPayment] = useState(false);
   const [showSend, setShowSend] = useState(false);
 
   useEffect(() => {
@@ -53,14 +48,12 @@ const LoanDetails = () => {
   }, [id, user]);
 
   const fetchAll = async () => {
-    const [loanRes, sigRes, payRes] = await Promise.all([
+    const [loanRes, sigRes] = await Promise.all([
       supabase.from('loans').select('*').eq('id', id!).single(),
       supabase.from('loan_signatures').select('*').eq('loan_id', id!),
-      supabase.from('loan_payments').select('*').eq('loan_id', id!).order('created_at', { ascending: false }),
     ]);
     setLoan(loanRes.data);
     setSignatures(sigRes.data || []);
-    setPayments(payRes.data || []);
     setLoading(false);
   };
 
@@ -110,11 +103,8 @@ const LoanDetails = () => {
 
   const handleDownloadPDF = () => {
     if (!loan) return;
-    const latestPayment = payments.find(p => p.status === 'confirmed');
     generateLoanPDF({
       ...loan,
-      transaction_id: latestPayment?.transaction_id || undefined,
-      transfer_date: latestPayment?.transfer_date || undefined,
       signatures: signatures.map(s => ({
         role: s.role,
         signature_data: s.signature_data,
@@ -140,7 +130,6 @@ const LoanDetails = () => {
   const isLender = user?.id === loan.lender_id;
   const isBorrower = user?.id === loan.borrower_id;
   const canSign = (isLender && !lenderSig) || (isBorrower && !borrowerSig);
-  const canPay = ['fully_signed', 'awaiting_payment'].includes(loan.status) && isLender;
   const canSend = isLender && !loan.borrower_id;
 
   return (
@@ -320,54 +309,8 @@ const LoanDetails = () => {
           </div>
         </div>
 
-        {/* SBP Payment */}
-        <SbpPaymentSection loan={loan} payments={payments} onSuccess={fetchAll} />
-
-        {/* Payments */}
-        <div className="card-elevated p-7">
-          <div className="flex items-center justify-between mb-5">
-            <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider flex items-center gap-2">
-              <Banknote className="w-4 h-4" />
-              Передача денежных средств
-            </h3>
-            {canPay && (
-              <Button onClick={() => setShowPayment(true)} className="gap-2 rounded-xl" size="sm">
-                <Banknote className="w-4 h-4" />
-                Другой способ
-              </Button>
-            )}
-          </div>
-
-          {payments.length === 0 ? (
-            <div className="text-center py-8">
-              <p className="text-sm text-muted-foreground">Платежей пока нет</p>
-            </div>
-          ) : (
-            <div className="space-y-3">
-              {payments.map(p => {
-                const methodLabels: Record<string, string> = { bank_transfer: 'Банковский перевод', sbp: 'СБП', cash: 'Наличные' };
-                return (
-                  <div key={p.id} className="flex items-center justify-between p-4 rounded-xl bg-muted/50">
-                    <div>
-                      <p className="font-semibold text-sm">{Number(p.transfer_amount).toLocaleString('ru-RU')} ₽</p>
-                      <p className="text-xs text-muted-foreground">
-                        {methodLabels[p.transfer_method] || p.transfer_method}
-                        {p.bank_name && ` • ${p.bank_name}`}
-                      </p>
-                      {p.transaction_id && <p className="text-xs text-muted-foreground">ID: {p.transaction_id}</p>}
-                    </div>
-                    <div className="text-right">
-                      <span className={`pill-badge ${p.status === 'confirmed' ? 'bg-accent/10 text-accent' : 'bg-warning/10 text-warning'}`}>
-                        {p.status === 'confirmed' ? 'Подтверждён' : 'Ожидает'}
-                      </span>
-                      <p className="text-xs text-muted-foreground mt-1">{new Date(p.transfer_date).toLocaleDateString('ru-RU')}</p>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          )}
-        </div>
+        {/* Payment requisites */}
+        <SbpPaymentSection loan={loan} onSuccess={fetchAll} />
       </main>
 
       {showSignature && (
@@ -375,15 +318,6 @@ const LoanDetails = () => {
           title={`Подписать как ${isLender ? 'займодавец' : 'заёмщик'}`}
           onSave={handleSign}
           onCancel={() => setShowSignature(false)}
-        />
-      )}
-
-      {showPayment && (
-        <PaymentModal
-          loanId={loan.id}
-          loanAmount={Number(loan.amount)}
-          onClose={() => setShowPayment(false)}
-          onSuccess={fetchAll}
         />
       )}
 

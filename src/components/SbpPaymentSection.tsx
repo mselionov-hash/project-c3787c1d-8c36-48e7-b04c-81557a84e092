@@ -1,50 +1,53 @@
-import { useState } from 'react';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
+import { useState, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
+import { Button } from '@/components/ui/button';
 import { toast } from 'sonner';
-import { Banknote, Copy, CheckCircle2, Upload, Loader2, Smartphone, QrCode } from 'lucide-react';
-import { QRCodeSVG } from 'qrcode.react';
-import BorrowerPaymentMethodPicker from '@/components/BorrowerPaymentMethodPicker';
-import { generateSbpEmvQr } from '@/lib/emvco-qr';
+import { Banknote, Copy, CheckCircle2, ExternalLink, QrCode, X, AlertTriangle } from 'lucide-react';
 import type { Tables } from '@/integrations/supabase/types';
 
 type Loan = Tables<'loans'>;
-type Payment = Tables<'loan_payments'>;
 
 interface PaymentMethod {
   id: string;
-  method_type: 'sbp' | 'card';
-  label: string;
-  phone: string | null;
-  card_number: string | null;
-  card_holder: string | null;
   bank_name: string | null;
+  transfer_link: string | null;
+  qr_image_url: string | null;
+  recipient_display_name: string | null;
   is_default: boolean;
+  label: string;
 }
 
 interface SbpPaymentSectionProps {
   loan: Loan;
-  payments: Payment[];
   onSuccess: () => void;
 }
 
-const SbpPaymentSection = ({ loan, payments, onSuccess }: SbpPaymentSectionProps) => {
+const SbpPaymentSection = ({ loan, onSuccess }: SbpPaymentSectionProps) => {
   const { user } = useAuth();
-  const [selectedMethod, setSelectedMethod] = useState<PaymentMethod | null>(null);
-  const [transactionId, setTransactionId] = useState('');
-  const [transferDate, setTransferDate] = useState(new Date().toISOString().split('T')[0]);
-  const [screenshot, setScreenshot] = useState<File | null>(null);
-  const [submitting, setSubmitting] = useState(false);
+  const [methods, setMethods] = useState<PaymentMethod[]>([]);
+  const [loading, setLoading] = useState(true);
   const [copied, setCopied] = useState<string | null>(null);
-  const [showQr, setShowQr] = useState(false);
+  const [showQr, setShowQr] = useState<string | null>(null);
 
   const isLender = user?.id === loan.lender_id;
+  const isBorrower = user?.id === loan.borrower_id;
   const loanNumber = loan.id.slice(0, 8).toUpperCase();
-  const confirmedPayment = payments.find(p => p.status === 'confirmed');
-  const canPay = isLender && ['fully_signed', 'awaiting_payment', 'draft', 'signed_by_lender', 'signed_by_borrower'].includes(loan.status) && !confirmedPayment;
+  const paymentComment = `По договору займа №${loanNumber}`;
+
+  useEffect(() => {
+    if (loan.borrower_id) fetchBorrowerMethods();
+  }, [loan.borrower_id]);
+
+  const fetchBorrowerMethods = async () => {
+    const { data } = await supabase
+      .from('payment_methods')
+      .select('*')
+      .eq('user_id', loan.borrower_id!)
+      .order('is_default', { ascending: false });
+    setMethods((data as any[]) || []);
+    setLoading(false);
+  };
 
   const handleCopy = async (text: string, label: string) => {
     await navigator.clipboard.writeText(text);
@@ -53,114 +56,62 @@ const SbpPaymentSection = ({ loan, payments, onSuccess }: SbpPaymentSectionProps
     setTimeout(() => setCopied(null), 2000);
   };
 
-  const paymentComment = `По договору займа №${loanNumber}`;
-
-  const sbpLink = selectedMethod?.phone
-    ? `sbp://pay?phone=${encodeURIComponent(selectedMethod.phone)}&amount=${loan.amount}&comment=${encodeURIComponent(paymentComment)}`
-    : '';
-
-  const sberLink = selectedMethod?.phone
-    ? `sberbankonline://transfer?recipientPhone=${encodeURIComponent(selectedMethod.phone)}&amount=${loan.amount}&currency=RUB&comment=${encodeURIComponent(paymentComment)}`
-    : '';
-
-  const tbankLink = selectedMethod?.phone
-    ? `bank100000000004://transfer?phone=${encodeURIComponent(selectedMethod.phone)}&amount=${loan.amount}&comment=${encodeURIComponent(paymentComment)}`
-    : '';
-
-  const [qrLink, setQrLink] = useState<string>('');
-
-  const handleOpenSbp = () => {
-    if (!sbpLink) {
-      toast.error('Выберите СБП реквизит с номером телефона');
-      return;
-    }
-    window.location.href = sbpLink;
-  };
-
-  const handleOpenSber = () => {
-    if (!sberLink) {
-      toast.error('Выберите реквизит с номером телефона');
-      return;
-    }
-    window.location.href = sberLink;
-  };
-
-  const handleOpenTbank = () => {
-    if (!tbankLink) {
-      toast.error('Выберите реквизит с номером телефона');
-      return;
-    }
-    window.location.href = tbankLink;
-  };
-
-  const handleConfirmPayment = async () => {
-    if (!user || !transactionId.trim()) {
-      toast.error('Укажите ID транзакции');
-      return;
-    }
-    if (!selectedMethod) {
-      toast.error('Выберите реквизиты для оплаты');
-      return;
-    }
-
-    setSubmitting(true);
-    try {
-      let screenshotUrl = '';
-      if (screenshot) {
-        const ext = screenshot.name.split('.').pop();
-        const path = `${loan.id}/${Date.now()}.${ext}`;
-        const { error: uploadError } = await supabase.storage
-          .from('payment-screenshots')
-          .upload(path, screenshot);
-        if (uploadError) throw uploadError;
-        const { data: urlData } = supabase.storage
-          .from('payment-screenshots')
-          .getPublicUrl(path);
-        screenshotUrl = urlData.publicUrl;
-      }
-
-      const { error } = await supabase.from('loan_payments').insert({
-        loan_id: loan.id,
-        payer_id: user.id,
-        transfer_method: selectedMethod.method_type,
-        transfer_amount: Number(loan.amount),
-        bank_name: selectedMethod.bank_name || (selectedMethod.method_type === 'sbp' ? 'СБП' : 'Карта'),
-        payment_reference: paymentComment,
-        transaction_id: transactionId.trim(),
-        transfer_date: transferDate,
-        screenshot_url: screenshotUrl,
-        status: 'confirmed',
-      });
-      if (error) throw error;
-
-      await supabase.from('loans').update({ status: 'active' }).eq('id', loan.id);
-
-      toast.success('Платёж подтверждён! Статус договора обновлён.');
-      onSuccess();
-    } catch (err: any) {
-      toast.error(err.message || 'Ошибка подтверждения платежа');
-    } finally {
-      setSubmitting(false);
-    }
-  };
-
+  // Only show to lender (who pays the borrower)
   if (!isLender) return null;
 
-  const inputClass = "h-11 rounded-xl bg-muted/50 border-border/50 focus:bg-card";
+  if (!loan.borrower_id) {
+    return (
+      <div className="card-elevated p-7">
+        <div className="flex items-center gap-3 mb-4">
+          <div className="w-10 h-10 rounded-xl bg-accent/10 flex items-center justify-center">
+            <Banknote className="w-5 h-5 text-accent" />
+          </div>
+          <div>
+            <h3 className="text-sm font-semibold uppercase tracking-wider">Реквизиты для погашения</h3>
+            <p className="text-xs text-muted-foreground">Информация о переводе</p>
+          </div>
+        </div>
+        <div className="p-4 rounded-xl bg-warning/5 border border-warning/20 text-sm">
+          <p className="font-semibold text-warning flex items-center gap-2">
+            <AlertTriangle className="w-4 h-4" />
+            Заёмщик не привязан
+          </p>
+          <p className="text-muted-foreground text-xs mt-1">Сначала отправьте договор заёмщику</p>
+        </div>
+      </div>
+    );
+  }
 
-  // Build payment details based on selected method
-  const paymentDetails = selectedMethod ? [
-    { label: 'Номер договора', value: loanNumber },
-    { label: 'Сумма', value: `${Number(loan.amount).toLocaleString('ru-RU')} ₽` },
-    ...(selectedMethod.method_type === 'sbp'
-      ? [{ label: 'Телефон (СБП)', value: selectedMethod.phone || '' }]
-      : [
-          { label: 'Номер карты', value: selectedMethod.card_number || '' },
-          ...(selectedMethod.card_holder ? [{ label: 'Держатель', value: selectedMethod.card_holder }] : []),
-        ]),
-    ...(selectedMethod.bank_name ? [{ label: 'Банк', value: selectedMethod.bank_name }] : []),
-    { label: 'Назначение', value: paymentComment },
-  ] : [];
+  if (loading) {
+    return (
+      <div className="card-elevated p-7">
+        <p className="text-sm text-muted-foreground">Загрузка реквизитов...</p>
+      </div>
+    );
+  }
+
+  if (methods.length === 0) {
+    return (
+      <div className="card-elevated p-7">
+        <div className="flex items-center gap-3 mb-4">
+          <div className="w-10 h-10 rounded-xl bg-accent/10 flex items-center justify-center">
+            <Banknote className="w-5 h-5 text-accent" />
+          </div>
+          <div>
+            <h3 className="text-sm font-semibold uppercase tracking-wider">Реквизиты для погашения</h3>
+            <p className="text-xs text-muted-foreground">Информация о переводе</p>
+          </div>
+        </div>
+        <div className="text-center py-6">
+          <p className="text-sm text-muted-foreground">Заёмщик ещё не добавил реквизиты для перевода</p>
+          <p className="text-xs text-muted-foreground mt-1">Попросите заёмщика добавить реквизиты в своём профиле</p>
+        </div>
+      </div>
+    );
+  }
+
+  // Show the default method first, or all methods
+  const defaultMethod = methods.find(m => m.is_default) || methods[0];
 
   return (
     <div className="card-elevated p-7">
@@ -169,217 +120,109 @@ const SbpPaymentSection = ({ loan, payments, onSuccess }: SbpPaymentSectionProps
           <Banknote className="w-5 h-5 text-accent" />
         </div>
         <div>
-          <h3 className="text-sm font-semibold uppercase tracking-wider">Оплата займа</h3>
-          <p className="text-xs text-muted-foreground">Выберите реквизиты заёмщика</p>
+          <h3 className="text-sm font-semibold uppercase tracking-wider">Как оплатить</h3>
+          <p className="text-xs text-muted-foreground">Реквизиты для погашения займа</p>
         </div>
       </div>
 
-      {/* Borrower payment methods picker */}
-      {loan.borrower_id ? (
-        <div className="mb-6">
-          <BorrowerPaymentMethodPicker
-            borrowerId={loan.borrower_id}
-            loanAmount={Number(loan.amount)}
-            loanNumber={loanNumber}
-            onSelectMethod={setSelectedMethod}
-          />
-        </div>
-      ) : (
-        <div className="p-4 rounded-xl bg-warning/5 border border-warning/20 text-sm mb-6">
-          <p className="font-semibold text-warning">Заёмщик не привязан</p>
-          <p className="text-muted-foreground text-xs mt-1">Сначала отправьте договор заёмщику</p>
-        </div>
-      )}
-
-      {/* Payment details with copy */}
-      {selectedMethod && paymentDetails.length > 0 && (
-        <>
-          <div className="space-y-3 mb-6">
-            {paymentDetails.map(({ label, value }) => (
-              <div key={label} className="flex items-center justify-between p-3 rounded-xl bg-muted/50">
-                <div>
-                  <p className="text-xs text-muted-foreground">{label}</p>
-                  <p className="font-medium text-sm">{value}</p>
-                </div>
-                <button
-                  onClick={() => handleCopy(value, label)}
-                  className="p-2 rounded-lg hover:bg-muted transition-colors text-muted-foreground hover:text-foreground"
-                >
-                  {copied === label ? (
-                    <CheckCircle2 className="w-4 h-4 text-accent" />
-                  ) : (
-                    <Copy className="w-4 h-4" />
-                  )}
-                </button>
+      <div className="space-y-4">
+        {methods.map(m => (
+          <div key={m.id} className={`p-4 rounded-xl border ${m.is_default ? 'border-accent/30 bg-accent/5' : 'border-border/40 bg-muted/30'}`}>
+            <div className="flex items-center gap-3 mb-3">
+              <div className="w-8 h-8 rounded-lg bg-card flex items-center justify-center">
+                <Banknote className="w-4 h-4 text-accent" />
               </div>
-            ))}
-          </div>
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-2">
+                  <p className="font-semibold text-sm">{m.bank_name || m.label}</p>
+                  {m.is_default && <span className="pill-badge bg-accent/10 text-accent text-[10px]">Основной</span>}
+                </div>
+                {m.recipient_display_name && (
+                  <p className="text-xs text-muted-foreground">{m.recipient_display_name}</p>
+                )}
+              </div>
+            </div>
 
-          <Button
-            variant="outline"
-            className="w-full rounded-xl gap-2 mb-4"
-            onClick={() => {
-              const allDetails = paymentDetails.map(d => `${d.label}: ${d.value}`).join('\n');
-              handleCopy(allDetails, 'Все реквизиты');
-            }}
-          >
-            <Copy className="w-4 h-4" />
-            Скопировать все реквизиты
-          </Button>
-        </>
-      )}
+            <div className="space-y-2">
+              {/* Open link button */}
+              {m.transfer_link && (
+                <Button
+                  onClick={() => window.open(m.transfer_link!, '_blank', 'noopener')}
+                  className="w-full h-11 rounded-xl gap-2 text-sm font-semibold"
+                >
+                  <ExternalLink className="w-4 h-4" />
+                  Открыть ссылку банка
+                </Button>
+              )}
 
-      {canPay && selectedMethod && (
-        <>
-          {/* SBP button if method is SBP */}
-          {selectedMethod.method_type === 'sbp' && selectedMethod.phone && (
-            <div className="space-y-3 mb-6">
-              {/* Bank-specific deep links */}
-              <Button
-                onClick={handleOpenSber}
-                className="w-full h-12 rounded-xl gap-2 text-sm font-semibold bg-[hsl(120,60%,35%)] hover:bg-[hsl(120,60%,30%)] text-white"
-              >
-                <Smartphone className="w-4 h-4" />
-                Перевести через Сбер
-              </Button>
-
-              <Button
-                onClick={handleOpenTbank}
-                className="w-full h-12 rounded-xl gap-2 text-sm font-semibold bg-[hsl(45,90%,50%)] hover:bg-[hsl(45,90%,45%)] text-[hsl(0,0%,10%)]"
-              >
-                <Smartphone className="w-4 h-4" />
-                Перевести через Т-Банк
-              </Button>
-
-              <Button
-                onClick={handleOpenSbp}
-                variant="outline"
-                className="w-full h-12 rounded-xl gap-2 text-sm font-semibold"
-              >
-                <Smartphone className="w-4 h-4" />
-                Оплатить через СБП (любой банк)
-              </Button>
-
-              {/* QR buttons */}
-              <div className="grid grid-cols-2 gap-2">
+              {/* Show QR button */}
+              {m.qr_image_url && (
                 <Button
                   variant="outline"
-                  className="rounded-xl gap-2 text-xs"
-                  onClick={() => { setQrLink(sberLink); setShowQr(!showQr || qrLink !== sberLink); }}
+                  onClick={() => setShowQr(m.qr_image_url)}
+                  className="w-full h-11 rounded-xl gap-2 text-sm"
                 >
                   <QrCode className="w-4 h-4" />
-                  QR Сбер
+                  Показать QR-код
                 </Button>
-                <Button
-                  variant="outline"
-                  className="rounded-xl gap-2 text-xs"
-                  onClick={() => { setShowQr(!showQr || qrLink !== 'emvco'); setQrLink('emvco'); }}
-                >
-                  <QrCode className="w-4 h-4" />
-                  QR СБП (NSPK)
-                </Button>
-              </div>
-
-              {showQr && selectedMethod?.phone && (
-                <div className="flex flex-col items-center gap-3 p-6 rounded-xl bg-muted/30 border border-border/50">
-                  <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-                    {qrLink === 'emvco' ? 'QR СБП (NSPK EMVCo)' : 'QR для Сбербанк'}
-                  </p>
-                  <div className="bg-white p-4 rounded-xl">
-                    <QRCodeSVG
-                      value={
-                        qrLink === 'emvco'
-                          ? generateSbpEmvQr({
-                              phone: selectedMethod.phone,
-                              amount: Number(loan.amount),
-                              recipientName: loan.borrower_name,
-                              city: loan.city,
-                              comment: paymentComment,
-                            })
-                          : qrLink
-                      }
-                      size={200}
-                    />
-                  </div>
-                  <p className="text-xs text-muted-foreground text-center max-w-[260px]">
-                    {qrLink === 'emvco'
-                      ? 'Отсканируйте банковским приложением (Сбер, Т-Банк, ВТБ и др.)'
-                      : 'Отсканируйте камерой смартфона — откроется приложение Сбербанк'}
-                  </p>
-                </div>
               )}
             </div>
-          )}
+          </div>
+        ))}
 
-          {/* Payment confirmation */}
-          <div className="border-t border-border/50 pt-6">
-            <h4 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider mb-4 flex items-center gap-2">
-              <CheckCircle2 className="w-4 h-4" />
-              Подтверждение перевода
-            </h4>
-
-            <div className="space-y-4">
-              <div className="space-y-2">
-                <Label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">ID транзакции *</Label>
-                <Input
-                  value={transactionId}
-                  onChange={e => setTransactionId(e.target.value)}
-                  placeholder="Номер операции из банка"
-                  className={inputClass}
-                />
-              </div>
-
-              <div className="space-y-2">
-                <Label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Дата перевода</Label>
-                <Input
-                  type="date"
-                  value={transferDate}
-                  onChange={e => setTransferDate(e.target.value)}
-                  className={inputClass}
-                />
-              </div>
-
-              <div className="space-y-2">
-                <Label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Скриншот перевода</Label>
-                <div className="relative">
-                  <input
-                    type="file"
-                    accept="image/*"
-                    onChange={e => setScreenshot(e.target.files?.[0] || null)}
-                    className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10"
-                  />
-                  <div className={`${inputClass} flex items-center gap-2 px-3 border rounded-xl cursor-pointer`}>
-                    <Upload className="w-4 h-4 text-muted-foreground" />
-                    <span className="text-sm text-muted-foreground">
-                      {screenshot ? screenshot.name : 'Выберите файл (необязательно)'}
-                    </span>
-                  </div>
-                </div>
-              </div>
-
-              <Button
-                onClick={handleConfirmPayment}
-                disabled={submitting || !transactionId.trim()}
-                className="w-full h-12 rounded-xl gap-2 text-sm font-semibold"
-              >
-                {submitting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Banknote className="w-4 h-4" />}
-                Я отправил деньги
-              </Button>
+        {/* Payment comment - copyable */}
+        <div className="p-4 rounded-xl bg-muted/50 border border-border/40">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-xs text-muted-foreground mb-1">Комментарий к переводу</p>
+              <p className="font-medium text-sm">{paymentComment}</p>
             </div>
+            <button
+              onClick={() => handleCopy(paymentComment, 'Комментарий')}
+              className="p-2 rounded-lg hover:bg-muted transition-colors text-muted-foreground hover:text-foreground"
+            >
+              {copied === 'Комментарий' ? (
+                <CheckCircle2 className="w-4 h-4 text-accent" />
+              ) : (
+                <Copy className="w-4 h-4" />
+              )}
+            </button>
           </div>
-        </>
-      )}
+        </div>
 
-      {confirmedPayment && (
-        <div className="mt-4 p-4 rounded-xl bg-accent/5 border border-accent/20">
-          <div className="flex items-center gap-2 mb-2">
-            <CheckCircle2 className="w-5 h-5 text-accent" />
-            <p className="font-semibold text-sm">Платёж подтверждён</p>
+        {/* Loan amount - copyable */}
+        <div className="p-4 rounded-xl bg-muted/50 border border-border/40">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-xs text-muted-foreground mb-1">Сумма перевода</p>
+              <p className="font-medium text-sm">{Number(loan.amount).toLocaleString('ru-RU')} ₽</p>
+            </div>
+            <button
+              onClick={() => handleCopy(String(loan.amount), 'Сумма')}
+              className="p-2 rounded-lg hover:bg-muted transition-colors text-muted-foreground hover:text-foreground"
+            >
+              {copied === 'Сумма' ? (
+                <CheckCircle2 className="w-4 h-4 text-accent" />
+              ) : (
+                <Copy className="w-4 h-4" />
+              )}
+            </button>
           </div>
-          <div className="space-y-1 text-xs text-muted-foreground">
-            {confirmedPayment.transaction_id && <p>ID: {confirmedPayment.transaction_id}</p>}
-            <p>Дата: {new Date(confirmedPayment.transfer_date).toLocaleDateString('ru-RU')}</p>
-            <p>Сумма: {Number(confirmedPayment.transfer_amount).toLocaleString('ru-RU')} ₽</p>
+        </div>
+      </div>
+
+      {/* QR Modal */}
+      {showQr && (
+        <div className="fixed inset-0 bg-foreground/15 backdrop-blur-md z-50 flex items-center justify-center p-4" onClick={() => setShowQr(null)}>
+          <div className="card-elevated p-6 max-w-sm w-full" onClick={e => e.stopPropagation()}>
+            <div className="flex items-center justify-between mb-4">
+              <h4 className="font-semibold text-sm font-display">QR-код для оплаты</h4>
+              <button onClick={() => setShowQr(null)} className="p-2 rounded-xl hover:bg-muted transition-colors text-muted-foreground hover:text-foreground">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            <img src={showQr} alt="QR-код" className="w-full max-w-[280px] mx-auto rounded-xl" />
+            <p className="text-xs text-muted-foreground text-center mt-3">Отсканируйте QR-код камерой телефона или в банковском приложении</p>
           </div>
         </div>
       )}
