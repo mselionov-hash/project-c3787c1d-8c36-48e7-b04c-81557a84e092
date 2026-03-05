@@ -23,8 +23,6 @@ interface LoanPDFData {
   city: string;
   notes: string | null;
   created_at: string;
-  transaction_id?: string;
-  transfer_date?: string;
   signatures?: SignatureData[];
 }
 
@@ -100,13 +98,8 @@ export function generateLoanPDF(loan: LoanPDFData) {
   addWrappedText(`3.2. Назначение платежа: По договору займа № ${loanNumber}.`);
   addWrappedText('3.3. Моментом передачи денежных средств считается момент их зачисления на счет Заемщика.');
 
-  if (loan.transaction_id && loan.transfer_date) {
-    checkPage();
-    y += 2;
-    addWrappedText(
-      `Факт передачи денежных средств подтверждается платежной операцией № ${loan.transaction_id} от ${new Date(loan.transfer_date).toLocaleDateString('ru-RU')}.`
-    );
-  }
+
+
 
   checkPage();
   addSection('4. Ответственность сторон');
