@@ -73,15 +73,17 @@ export async function createSnapshot(
   role: string,
   snapshotData: ContractTermsSnapshot | PartyProfileSnapshot | AllowedBankDetailsSnapshot
 ): Promise<string> {
+  const row = {
+    loan_id: loanId,
+    snapshot_type: snapshotType,
+    signer_id: signerId,
+    role,
+    snapshot_data: JSON.parse(JSON.stringify(snapshotData)),
+  };
+
   const { data, error } = await supabase
     .from('signing_snapshots')
-    .insert({
-      loan_id: loanId,
-      snapshot_type: snapshotType,
-      signer_id: signerId,
-      role,
-      snapshot_data: snapshotData as unknown as Record<string, unknown>,
-    })
+    .insert(row)
     .select('id')
     .single();
 
