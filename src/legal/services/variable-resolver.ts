@@ -138,13 +138,12 @@ export async function resolveContractVariables(loanId: string): Promise<Variable
   const borrowerProfileSnap = snapshots.find(s => s.snapshot_type === 'party_profile' && s.role === 'borrower');
   const bankDetailsSnap = snapshots.find(s => s.snapshot_type === 'allowed_bank_details');
 
-  const lenderProfile: ProfileSnapshot = lenderProfileSnap
-    ? safeJsonCast<ProfileSnapshot>(lenderProfileSnap.snapshot_data)
-    : { user_id: loan.lender_id, full_name: loan.lender_name, date_of_birth: null, passport_series: null, passport_number: null, passport_issued_by: null, passport_issue_date: null, passport_division_code: null, address: loan.lender_address, phone: null, email: null };
+  if (!lenderProfileSnap || !borrowerProfileSnap) {
+    throw new Error('Снимки профилей сторон не найдены. Договор должен быть подписан обеими сторонами перед генерацией документа.');
+  }
 
-  const borrowerProfile: ProfileSnapshot = borrowerProfileSnap
-    ? safeJsonCast<ProfileSnapshot>(borrowerProfileSnap.snapshot_data)
-    : { user_id: loan.borrower_id || '', full_name: loan.borrower_name, date_of_birth: null, passport_series: null, passport_number: null, passport_issued_by: null, passport_issue_date: null, passport_division_code: null, address: loan.borrower_address, phone: null, email: null };
+  const lenderProfile: ProfileSnapshot = safeJsonCast<ProfileSnapshot>(lenderProfileSnap.snapshot_data);
+  const borrowerProfile: ProfileSnapshot = safeJsonCast<ProfileSnapshot>(borrowerProfileSnap.snapshot_data);
 
   const bankDetails: BankDetailSnapshotItem[] = bankDetailsSnap
     ? safeJsonCast<AllowedBankDetailsSnapshotData>(bankDetailsSnap.snapshot_data).details
@@ -256,13 +255,12 @@ export async function resolveTrancheReceiptVariables(
   const lenderProfileSnap = snapshots.find(s => s.snapshot_type === 'party_profile' && s.role === 'lender');
   const borrowerProfileSnap = snapshots.find(s => s.snapshot_type === 'party_profile' && s.role === 'borrower');
 
-  const lenderProfile: ProfileSnapshot = lenderProfileSnap
-    ? safeJsonCast<ProfileSnapshot>(lenderProfileSnap.snapshot_data)
-    : { user_id: loan.lender_id, full_name: loan.lender_name, date_of_birth: null, passport_series: null, passport_number: null, passport_issued_by: null, passport_issue_date: null, passport_division_code: null, address: loan.lender_address, phone: null, email: null };
+  if (!lenderProfileSnap || !borrowerProfileSnap) {
+    throw new Error('Снимки профилей сторон не найдены. Договор должен быть подписан обеими сторонами перед генерацией расписки.');
+  }
 
-  const borrowerProfile: ProfileSnapshot = borrowerProfileSnap
-    ? safeJsonCast<ProfileSnapshot>(borrowerProfileSnap.snapshot_data)
-    : { user_id: loan.borrower_id || '', full_name: loan.borrower_name, date_of_birth: null, passport_series: null, passport_number: null, passport_issued_by: null, passport_issue_date: null, passport_division_code: null, address: loan.borrower_address, phone: null, email: null };
+  const lenderProfile: ProfileSnapshot = safeJsonCast<ProfileSnapshot>(lenderProfileSnap.snapshot_data);
+  const borrowerProfile: ProfileSnapshot = safeJsonCast<ProfileSnapshot>(borrowerProfileSnap.snapshot_data);
 
   const lastSignatureAt = signatures.length > 0
     ? signatures.reduce((latest, s) => s.signed_at > latest ? s.signed_at : latest, signatures[0].signed_at)

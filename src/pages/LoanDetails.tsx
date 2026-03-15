@@ -2,7 +2,6 @@ import { useState, useEffect } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
 import { supabase } from '@/integrations/supabase/client';
-import { generateLoanPDF } from '@/lib/pdf';
 import { createSnapshot, SNAPSHOT_TYPES } from '@/legal/snapshots';
 import { generateLoanContract, generateTrancheReceipt } from '@/legal/services/document-generator';
 import SignaturePad from '@/components/SignaturePad';
@@ -15,7 +14,7 @@ import { DocumentsList } from '@/components/DocumentsList';
 import { Button } from '@/components/ui/button';
 import { toast } from 'sonner';
 import {
-  ArrowLeft, Download, PenTool, CheckCircle2, Clock, FileText,
+  ArrowLeft, PenTool, CheckCircle2, Clock, FileText,
   User, Calendar, Percent, MapPin, AlertTriangle, Shield, Send,
   CreditCard,
 } from 'lucide-react';
@@ -277,18 +276,6 @@ const LoanDetails = () => {
     }
   };
 
-  const handleDownloadLegacyPDF = () => {
-    if (!loan) return;
-    generateLoanPDF({
-      ...loan,
-      signatures: signatures.map(s => ({
-        role: s.role,
-        signature_data: s.signature_data,
-        signed_at: s.signed_at,
-        signer_ip: s.signer_ip,
-      })),
-    });
-  };
 
   const handleGenerateContract = async () => {
     if (!loan || !user) return;
@@ -330,6 +317,8 @@ const LoanDetails = () => {
   const isBorrower = user?.id === loan.borrower_id;
   const canSign = (isLender && !lenderSig) || (isBorrower && !borrowerSig);
   const canSend = isLender && !loan.borrower_id;
+  const isFullySigned = Boolean(lenderSig && borrowerSig) ||
+    ['fully_signed', 'active', 'repaid'].includes(loan.status);
 
   return (
     <div className="min-h-screen bg-background">
@@ -353,14 +342,12 @@ const LoanDetails = () => {
                 <span className="hidden sm:inline">Отправить</span>
               </Button>
             )}
-            <Button variant="outline" onClick={handleGenerateContract} size="sm" className="gap-1.5 sm:gap-2 rounded-xl text-xs sm:text-sm">
-              <FileText className="w-4 h-4" />
-              <span className="hidden sm:inline">Договор PDF</span>
-            </Button>
-            <Button variant="outline" onClick={handleDownloadLegacyPDF} size="sm" className="gap-1.5 sm:gap-2 rounded-xl text-xs sm:text-sm">
-              <Download className="w-4 h-4" />
-              <span className="hidden sm:inline">Простой PDF</span>
-            </Button>
+            {isFullySigned && (
+              <Button variant="outline" onClick={handleGenerateContract} size="sm" className="gap-1.5 sm:gap-2 rounded-xl text-xs sm:text-sm">
+                <FileText className="w-4 h-4" />
+                <span className="hidden sm:inline">Договор PDF</span>
+              </Button>
+            )}
           </div>
         </div>
       </header>

@@ -26,13 +26,24 @@ export async function generateLoanContract(
   loanId: string,
   userId: string
 ): Promise<GenerateResult> {
+  // Gate: both parties must have signed
+  const { data: sigs } = await supabase
+    .from('loan_signatures')
+    .select('role')
+    .eq('loan_id', loanId);
+
+  const roles = new Set((sigs || []).map(s => s.role));
+  if (!roles.has('lender') || !roles.has('borrower')) {
+    throw new Error('Договор можно сформировать только после подписания обеими сторонами');
+  }
+
   const template = getTemplate('loan_contract');
   if (!template) throw new Error('Loan contract template not found');
 
   const variables = await resolveContractVariables(loanId);
   const resolvedText = renderTemplate(template.template, variables);
 
-  // Persist document metadata
+  // Persist document metadata (one row per generation for audit trail)
   const { data, error } = await supabase
     .from('generated_documents')
     .insert({
@@ -64,6 +75,17 @@ export async function generateTrancheReceipt(
   trancheId: string,
   userId: string
 ): Promise<GenerateResult> {
+  // Gate: tranche must be confirmed
+  const { data: tranche } = await supabase
+    .from('loan_tranches')
+    .select('status')
+    .eq('id', trancheId)
+    .single();
+
+  if (!tranche || tranche.status !== 'confirmed') {
+    throw new Error('Расписку можно сформировать только для подтверждённого транша');
+  }
+
   const template = getTemplate('tranche_receipt');
   if (!template) throw new Error('Tranche receipt template not found');
 
