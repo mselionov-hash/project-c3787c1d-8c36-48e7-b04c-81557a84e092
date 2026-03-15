@@ -98,6 +98,12 @@ export async function generateTrancheReceipt(
   const variables = await resolveTrancheReceiptVariables(loanId, trancheId);
   const resolvedText = renderTemplate(template.template, variables);
 
+  // Validate output cleanliness
+  const renderIssues = validateRenderedOutput(resolvedText);
+  if (renderIssues.length > 0) {
+    throw new Error(`Расписка содержит нерезолвленные элементы шаблона:\n${renderIssues.join('\n')}`);
+  }
+
   // Persist document metadata
   const { data, error } = await supabase
     .from('generated_documents')
