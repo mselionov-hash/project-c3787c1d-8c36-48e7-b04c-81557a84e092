@@ -104,6 +104,12 @@ export const TrancheList = ({
                     Подтвердить
                   </Button>
                 )}
+                {t.status === 'confirmed' && onGenerateReceipt && (
+                  <Button size="sm" variant="outline" className="rounded-lg text-xs gap-1" onClick={() => onGenerateReceipt(t.id)}>
+                    <FileText className="w-3.5 h-3.5" />
+                    Расписка
+                  </Button>
+                )}
               </div>
             );
           })}
