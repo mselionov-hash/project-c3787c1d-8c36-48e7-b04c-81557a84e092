@@ -78,7 +78,7 @@ export const TRANCHE_RECEIPT_TEMPLATE = `{RECEIPT_TITLE} № {TRANCHE_RECEIPT_NU
 Телефон: {BORROWER_CONTACT_PHONE}
 Email: {BORROWER_EMAIL}
 ID учетной записи на Платформе: {BORROWER_APP_ACCOUNT_ID}
-Подписано УКЭП: {BORROWER_SIGNATURE_BLOCK}
+Подпись: {BORROWER_SIGNATURE_BLOCK}
 
 [[IF {LENDER_CO_SIGNATURE_ENABLED} == YES]]
 Дополнительная подпись Займодавца (не обязательна для действительности настоящей Расписки)
