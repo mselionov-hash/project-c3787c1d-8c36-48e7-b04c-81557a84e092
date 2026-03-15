@@ -68,8 +68,30 @@ function evaluateCondition(condition: string, variables: VariableRecord): boolea
  */
 function substituteVariables(template: string, variables: VariableRecord): string {
   return template.replace(/\{(\w+?)(\[\])?\}/g, (_match, varName: string) => {
-    return variables[varName] ?? `[${varName}]`;
+    return variables[varName] ?? '';
   });
+}
+
+/**
+ * After rendering, check for any leftover template artifacts that should not appear in final output.
+ * Returns a list of issues found (empty = clean).
+ */
+export function validateRenderedOutput(text: string): string[] {
+  const issues: string[] = [];
+
+  // Leftover conditionals
+  const conditionalMatch = text.match(/\[\[(?:IF|ENDIF)[^\]]*\]\]/g);
+  if (conditionalMatch) {
+    issues.push(`Unresolved conditional blocks: ${conditionalMatch.join(', ')}`);
+  }
+
+  // Leftover unresolved variable references {VAR_NAME}
+  const varMatch = text.match(/\{[A-Z_]+(?:\[\])?\}/g);
+  if (varMatch) {
+    issues.push(`Unresolved variables: ${varMatch.join(', ')}`);
+  }
+
+  return issues;
 }
 
 /**
