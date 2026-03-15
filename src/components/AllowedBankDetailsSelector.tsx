@@ -128,8 +128,10 @@ export const AllowedBankDetailsSelector = ({
 
   const myAllowed = allowed.filter(a => a.party_role === myRole);
   const counterpartyAllowed = allowed.filter(a => a.party_role !== myRole);
-  const alreadyAddedIds = new Set(myAllowed.map(a => a.bank_detail_id));
-  const availableToAdd = myDetails.filter(d => !alreadyAddedIds.has(d.id));
+  const alreadyAddedForPurpose = new Set(
+    myAllowed.filter(a => a.purpose === selectedPurpose).map(a => a.bank_detail_id)
+  );
+  const availableToAdd = myDetails.filter(d => !alreadyAddedForPurpose.has(d.id));
 
   return (
     <div className="space-y-6">
