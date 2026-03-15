@@ -68,7 +68,8 @@ function renderSignatureBlock(sig: Signature | undefined, role: string): string 
   if (!sig) return '[подпись не проставлена]';
   const dateStr = formatDateTimeRu(sig.signed_at);
   const ipStr = sig.signer_ip ? ` | IP: ${sig.signer_ip}` : '';
-  return `Электронная подпись (${role === 'lender' ? 'Займодавец' : 'Заёмщик'}): подписано ${dateStr}${ipStr}\n(не является квалифицированной электронной подписью — УКЭП)`;
+  const roleLabel = role === 'lender' ? 'Займодавец' : 'Заёмщик';
+  return `Электронная подпись (${roleLabel}): подписано ${dateStr}${ipStr}\n(простая электронная подпись на Платформе; не является УКЭП)`;
 }
 
 function renderBankDetailsTable(details: BankDetailSnapshotItem[], purpose: string, partyRole: string): string {
@@ -208,12 +209,13 @@ export async function resolveContractVariables(loanId: string): Promise<Variable
     PAYMENT_REFERENCE_RULE: PLATFORM_CONFIG.PAYMENT_REFERENCE_RULE,
 
     // Render blocks: bank details tables
+    // DB stores purpose='disbursement' (lender sends / borrower receives) and purpose='repayment' (borrower sends / lender receives)
     'ALLOWED_LENDER_DISBURSEMENT_ACCOUNTS_TABLE': renderBankDetailsTable(bankDetails, 'disbursement', 'lender'),
     'ALLOWED_LENDER_DISBURSEMENT_ACCOUNTS': renderBankDetailsTable(bankDetails, 'disbursement', 'lender'),
-    'ALLOWED_BORROWER_RECEIVING_ACCOUNTS_TABLE': renderBankDetailsTable(bankDetails, 'receiving', 'borrower'),
-    'ALLOWED_BORROWER_RECEIVING_ACCOUNTS': renderBankDetailsTable(bankDetails, 'receiving', 'borrower'),
-    'ALLOWED_LENDER_RECEIVING_ACCOUNTS_TABLE': renderBankDetailsTable(bankDetails, 'receiving', 'lender'),
-    'ALLOWED_LENDER_RECEIVING_ACCOUNTS': renderBankDetailsTable(bankDetails, 'receiving', 'lender'),
+    'ALLOWED_BORROWER_RECEIVING_ACCOUNTS_TABLE': renderBankDetailsTable(bankDetails, 'disbursement', 'borrower'),
+    'ALLOWED_BORROWER_RECEIVING_ACCOUNTS': renderBankDetailsTable(bankDetails, 'disbursement', 'borrower'),
+    'ALLOWED_LENDER_RECEIVING_ACCOUNTS_TABLE': renderBankDetailsTable(bankDetails, 'repayment', 'lender'),
+    'ALLOWED_LENDER_RECEIVING_ACCOUNTS': renderBankDetailsTable(bankDetails, 'repayment', 'lender'),
 
     // Render blocks: notice and schedule
     NOTICE_SNAPSHOT_TABLE: renderNoticeTable(lenderProfile, borrowerProfile),

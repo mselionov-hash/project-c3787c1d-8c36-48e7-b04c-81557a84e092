@@ -5,7 +5,7 @@
 
 import { supabase } from '@/integrations/supabase/client';
 import { getTemplate } from '@/legal/document-registry';
-import { renderTemplate } from './template-engine';
+import { renderTemplate, validateRenderedOutput } from './template-engine';
 import { resolveContractVariables, resolveTrancheReceiptVariables } from './variable-resolver';
 import { renderDocumentToPdf } from './pdf-renderer';
 import type { DocumentType } from '@/legal/document-types';
@@ -42,6 +42,12 @@ export async function generateLoanContract(
 
   const variables = await resolveContractVariables(loanId);
   const resolvedText = renderTemplate(template.template, variables);
+
+  // Validate output cleanliness
+  const renderIssues = validateRenderedOutput(resolvedText);
+  if (renderIssues.length > 0) {
+    throw new Error(`Документ содержит нерезолвленные элементы шаблона:\n${renderIssues.join('\n')}`);
+  }
 
   // Persist document metadata (one row per generation for audit trail)
   const { data, error } = await supabase
@@ -91,6 +97,12 @@ export async function generateTrancheReceipt(
 
   const variables = await resolveTrancheReceiptVariables(loanId, trancheId);
   const resolvedText = renderTemplate(template.template, variables);
+
+  // Validate output cleanliness
+  const renderIssues = validateRenderedOutput(resolvedText);
+  if (renderIssues.length > 0) {
+    throw new Error(`Расписка содержит нерезолвленные элементы шаблона:\n${renderIssues.join('\n')}`);
+  }
 
   // Persist document metadata
   const { data, error } = await supabase
