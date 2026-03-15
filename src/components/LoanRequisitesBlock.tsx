@@ -18,12 +18,12 @@ interface PaymentMethod {
   label: string;
 }
 
-interface SbpPaymentSectionProps {
+interface LoanRequisitesBlockProps {
   loan: Loan;
   onSuccess: () => void;
 }
 
-const SbpPaymentSection = ({ loan, onSuccess }: SbpPaymentSectionProps) => {
+export const LoanRequisitesBlock = ({ loan, onSuccess }: LoanRequisitesBlockProps) => {
   const { user } = useAuth();
   const [methods, setMethods] = useState<PaymentMethod[]>([]);
   const [loading, setLoading] = useState(true);
@@ -31,7 +31,6 @@ const SbpPaymentSection = ({ loan, onSuccess }: SbpPaymentSectionProps) => {
   const [showQr, setShowQr] = useState<string | null>(null);
 
   const isLender = user?.id === loan.lender_id;
-  const isBorrower = user?.id === loan.borrower_id;
   const loanNumber = loan.id.slice(0, 8).toUpperCase();
   const paymentComment = `По договору займа №${loanNumber}`;
 
@@ -45,7 +44,7 @@ const SbpPaymentSection = ({ loan, onSuccess }: SbpPaymentSectionProps) => {
       .select('*')
       .eq('user_id', loan.borrower_id!)
       .order('is_default', { ascending: false });
-    setMethods((data as any[]) || []);
+    setMethods((data as unknown as PaymentMethod[]) || []);
     setLoading(false);
   };
 
@@ -67,7 +66,7 @@ const SbpPaymentSection = ({ loan, onSuccess }: SbpPaymentSectionProps) => {
             <Banknote className="w-5 h-5 text-accent" />
           </div>
           <div>
-            <h3 className="text-sm font-semibold uppercase tracking-wider">Реквизиты для погашения</h3>
+            <h3 className="text-sm font-semibold uppercase tracking-wider">Реквизиты для перевода</h3>
             <p className="text-xs text-muted-foreground">Информация о переводе</p>
           </div>
         </div>
@@ -98,7 +97,7 @@ const SbpPaymentSection = ({ loan, onSuccess }: SbpPaymentSectionProps) => {
             <Banknote className="w-5 h-5 text-accent" />
           </div>
           <div>
-            <h3 className="text-sm font-semibold uppercase tracking-wider">Реквизиты для погашения</h3>
+            <h3 className="text-sm font-semibold uppercase tracking-wider">Реквизиты для перевода</h3>
             <p className="text-xs text-muted-foreground">Информация о переводе</p>
           </div>
         </div>
@@ -110,9 +109,6 @@ const SbpPaymentSection = ({ loan, onSuccess }: SbpPaymentSectionProps) => {
     );
   }
 
-  // Show the default method first, or all methods
-  const defaultMethod = methods.find(m => m.is_default) || methods[0];
-
   return (
     <div className="card-elevated p-7">
       <div className="flex items-center gap-3 mb-6">
@@ -120,8 +116,8 @@ const SbpPaymentSection = ({ loan, onSuccess }: SbpPaymentSectionProps) => {
           <Banknote className="w-5 h-5 text-accent" />
         </div>
         <div>
-          <h3 className="text-sm font-semibold uppercase tracking-wider">Как оплатить</h3>
-          <p className="text-xs text-muted-foreground">Реквизиты для погашения займа</p>
+          <h3 className="text-sm font-semibold uppercase tracking-wider">Реквизиты для перевода</h3>
+          <p className="text-xs text-muted-foreground">Допустимые реквизиты для выдачи и погашения</p>
         </div>
       </div>
 
@@ -144,7 +140,6 @@ const SbpPaymentSection = ({ loan, onSuccess }: SbpPaymentSectionProps) => {
             </div>
 
             <div className="space-y-2">
-              {/* Open link button */}
               {m.transfer_link && (
                 <Button
                   onClick={() => window.open(m.transfer_link!, '_blank', 'noopener')}
@@ -155,7 +150,6 @@ const SbpPaymentSection = ({ loan, onSuccess }: SbpPaymentSectionProps) => {
                 </Button>
               )}
 
-              {/* Show QR button */}
               {m.qr_image_url && (
                 <Button
                   variant="outline"
@@ -229,5 +223,3 @@ const SbpPaymentSection = ({ loan, onSuccess }: SbpPaymentSectionProps) => {
     </div>
   );
 };
-
-export default SbpPaymentSection;

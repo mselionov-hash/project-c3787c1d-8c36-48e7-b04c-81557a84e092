@@ -10,13 +10,12 @@ type Loan = Tables<'loans'>;
 
 const statusLabels: Record<string, { label: string; class: string }> = {
   draft: { label: 'Черновик', class: 'bg-muted text-muted-foreground' },
-  awaiting_signature: { label: 'Ожидает подписи', class: 'bg-warning/10 text-warning' },
+  awaiting_signatures: { label: 'Ожидает подписей', class: 'bg-warning/10 text-warning' },
   signed_by_lender: { label: 'Подписан займодавцем', class: 'bg-primary/10 text-primary' },
   signed_by_borrower: { label: 'Подписан заёмщиком', class: 'bg-primary/10 text-primary' },
   fully_signed: { label: 'Полностью подписан', class: 'bg-accent/10 text-accent' },
-  awaiting_payment: { label: 'Ожидает оплаты', class: 'bg-warning/10 text-warning' },
   active: { label: 'Активный', class: 'bg-accent/10 text-accent' },
-  completed: { label: 'Завершён', class: 'bg-muted text-muted-foreground' },
+  repaid: { label: 'Погашён', class: 'bg-muted text-muted-foreground' },
   overdue: { label: 'Просрочен', class: 'bg-destructive/10 text-destructive' },
 };
 

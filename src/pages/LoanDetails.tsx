@@ -5,26 +5,27 @@ import { supabase } from '@/integrations/supabase/client';
 import { generateLoanPDF } from '@/lib/pdf';
 import SignaturePad from '@/components/SignaturePad';
 import SendLoanModal from '@/components/SendLoanModal';
-import SbpPaymentSection from '@/components/SbpPaymentSection';
+import { LoanRequisitesBlock } from '@/components/LoanRequisitesBlock';
 import { Button } from '@/components/ui/button';
 import { toast } from 'sonner';
 import {
   ArrowLeft, Download, PenTool, CheckCircle2, Clock, FileText,
-  User, Calendar, Percent, MapPin, AlertTriangle, Shield, Send
+  User, Calendar, Percent, MapPin, AlertTriangle, Shield, Send,
+  Banknote, ListChecks, CreditCard, FileCheck
 } from 'lucide-react';
 import type { Tables } from '@/integrations/supabase/types';
 
 type Loan = Tables<'loans'>;
 type Signature = Tables<'loan_signatures'>;
 
-const statusConfig: Record<string, { label: string; icon: any; class: string }> = {
+const statusConfig: Record<string, { label: string; icon: React.ElementType; class: string }> = {
   draft: { label: 'Черновик', icon: Clock, class: 'bg-muted text-muted-foreground' },
-  awaiting_signature: { label: 'Ожидает подписи', icon: PenTool, class: 'bg-warning/10 text-warning' },
+  awaiting_signatures: { label: 'Ожидает подписей', icon: PenTool, class: 'bg-warning/10 text-warning' },
   signed_by_lender: { label: 'Подписан займодавцем', icon: PenTool, class: 'bg-primary/10 text-primary' },
   signed_by_borrower: { label: 'Подписан заёмщиком', icon: PenTool, class: 'bg-primary/10 text-primary' },
   fully_signed: { label: 'Полностью подписан', icon: CheckCircle2, class: 'bg-accent/10 text-accent' },
   active: { label: 'Активный', icon: CheckCircle2, class: 'bg-accent/10 text-accent' },
-  completed: { label: 'Завершён', icon: CheckCircle2, class: 'bg-muted text-muted-foreground' },
+  repaid: { label: 'Погашён', icon: CheckCircle2, class: 'bg-muted text-muted-foreground' },
   overdue: { label: 'Просрочен', icon: AlertTriangle, class: 'bg-destructive/10 text-destructive' },
 };
 
@@ -68,7 +69,7 @@ const LoanDetails = () => {
         const res = await fetch('https://api.ipify.org?format=json');
         const data = await res.json();
         ip = data.ip;
-      } catch {}
+      } catch { /* IP detection is best-effort */ }
 
       const { error } = await supabase.from('loan_signatures').insert({
         loan_id: loan.id,
@@ -96,8 +97,9 @@ const LoanDetails = () => {
       toast.success('Договор подписан!');
       setShowSignature(false);
       fetchAll();
-    } catch (err: any) {
-      toast.error(err.message || 'Ошибка подписи');
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : 'Ошибка подписи';
+      toast.error(message);
     }
   };
 
@@ -271,6 +273,9 @@ const LoanDetails = () => {
               </Button>
             )}
           </div>
+          <p className="text-xs text-muted-foreground mb-4 italic">
+            Рукописная подпись в электронной форме (не является квалифицированной электронной подписью — УКЭП)
+          </p>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div className={`rounded-xl border-2 p-4 ${lenderSig ? 'border-accent/30 bg-accent/5' : 'border-dashed border-border'}`}>
@@ -309,8 +314,74 @@ const LoanDetails = () => {
           </div>
         </div>
 
+        {/* === PLACEHOLDER SECTIONS (Phase 3+) === */}
+
+        {/* Tranches */}
+        <div className="card-elevated p-7">
+          <div className="flex items-center gap-3 mb-4">
+            <div className="w-10 h-10 rounded-xl bg-accent/10 flex items-center justify-center">
+              <Banknote className="w-5 h-5 text-accent" />
+            </div>
+            <div>
+              <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">Транши</h3>
+              <p className="text-xs text-muted-foreground">Выданные средства по договору</p>
+            </div>
+          </div>
+          <div className="text-center py-8">
+            <p className="text-sm text-muted-foreground">Транши появятся после подписания договора</p>
+          </div>
+        </div>
+
+        {/* Payment Schedule */}
+        <div className="card-elevated p-7">
+          <div className="flex items-center gap-3 mb-4">
+            <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center">
+              <ListChecks className="w-5 h-5 text-primary" />
+            </div>
+            <div>
+              <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">График погашения</h3>
+              <p className="text-xs text-muted-foreground">Приложение 2 к договору</p>
+            </div>
+          </div>
+          <div className="text-center py-8">
+            <p className="text-sm text-muted-foreground">График погашения будет сформирован после подписания</p>
+          </div>
+        </div>
+
+        {/* Repayments */}
+        <div className="card-elevated p-7">
+          <div className="flex items-center gap-3 mb-4">
+            <div className="w-10 h-10 rounded-xl bg-accent/10 flex items-center justify-center">
+              <CreditCard className="w-5 h-5 text-accent" />
+            </div>
+            <div>
+              <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">Погашения</h3>
+              <p className="text-xs text-muted-foreground">История платежей по займу</p>
+            </div>
+          </div>
+          <div className="text-center py-8">
+            <p className="text-sm text-muted-foreground">Погашения появятся после выдачи первого транша</p>
+          </div>
+        </div>
+
+        {/* Generated Documents */}
+        <div className="card-elevated p-7">
+          <div className="flex items-center gap-3 mb-4">
+            <div className="w-10 h-10 rounded-xl bg-muted flex items-center justify-center">
+              <FileCheck className="w-5 h-5 text-muted-foreground" />
+            </div>
+            <div>
+              <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">Документы</h3>
+              <p className="text-xs text-muted-foreground">Сформированные документы по договору</p>
+            </div>
+          </div>
+          <div className="text-center py-8">
+            <p className="text-sm text-muted-foreground">Документы будут сформированы автоматически</p>
+          </div>
+        </div>
+
         {/* Payment requisites */}
-        <SbpPaymentSection loan={loan} onSuccess={fetchAll} />
+        <LoanRequisitesBlock loan={loan} onSuccess={fetchAll} />
       </main>
 
       {showSignature && (
