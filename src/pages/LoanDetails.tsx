@@ -290,6 +290,9 @@ const LoanDetails = () => {
     });
   };
 
+  const isFullySigned = Boolean(lenderSig && borrowerSig) ||
+    ['fully_signed', 'active', 'repaid'].includes(loan?.status || '');
+
   const handleGenerateContract = async () => {
     if (!loan || !user) return;
     try {
