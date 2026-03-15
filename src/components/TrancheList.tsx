@@ -32,6 +32,7 @@ export const TrancheList = ({
   isBorrower,
   loanStatus,
   onRefresh,
+  onGenerateReceipt,
 }: TrancheListProps) => {
   const [showCreate, setShowCreate] = useState(false);
   const [confirmTranche, setConfirmTranche] = useState<Tranche | null>(null);
