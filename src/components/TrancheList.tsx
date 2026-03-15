@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Button } from '@/components/ui/button';
-import { Banknote, Plus, CheckCircle2, Clock, AlertCircle } from 'lucide-react';
+import { Banknote, Plus, CheckCircle2, Clock, AlertCircle, FileText } from 'lucide-react';
 import { CreateTrancheModal } from '@/components/CreateTrancheModal';
 import { TrancheConfirmModal } from '@/components/TrancheConfirmModal';
 import type { Tables } from '@/integrations/supabase/types';
