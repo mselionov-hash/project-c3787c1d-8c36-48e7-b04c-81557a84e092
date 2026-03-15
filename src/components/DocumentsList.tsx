@@ -1,10 +1,13 @@
-import { FileCheck } from 'lucide-react';
+import { FileCheck, Download } from 'lucide-react';
+import { Button } from '@/components/ui/button';
 import type { Tables } from '@/integrations/supabase/types';
 
 type GeneratedDocument = Tables<'generated_documents'>;
 
 interface DocumentsListProps {
   documents: GeneratedDocument[];
+  onRegenerateContract?: () => void;
+  onGenerateTrancheReceipt?: (trancheId: string) => void;
 }
 
 const DOC_TYPE_LABELS: Record<string, string> = {
@@ -32,7 +35,7 @@ export const DocumentsList = ({ documents }: DocumentsListProps) => {
       {documents.length === 0 ? (
         <div className="text-center py-8">
           <p className="text-sm text-muted-foreground">
-            Документы будут сформированы автоматически (Phase 4)
+            Документы ещё не сформированы. Используйте кнопку «Договор PDF» для генерации.
           </p>
         </div>
       ) : (
@@ -47,7 +50,8 @@ export const DocumentsList = ({ documents }: DocumentsListProps) => {
                   {DOC_TYPE_LABELS[doc.document_type] || doc.document_type}
                 </p>
                 <p className="text-xs text-muted-foreground">
-                  v{doc.template_version} • {new Date(doc.created_at).toLocaleDateString('ru-RU')}
+                  v{doc.template_version} • {new Date(doc.created_at).toLocaleDateString('ru-RU', { day: 'numeric', month: 'long', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                  {doc.source_entity_id && ` • Транш: ${doc.source_entity_id.slice(0, 8)}`}
                 </p>
               </div>
             </div>
