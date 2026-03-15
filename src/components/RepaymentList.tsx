@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
 import { toast } from 'sonner';
-import { CreditCard, Plus, CheckCircle2, Clock, Loader2 } from 'lucide-react';
+import { CreditCard, Plus, CheckCircle2, Clock, Loader2, FileText } from 'lucide-react';
 import { CreateRepaymentModal } from '@/components/CreateRepaymentModal';
 import type { Tables } from '@/integrations/supabase/types';
 
@@ -16,6 +16,7 @@ interface RepaymentListProps {
   isBorrower: boolean;
   loanStatus: string;
   onRefresh: () => void;
+  onGenerateConfirmation?: (paymentId: string) => void;
 }
 
 const PAYMENT_STATUS: Record<string, { label: string; class: string }> = {
@@ -32,6 +33,7 @@ export const RepaymentList = ({
   isBorrower,
   loanStatus,
   onRefresh,
+  onGenerateConfirmation,
 }: RepaymentListProps) => {
   const [showCreate, setShowCreate] = useState(false);
   const [confirming, setConfirming] = useState<string | null>(null);
@@ -99,6 +101,7 @@ export const RepaymentList = ({
           {payments.map(p => {
             const st = PAYMENT_STATUS[p.status] || PAYMENT_STATUS.pending;
             const canConfirmThis = isLender && p.status === 'pending';
+            const canGenerateDoc = isLender && p.status === 'confirmed' && onGenerateConfirmation;
 
             return (
               <div key={p.id} className="flex items-center gap-4 p-4 rounded-xl bg-muted/50 border border-border/40">
@@ -118,20 +121,33 @@ export const RepaymentList = ({
                     {p.transfer_method === 'sbp' ? ' • СБП' : ' • Перевод'}
                   </p>
                 </div>
-                {canConfirmThis && (
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    className="rounded-lg text-xs gap-1"
-                    disabled={confirming === p.id}
-                    onClick={() => handleConfirm(p.id)}
-                  >
-                    {confirming === p.id
-                      ? <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                      : <CheckCircle2 className="w-3.5 h-3.5" />}
-                    Подтвердить
-                  </Button>
-                )}
+                <div className="flex gap-1.5">
+                  {canConfirmThis && (
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="rounded-lg text-xs gap-1"
+                      disabled={confirming === p.id}
+                      onClick={() => handleConfirm(p.id)}
+                    >
+                      {confirming === p.id
+                        ? <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                        : <CheckCircle2 className="w-3.5 h-3.5" />}
+                      Подтвердить
+                    </Button>
+                  )}
+                  {canGenerateDoc && (
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      className="rounded-lg text-xs gap-1"
+                      onClick={() => onGenerateConfirmation(p.id)}
+                    >
+                      <FileText className="w-3.5 h-3.5" />
+                      PDF
+                    </Button>
+                  )}
+                </div>
               </div>
             );
           })}
