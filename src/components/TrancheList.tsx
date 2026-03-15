@@ -15,6 +15,7 @@ interface TrancheListProps {
   isBorrower: boolean;
   loanStatus: string;
   onRefresh: () => void;
+  onGenerateReceipt?: (trancheId: string) => void;
 }
 
 const TRANCHE_STATUS: Record<string, { label: string; icon: React.ElementType; class: string }> = {
