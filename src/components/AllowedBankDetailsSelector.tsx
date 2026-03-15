@@ -200,8 +200,8 @@ export const AllowedBankDetailsSelector = ({
         </div>
       )}
 
-      {/* Add details (only in draft) */}
-      {isDraft && hasAvailableForAnyPurpose && (
+      {/* Add details (before fully signed) */}
+      {canEdit && hasAvailableForAnyPurpose && (
         <div>
           <h4 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-3">
             Добавить реквизиты
