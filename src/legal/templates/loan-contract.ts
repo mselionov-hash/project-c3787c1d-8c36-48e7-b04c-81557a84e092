@@ -11,7 +11,7 @@
 
 export const LOAN_CONTRACT_TEMPLATE_VERSION = '1.0';
 
-export const LOAN_CONTRACT_TEMPLATE = `# ШАБЛОН ДОГОВОРА ДЕНЕЖНОГО ЗАЙМА № {CONTRACT_NUMBER}
+export const LOAN_CONTRACT_TEMPLATE = `# ДОГОВОР ДЕНЕЖНОГО ЗАЙМА № {CONTRACT_NUMBER}
 
 г. {CONTRACT_PLACE}
 Дата формирования документа в системе: {CONTRACT_DATE}
