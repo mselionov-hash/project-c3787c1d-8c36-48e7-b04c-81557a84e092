@@ -343,3 +343,187 @@ export async function resolveTrancheReceiptVariables(
 
   return vars;
 }
+
+const SCHEDULE_TYPE_LABELS: Record<string, string> = {
+  no_schedule_single_deadline: 'Единый срок возврата',
+  installments_fixed: 'Рассрочка фиксированными платежами',
+  installments_variable: 'Рассрочка переменными платежами',
+};
+
+const REPAYMENT_METHOD_LABELS: Record<string, string> = {
+  bank_transfer: 'Банковский перевод',
+  sbp: 'Перевод через СБП',
+};
+
+/**
+ * Resolve variables for Appendix 1 — allowed bank details.
+ */
+export async function resolveAppendixBankDetailsVariables(loanId: string): Promise<VariableRecord> {
+  const [loanRes, snapshotsRes] = await Promise.all([
+    supabase.from('loans').select('*').eq('id', loanId).single(),
+    supabase.from('signing_snapshots').select('*').eq('loan_id', loanId),
+  ]);
+
+  const loan = loanRes.data;
+  if (!loan) throw new Error('Loan not found');
+
+  const snapshots = snapshotsRes.data || [];
+  const lenderProfileSnap = snapshots.find(s => s.snapshot_type === 'party_profile' && s.role === 'lender');
+  const borrowerProfileSnap = snapshots.find(s => s.snapshot_type === 'party_profile' && s.role === 'borrower');
+  const bankDetailsSnap = snapshots.find(s => s.snapshot_type === 'allowed_bank_details');
+
+  if (!lenderProfileSnap || !borrowerProfileSnap) {
+    throw new Error('Снимки профилей сторон не найдены.');
+  }
+
+  const lenderProfile = safeJsonCast<ProfileSnapshot>(lenderProfileSnap.snapshot_data);
+  const borrowerProfile = safeJsonCast<ProfileSnapshot>(borrowerProfileSnap.snapshot_data);
+  const bankDetails: BankDetailSnapshotItem[] = bankDetailsSnap
+    ? safeJsonCast<AllowedBankDetailsSnapshotData>(bankDetailsSnap.snapshot_data).details
+    : [];
+
+  return {
+    CONTRACT_NUMBER: loan.contract_number || loan.id.slice(0, 8).toUpperCase(),
+    APPENDIX_DATE: formatDateTimeRu(new Date().toISOString()),
+    LENDER_DISBURSEMENT_ACCOUNTS: renderBankDetailsTable(bankDetails, 'disbursement', 'lender'),
+    BORROWER_DISBURSEMENT_ACCOUNTS: renderBankDetailsTable(bankDetails, 'disbursement', 'borrower'),
+    LENDER_REPAYMENT_ACCOUNTS: renderBankDetailsTable(bankDetails, 'repayment', 'lender'),
+    BORROWER_REPAYMENT_ACCOUNTS: renderBankDetailsTable(bankDetails, 'repayment', 'borrower'),
+    NOTICE_SNAPSHOT_TABLE: renderNoticeTable(lenderProfile, borrowerProfile),
+  };
+}
+
+/**
+ * Resolve variables for Appendix 2 — repayment schedule.
+ */
+export async function resolveAppendixScheduleVariables(loanId: string): Promise<VariableRecord> {
+  const [loanRes, scheduleRes] = await Promise.all([
+    supabase.from('loans').select('*').eq('id', loanId).single(),
+    supabase.from('payment_schedule_items').select('*').eq('loan_id', loanId).order('item_number'),
+  ]);
+
+  const loan = loanRes.data;
+  if (!loan) throw new Error('Loan not found');
+
+  const scheduleItems = scheduleRes.data || [];
+  if (scheduleItems.length === 0) {
+    throw new Error('График платежей не сформирован. Создайте записи графика перед генерацией Приложения 2.');
+  }
+
+  return {
+    CONTRACT_NUMBER: loan.contract_number || loan.id.slice(0, 8).toUpperCase(),
+    APPENDIX_DATE: formatDateTimeRu(new Date().toISOString()),
+    SCHEDULE_TYPE_LABEL: SCHEDULE_TYPE_LABELS[loan.repayment_schedule_type] || loan.repayment_schedule_type,
+    LOAN_AMOUNT: Number(loan.amount).toLocaleString('ru-RU'),
+    LOAN_AMOUNT_IN_WORDS: amountToWordsRu(Number(loan.amount)),
+    LOAN_CURRENCY: PLATFORM_CONFIG.LOAN_CURRENCY,
+    INTEREST_MODE: loan.interest_mode.toUpperCase(),
+    INTEREST_RATE_ANNUAL: String(Number(loan.interest_rate)),
+    FINAL_REPAYMENT_DEADLINE: formatDateRu(loan.repayment_date),
+    SCHEDULE_TABLE: renderScheduleTable(scheduleItems),
+  };
+}
+
+/**
+ * Resolve variables for partial repayment confirmation.
+ */
+export async function resolvePartialRepaymentVariables(
+  loanId: string,
+  paymentId: string
+): Promise<VariableRecord> {
+  const [loanRes, paymentRes, tranchesRes, allPaymentsRes, snapshotsRes] = await Promise.all([
+    supabase.from('loans').select('*').eq('id', loanId).single(),
+    supabase.from('loan_payments').select('*').eq('id', paymentId).single(),
+    supabase.from('loan_tranches').select('*').eq('loan_id', loanId).eq('status', 'confirmed'),
+    supabase.from('loan_payments').select('*').eq('loan_id', loanId).eq('status', 'confirmed'),
+    supabase.from('signing_snapshots').select('*').eq('loan_id', loanId),
+  ]);
+
+  const loan = loanRes.data;
+  const payment = paymentRes.data;
+  if (!loan) throw new Error('Loan not found');
+  if (!payment) throw new Error('Payment not found');
+  if (payment.status !== 'confirmed') throw new Error('Подтверждение можно сформировать только для подтверждённого платежа.');
+
+  const snapshots = snapshotsRes.data || [];
+  const lenderSnap = snapshots.find(s => s.snapshot_type === 'party_profile' && s.role === 'lender');
+  const borrowerSnap = snapshots.find(s => s.snapshot_type === 'party_profile' && s.role === 'borrower');
+  if (!lenderSnap || !borrowerSnap) throw new Error('Снимки профилей сторон не найдены.');
+
+  const lenderProfile = safeJsonCast<ProfileSnapshot>(lenderSnap.snapshot_data);
+  const borrowerProfile = safeJsonCast<ProfileSnapshot>(borrowerSnap.snapshot_data);
+
+  const totalDisbursed = (tranchesRes.data || []).reduce((s, t) => s + Number(t.amount), 0);
+  const totalRepaid = (allPaymentsRes.data || []).reduce((s, p) => s + Number(p.transfer_amount), 0);
+  const remaining = Math.max(0, totalDisbursed - totalRepaid);
+
+  return {
+    CONTRACT_NUMBER: loan.contract_number || loan.id.slice(0, 8).toUpperCase(),
+    CONFIRMATION_DATE: formatDateTimeRu(new Date().toISOString()),
+    LENDER_FULL_NAME: lenderProfile.full_name,
+    BORROWER_FULL_NAME: borrowerProfile.full_name,
+    REPAYMENT_AMOUNT: Number(payment.transfer_amount).toLocaleString('ru-RU'),
+    REPAYMENT_AMOUNT_IN_WORDS: amountToWordsRu(Number(payment.transfer_amount)),
+    LOAN_CURRENCY: PLATFORM_CONFIG.LOAN_CURRENCY,
+    REPAYMENT_DATE: formatDateRu(payment.transfer_date),
+    REPAYMENT_METHOD: REPAYMENT_METHOD_LABELS[payment.transfer_method] || payment.transfer_method,
+    REPAYMENT_BANK_NAME: payment.bank_name?.trim() ? '__HAS_VALUE__' : '',
+    REPAYMENT_TRANSACTION_ID: payment.transaction_id?.trim() ? '__HAS_VALUE__' : '',
+    TOTAL_DISBURSED: totalDisbursed.toLocaleString('ru-RU'),
+    TOTAL_REPAID: totalRepaid.toLocaleString('ru-RU'),
+    REMAINING_BALANCE: remaining.toLocaleString('ru-RU'),
+    LENDER_CONFIRMATION_BLOCK: `Подтверждено на Платформе ${formatDateTimeRu(payment.confirmed_at)}\n(простая электронная подпись на Платформе; не является УКЭП)`,
+  };
+}
+
+/**
+ * Resolve variables for full repayment confirmation.
+ */
+export async function resolveFullRepaymentVariables(loanId: string): Promise<VariableRecord> {
+  const [loanRes, tranchesRes, paymentsRes, snapshotsRes] = await Promise.all([
+    supabase.from('loans').select('*').eq('id', loanId).single(),
+    supabase.from('loan_tranches').select('*').eq('loan_id', loanId).eq('status', 'confirmed'),
+    supabase.from('loan_payments').select('*').eq('loan_id', loanId).eq('status', 'confirmed').order('transfer_date', { ascending: false }),
+    supabase.from('signing_snapshots').select('*').eq('loan_id', loanId),
+  ]);
+
+  const loan = loanRes.data;
+  if (!loan) throw new Error('Loan not found');
+
+  const snapshots = snapshotsRes.data || [];
+  const lenderSnap = snapshots.find(s => s.snapshot_type === 'party_profile' && s.role === 'lender');
+  const borrowerSnap = snapshots.find(s => s.snapshot_type === 'party_profile' && s.role === 'borrower');
+  if (!lenderSnap || !borrowerSnap) throw new Error('Снимки профилей сторон не найдены.');
+
+  const lenderProfile = safeJsonCast<ProfileSnapshot>(lenderSnap.snapshot_data);
+  const borrowerProfile = safeJsonCast<ProfileSnapshot>(borrowerSnap.snapshot_data);
+
+  const totalDisbursed = (tranchesRes.data || []).reduce((s, t) => s + Number(t.amount), 0);
+  const confirmedPayments = paymentsRes.data || [];
+  const totalRepaid = confirmedPayments.reduce((s, p) => s + Number(p.transfer_amount), 0);
+
+  if (totalDisbursed <= 0) throw new Error('Нет подтверждённых траншей для формирования подтверждения.');
+  if (totalRepaid < totalDisbursed) throw new Error('Основной долг ещё не погашен полностью.');
+
+  const lastPayment = confirmedPayments[0];
+
+  return {
+    CONTRACT_NUMBER: loan.contract_number || loan.id.slice(0, 8).toUpperCase(),
+    CONFIRMATION_DATE: formatDateTimeRu(new Date().toISOString()),
+    LENDER_FULL_NAME: lenderProfile.full_name,
+    LENDER_PASSPORT_SERIES: lenderProfile.passport_series || '____',
+    LENDER_PASSPORT_NUMBER: lenderProfile.passport_number || '______',
+    LENDER_REG_ADDRESS: lenderProfile.address || '___________',
+    BORROWER_FULL_NAME: borrowerProfile.full_name,
+    BORROWER_PASSPORT_SERIES: borrowerProfile.passport_series || '____',
+    BORROWER_PASSPORT_NUMBER: borrowerProfile.passport_number || '______',
+    BORROWER_REG_ADDRESS: borrowerProfile.address || '___________',
+    TOTAL_DISBURSED: totalDisbursed.toLocaleString('ru-RU'),
+    TOTAL_DISBURSED_IN_WORDS: amountToWordsRu(totalDisbursed),
+    TOTAL_REPAID: totalRepaid.toLocaleString('ru-RU'),
+    TOTAL_REPAID_IN_WORDS: amountToWordsRu(totalRepaid),
+    LOAN_CURRENCY: PLATFORM_CONFIG.LOAN_CURRENCY,
+    LAST_REPAYMENT_DATE: lastPayment ? formatDateRu(lastPayment.transfer_date) : '___________',
+    LENDER_CONFIRMATION_BLOCK: `Подтверждено на Платформе ${formatDateTimeRu(new Date().toISOString())}\n(простая электронная подпись на Платформе; не является УКЭП)`,
+  };
+}
