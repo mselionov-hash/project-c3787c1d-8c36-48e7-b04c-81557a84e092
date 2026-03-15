@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Button } from '@/components/ui/button';
-import { Banknote, Plus, CheckCircle2, Clock, AlertCircle } from 'lucide-react';
+import { Banknote, Plus, CheckCircle2, Clock, AlertCircle, FileText } from 'lucide-react';
 import { CreateTrancheModal } from '@/components/CreateTrancheModal';
 import { TrancheConfirmModal } from '@/components/TrancheConfirmModal';
 import type { Tables } from '@/integrations/supabase/types';
@@ -15,6 +15,7 @@ interface TrancheListProps {
   isBorrower: boolean;
   loanStatus: string;
   onRefresh: () => void;
+  onGenerateReceipt?: (trancheId: string) => void;
 }
 
 const TRANCHE_STATUS: Record<string, { label: string; icon: React.ElementType; class: string }> = {
@@ -31,6 +32,7 @@ export const TrancheList = ({
   isBorrower,
   loanStatus,
   onRefresh,
+  onGenerateReceipt,
 }: TrancheListProps) => {
   const [showCreate, setShowCreate] = useState(false);
   const [confirmTranche, setConfirmTranche] = useState<Tranche | null>(null);
@@ -100,6 +102,12 @@ export const TrancheList = ({
                   <Button size="sm" variant="outline" className="rounded-lg text-xs gap-1" onClick={() => setConfirmTranche(t)}>
                     <CheckCircle2 className="w-3.5 h-3.5" />
                     Подтвердить
+                  </Button>
+                )}
+                {t.status === 'confirmed' && onGenerateReceipt && (
+                  <Button size="sm" variant="outline" className="rounded-lg text-xs gap-1" onClick={() => onGenerateReceipt(t.id)}>
+                    <FileText className="w-3.5 h-3.5" />
+                    Расписка
                   </Button>
                 )}
               </div>

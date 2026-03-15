@@ -4,6 +4,7 @@ import { useAuth } from '@/hooks/useAuth';
 import { supabase } from '@/integrations/supabase/client';
 import { generateLoanPDF } from '@/lib/pdf';
 import { createSnapshot, SNAPSHOT_TYPES } from '@/legal/snapshots';
+import { generateLoanContract, generateTrancheReceipt } from '@/legal/services/document-generator';
 import SignaturePad from '@/components/SignaturePad';
 import SendLoanModal from '@/components/SendLoanModal';
 import { AllowedBankDetailsSelector } from '@/components/AllowedBankDetailsSelector';
@@ -276,7 +277,7 @@ const LoanDetails = () => {
     }
   };
 
-  const handleDownloadPDF = () => {
+  const handleDownloadLegacyPDF = () => {
     if (!loan) return;
     generateLoanPDF({
       ...loan,
@@ -287,6 +288,30 @@ const LoanDetails = () => {
         signer_ip: s.signer_ip,
       })),
     });
+  };
+
+  const handleGenerateContract = async () => {
+    if (!loan || !user) return;
+    try {
+      await generateLoanContract(loan.id, user.id);
+      toast.success('Договор сформирован и скачан');
+      fetchAll();
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : 'Ошибка генерации';
+      toast.error(message);
+    }
+  };
+
+  const handleGenerateTrancheReceipt = async (trancheId: string) => {
+    if (!loan || !user) return;
+    try {
+      await generateTrancheReceipt(loan.id, trancheId, user.id);
+      toast.success('Расписка о получении транша сформирована и скачана');
+      fetchAll();
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : 'Ошибка генерации';
+      toast.error(message);
+    }
   };
 
   if (loading || authLoading || !loan) {
@@ -328,9 +353,13 @@ const LoanDetails = () => {
                 <span className="hidden sm:inline">Отправить</span>
               </Button>
             )}
-            <Button variant="outline" onClick={handleDownloadPDF} size="sm" className="gap-1.5 sm:gap-2 rounded-xl text-xs sm:text-sm">
+            <Button variant="outline" onClick={handleGenerateContract} size="sm" className="gap-1.5 sm:gap-2 rounded-xl text-xs sm:text-sm">
+              <FileText className="w-4 h-4" />
+              <span className="hidden sm:inline">Договор PDF</span>
+            </Button>
+            <Button variant="outline" onClick={handleDownloadLegacyPDF} size="sm" className="gap-1.5 sm:gap-2 rounded-xl text-xs sm:text-sm">
               <Download className="w-4 h-4" />
-              <span className="hidden sm:inline">Скачать PDF</span>
+              <span className="hidden sm:inline">Простой PDF</span>
             </Button>
           </div>
         </div>
@@ -524,6 +553,7 @@ const LoanDetails = () => {
             isBorrower={isBorrower}
             loanStatus={loan.status}
             onRefresh={fetchAll}
+            onGenerateReceipt={handleGenerateTrancheReceipt}
           />
         </div>
 
