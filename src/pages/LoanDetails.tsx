@@ -291,8 +291,6 @@ const LoanDetails = () => {
   };
 
   const handleGenerateContract = async () => {
-
-  const handleGenerateContract = async () => {
     if (!loan || !user) return;
     try {
       await generateLoanContract(loan.id, user.id);
