@@ -17,6 +17,8 @@ export type Database = {
       loan_payments: {
         Row: {
           bank_name: string | null
+          confirmed_at: string | null
+          confirmed_by: string | null
           created_at: string
           id: string
           loan_id: string
@@ -31,6 +33,8 @@ export type Database = {
         }
         Insert: {
           bank_name?: string | null
+          confirmed_at?: string | null
+          confirmed_by?: string | null
           created_at?: string
           id?: string
           loan_id: string
@@ -45,6 +49,8 @@ export type Database = {
         }
         Update: {
           bank_name?: string | null
+          confirmed_at?: string | null
+          confirmed_by?: string | null
           created_at?: string
           id?: string
           loan_id?: string
@@ -113,8 +119,13 @@ export type Database = {
           borrower_name: string
           borrower_passport: string | null
           city: string
+          contract_number: string | null
           created_at: string
+          disbursement_method: string
+          early_repayment_notice_days: number
           id: string
+          interest_mode: string
+          interest_payment_schedule: string | null
           interest_rate: number
           issue_date: string
           lender_address: string | null
@@ -124,6 +135,7 @@ export type Database = {
           notes: string | null
           penalty_rate: number
           repayment_date: string
+          repayment_schedule_type: string
           status: string
           updated_at: string
         }
@@ -134,8 +146,13 @@ export type Database = {
           borrower_name: string
           borrower_passport?: string | null
           city?: string
+          contract_number?: string | null
           created_at?: string
+          disbursement_method?: string
+          early_repayment_notice_days?: number
           id?: string
+          interest_mode?: string
+          interest_payment_schedule?: string | null
           interest_rate?: number
           issue_date?: string
           lender_address?: string | null
@@ -145,6 +162,7 @@ export type Database = {
           notes?: string | null
           penalty_rate?: number
           repayment_date: string
+          repayment_schedule_type?: string
           status?: string
           updated_at?: string
         }
@@ -155,8 +173,13 @@ export type Database = {
           borrower_name?: string
           borrower_passport?: string | null
           city?: string
+          contract_number?: string | null
           created_at?: string
+          disbursement_method?: string
+          early_repayment_notice_days?: number
           id?: string
+          interest_mode?: string
+          interest_payment_schedule?: string | null
           interest_rate?: number
           issue_date?: string
           lender_address?: string | null
@@ -166,6 +189,7 @@ export type Database = {
           notes?: string | null
           penalty_rate?: number
           repayment_date?: string
+          repayment_schedule_type?: string
           status?: string
           updated_at?: string
         }
@@ -226,8 +250,12 @@ export type Database = {
         Row: {
           address: string | null
           created_at: string
+          date_of_birth: string | null
           full_name: string
           id: string
+          passport_division_code: string | null
+          passport_issue_date: string | null
+          passport_issued_by: string | null
           passport_number: string | null
           passport_series: string | null
           phone: string | null
@@ -237,8 +265,12 @@ export type Database = {
         Insert: {
           address?: string | null
           created_at?: string
+          date_of_birth?: string | null
           full_name?: string
           id?: string
+          passport_division_code?: string | null
+          passport_issue_date?: string | null
+          passport_issued_by?: string | null
           passport_number?: string | null
           passport_series?: string | null
           phone?: string | null
@@ -248,8 +280,12 @@ export type Database = {
         Update: {
           address?: string | null
           created_at?: string
+          date_of_birth?: string | null
           full_name?: string
           id?: string
+          passport_division_code?: string | null
+          passport_issue_date?: string | null
+          passport_issued_by?: string | null
           passport_number?: string | null
           passport_series?: string | null
           phone?: string | null
