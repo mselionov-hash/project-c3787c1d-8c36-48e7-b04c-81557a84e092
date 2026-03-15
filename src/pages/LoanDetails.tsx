@@ -2,7 +2,6 @@ import { useState, useEffect } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
 import { supabase } from '@/integrations/supabase/client';
-import { generateLoanPDF } from '@/lib/pdf';
 import { createSnapshot, SNAPSHOT_TYPES } from '@/legal/snapshots';
 import { generateLoanContract, generateTrancheReceipt } from '@/legal/services/document-generator';
 import SignaturePad from '@/components/SignaturePad';
