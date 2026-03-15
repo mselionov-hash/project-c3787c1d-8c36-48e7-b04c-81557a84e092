@@ -5,7 +5,7 @@
 
 import { supabase } from '@/integrations/supabase/client';
 import { getTemplate } from '@/legal/document-registry';
-import { renderTemplate } from './template-engine';
+import { renderTemplate, validateRenderedOutput } from './template-engine';
 import { resolveContractVariables, resolveTrancheReceiptVariables } from './variable-resolver';
 import { renderDocumentToPdf } from './pdf-renderer';
 import type { DocumentType } from '@/legal/document-types';
