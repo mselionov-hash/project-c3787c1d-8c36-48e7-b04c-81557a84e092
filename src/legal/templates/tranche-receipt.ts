@@ -85,7 +85,7 @@ ID учетной записи на Платформе: {BORROWER_APP_ACCOUNT_ID
 
 ФИО: {LENDER_FULL_NAME}
 ID учетной записи на Платформе: {LENDER_APP_ACCOUNT_ID}
-Подписано УКЭП: {LENDER_SIGNATURE_BLOCK_OPTIONAL}
+Подпись: {LENDER_SIGNATURE_BLOCK_OPTIONAL}
 [[ENDIF]]
 
 [[IF {PAYMENT_PROOF_ATTACHMENT_ENABLED} == YES]]

@@ -302,7 +302,7 @@ ID учетной записи на Платформе: {LENDER_APP_ACCOUNT_ID}
 Телефон: {BORROWER_CONTACT_PHONE}
 Email: {BORROWER_EMAIL}
 ID учетной записи на Платформе: {BORROWER_APP_ACCOUNT_ID}
-Подписано УКЭП: {BORROWER_SIGNATURE_BLOCK}
+Подпись: {BORROWER_SIGNATURE_BLOCK}
 `;
 
 export const LOAN_CONTRACT_VARIABLES = [
