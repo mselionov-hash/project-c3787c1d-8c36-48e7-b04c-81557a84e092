@@ -128,8 +128,18 @@ export const AllowedBankDetailsSelector = ({
 
   const myAllowed = allowed.filter(a => a.party_role === myRole);
   const counterpartyAllowed = allowed.filter(a => a.party_role !== myRole);
-  const alreadyAddedIds = new Set(myAllowed.map(a => a.bank_detail_id));
-  const availableToAdd = myDetails.filter(d => !alreadyAddedIds.has(d.id));
+  const alreadyAddedForPurpose = new Set(
+    myAllowed.filter(a => a.purpose === selectedPurpose).map(a => a.bank_detail_id)
+  );
+  const availableToAdd = myDetails.filter(d => !alreadyAddedForPurpose.has(d.id));
+
+  // Check if there are details available for ANY purpose (to decide whether to show the add section)
+  const hasAvailableForAnyPurpose = Object.keys(PURPOSE_LABELS).some(purpose => {
+    const addedForPurpose = new Set(
+      myAllowed.filter(a => a.purpose === purpose).map(a => a.bank_detail_id)
+    );
+    return myDetails.some(d => !addedForPurpose.has(d.id));
+  });
 
   return (
     <div className="space-y-6">
@@ -190,7 +200,7 @@ export const AllowedBankDetailsSelector = ({
       )}
 
       {/* Add details (only in draft) */}
-      {isDraft && availableToAdd.length > 0 && (
+      {isDraft && hasAvailableForAnyPurpose && (
         <div>
           <h4 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-3">
             Добавить реквизиты
@@ -210,27 +220,33 @@ export const AllowedBankDetailsSelector = ({
               </button>
             ))}
           </div>
-          <div className="space-y-2">
-            {availableToAdd.map(d => (
-              <div key={d.id} className="flex items-center gap-3 p-3 rounded-xl border border-dashed border-border/50 hover:border-primary/30 transition-colors">
-                <CreditCard className="w-4 h-4 text-muted-foreground flex-shrink-0" />
-                <div className="flex-1 min-w-0">
-                  <p className="text-sm font-medium truncate">{d.bank_name}{d.card_number && ` • *${d.card_number.slice(-4)}`}</p>
-                  {d.recipient_display_name && <p className="text-xs text-muted-foreground">{d.recipient_display_name}</p>}
+          {availableToAdd.length > 0 ? (
+            <div className="space-y-2">
+              {availableToAdd.map(d => (
+                <div key={d.id} className="flex items-center gap-3 p-3 rounded-xl border border-dashed border-border/50 hover:border-primary/30 transition-colors">
+                  <CreditCard className="w-4 h-4 text-muted-foreground flex-shrink-0" />
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-medium truncate">{d.bank_name}{d.card_number && ` • *${d.card_number.slice(-4)}`}</p>
+                    {d.recipient_display_name && <p className="text-xs text-muted-foreground">{d.recipient_display_name}</p>}
+                  </div>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="rounded-lg h-8 gap-1 text-xs"
+                    disabled={adding}
+                    onClick={() => handleAdd(d.id)}
+                  >
+                    {adding ? <Loader2 className="w-3 h-3 animate-spin" /> : <Plus className="w-3 h-3" />}
+                    Добавить
+                  </Button>
                 </div>
-                <Button
-                  size="sm"
-                  variant="outline"
-                  className="rounded-lg h-8 gap-1 text-xs"
-                  disabled={adding}
-                  onClick={() => handleAdd(d.id)}
-                >
-                  {adding ? <Loader2 className="w-3 h-3 animate-spin" /> : <Plus className="w-3 h-3" />}
-                  Добавить
-                </Button>
-              </div>
-            ))}
-          </div>
+              ))}
+            </div>
+          ) : (
+            <p className="text-xs text-muted-foreground">
+              Все реквизиты уже добавлены для этого назначения. Переключите назначение выше.
+            </p>
+          )}
         </div>
       )}
 
