@@ -353,9 +353,13 @@ const LoanDetails = () => {
                 <span className="hidden sm:inline">Отправить</span>
               </Button>
             )}
-            <Button variant="outline" onClick={handleDownloadPDF} size="sm" className="gap-1.5 sm:gap-2 rounded-xl text-xs sm:text-sm">
+            <Button variant="outline" onClick={handleGenerateContract} size="sm" className="gap-1.5 sm:gap-2 rounded-xl text-xs sm:text-sm">
+              <FileText className="w-4 h-4" />
+              <span className="hidden sm:inline">Договор PDF</span>
+            </Button>
+            <Button variant="outline" onClick={handleDownloadLegacyPDF} size="sm" className="gap-1.5 sm:gap-2 rounded-xl text-xs sm:text-sm">
               <Download className="w-4 h-4" />
-              <span className="hidden sm:inline">Скачать PDF</span>
+              <span className="hidden sm:inline">Простой PDF</span>
             </Button>
           </div>
         </div>
