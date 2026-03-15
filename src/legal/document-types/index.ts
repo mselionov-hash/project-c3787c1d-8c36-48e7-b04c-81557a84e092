@@ -21,6 +21,8 @@ export interface DocumentTypeConfig {
   readonly description: string;
   /** Whether this document requires a source_entity_id (e.g. tranche_id, repayment_id) */
   readonly requiresSourceEntity: boolean;
+  /** Whether template text is ready or placeholder */
+  readonly templateStatus: 'ready' | 'placeholder';
 }
 
 export const DOCUMENT_TYPE_CONFIGS: Record<DocumentType, DocumentTypeConfig> = {
@@ -29,35 +31,41 @@ export const DOCUMENT_TYPE_CONFIGS: Record<DocumentType, DocumentTypeConfig> = {
     label: 'Договор займа',
     description: 'Основной договор между займодавцем и заёмщиком',
     requiresSourceEntity: false,
+    templateStatus: 'ready',
   },
   [DOCUMENT_TYPES.TRANCHE_RECEIPT]: {
     type: DOCUMENT_TYPES.TRANCHE_RECEIPT,
     label: 'Расписка о получении средств',
     description: 'Расписка, подтверждающая получение транша заёмщиком',
     requiresSourceEntity: true,
+    templateStatus: 'ready',
   },
   [DOCUMENT_TYPES.APPENDIX_BANK_DETAILS]: {
     type: DOCUMENT_TYPES.APPENDIX_BANK_DETAILS,
     label: 'Приложение 1: Банковские реквизиты',
     description: 'Допустимые банковские реквизиты для выдачи и погашения',
     requiresSourceEntity: false,
+    templateStatus: 'placeholder',
   },
   [DOCUMENT_TYPES.APPENDIX_REPAYMENT_SCHEDULE]: {
     type: DOCUMENT_TYPES.APPENDIX_REPAYMENT_SCHEDULE,
     label: 'Приложение 2: График погашения',
     description: 'График погашения займа',
     requiresSourceEntity: false,
+    templateStatus: 'placeholder',
   },
   [DOCUMENT_TYPES.PARTIAL_REPAYMENT_CONFIRMATION]: {
     type: DOCUMENT_TYPES.PARTIAL_REPAYMENT_CONFIRMATION,
     label: 'Подтверждение частичного погашения',
     description: 'Подтверждение получения частичного платежа по займу',
     requiresSourceEntity: true,
+    templateStatus: 'placeholder',
   },
   [DOCUMENT_TYPES.FULL_REPAYMENT_CONFIRMATION]: {
     type: DOCUMENT_TYPES.FULL_REPAYMENT_CONFIRMATION,
     label: 'Подтверждение полного погашения',
     description: 'Подтверждение полного исполнения обязательств по договору',
     requiresSourceEntity: false,
+    templateStatus: 'placeholder',
   },
 };
