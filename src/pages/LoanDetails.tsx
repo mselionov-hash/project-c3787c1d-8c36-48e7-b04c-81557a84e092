@@ -14,7 +14,7 @@ import { DocumentsList } from '@/components/DocumentsList';
 import { Button } from '@/components/ui/button';
 import { toast } from 'sonner';
 import {
-  ArrowLeft, Download, PenTool, CheckCircle2, Clock, FileText,
+  ArrowLeft, PenTool, CheckCircle2, Clock, FileText,
   User, Calendar, Percent, MapPin, AlertTriangle, Shield, Send,
   CreditCard,
 } from 'lucide-react';
