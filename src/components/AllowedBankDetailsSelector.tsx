@@ -45,7 +45,8 @@ export const AllowedBankDetailsSelector = ({
   const [adding, setAdding] = useState(false);
   const [selectedPurpose, setSelectedPurpose] = useState<string>('disbursement');
 
-  const isDraft = loanStatus === 'draft';
+  const EDITABLE_STATUSES = new Set(['draft', 'awaiting_signatures', 'signed_by_lender', 'signed_by_borrower']);
+  const canEdit = EDITABLE_STATUSES.has(loanStatus);
   const isParty = user?.id === lenderId || user?.id === borrowerId;
   const myRole = user?.id === lenderId ? 'lender' : 'borrower';
 
@@ -160,7 +161,7 @@ export const AllowedBankDetailsSelector = ({
                   </p>
                   <p className="text-xs text-muted-foreground">{PURPOSE_LABELS[a.purpose] || a.purpose}</p>
                 </div>
-                {isDraft && (
+                {canEdit && (
                   <button
                     onClick={() => handleRemove(a.id)}
                     className="p-1.5 rounded-lg hover:bg-destructive/10 text-muted-foreground hover:text-destructive transition-colors"
@@ -199,8 +200,8 @@ export const AllowedBankDetailsSelector = ({
         </div>
       )}
 
-      {/* Add details (only in draft) */}
-      {isDraft && hasAvailableForAnyPurpose && (
+      {/* Add details (before fully signed) */}
+      {canEdit && hasAvailableForAnyPurpose && (
         <div>
           <h4 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-3">
             Добавить реквизиты
@@ -250,7 +251,7 @@ export const AllowedBankDetailsSelector = ({
         </div>
       )}
 
-      {isDraft && myDetails.length === 0 && (
+      {canEdit && myDetails.length === 0 && (
         <p className="text-xs text-muted-foreground">
           У вас нет банковских реквизитов. Добавьте их в профиле.
         </p>
