@@ -276,18 +276,6 @@ const LoanDetails = () => {
     }
   };
 
-  const handleDownloadLegacyPDF = () => {
-    if (!loan) return;
-    generateLoanPDF({
-      ...loan,
-      signatures: signatures.map(s => ({
-        role: s.role,
-        signature_data: s.signature_data,
-        signed_at: s.signed_at,
-        signer_ip: s.signer_ip,
-      })),
-    });
-  };
 
   const handleGenerateContract = async () => {
     if (!loan || !user) return;
