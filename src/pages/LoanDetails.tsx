@@ -3,7 +3,14 @@ import { useNavigate, useParams } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
 import { supabase } from '@/integrations/supabase/client';
 import { createSnapshot, SNAPSHOT_TYPES } from '@/legal/snapshots';
-import { generateLoanContract, generateTrancheReceipt } from '@/legal/services/document-generator';
+import {
+  generateLoanContract,
+  generateTrancheReceipt,
+  generateAppendixBankDetails,
+  generateAppendixSchedule,
+  generatePartialRepaymentConfirmation,
+  generateFullRepaymentConfirmation,
+} from '@/legal/services/document-generator';
 import SignaturePad from '@/components/SignaturePad';
 import SendLoanModal from '@/components/SendLoanModal';
 import { AllowedBankDetailsSelector } from '@/components/AllowedBankDetailsSelector';
@@ -115,7 +122,6 @@ const LoanDetails = () => {
     if (!user || !profile) return;
 
     try {
-      // Party profile snapshot
       const email = user.email || null;
       await createSnapshot(
         loanData.id,
@@ -137,7 +143,6 @@ const LoanDetails = () => {
         }
       );
 
-      // Contract terms snapshot (only on first signature)
       const existingSnapshots = await supabase
         .from('signing_snapshots')
         .select('id')
@@ -174,7 +179,6 @@ const LoanDetails = () => {
         );
       }
 
-      // Allowed bank details snapshot (only on first signature)
       const existingBankSnapshot = await supabase
         .from('signing_snapshots')
         .select('id')
@@ -222,7 +226,6 @@ const LoanDetails = () => {
         }
       }
     } catch (err: unknown) {
-      // Snapshot creation is best-effort; don't block signing
       const message = err instanceof Error ? err.message : 'Snapshot error';
       toast.error(`Ошибка создания снимка: ${message}`);
     }
@@ -241,7 +244,6 @@ const LoanDetails = () => {
         ip = data.ip;
       } catch { /* IP detection is best-effort */ }
 
-      // Create signing snapshots before recording the signature
       await createSigningSnapshots(loan, role);
 
       const { error } = await supabase.from('loan_signatures').insert({
@@ -276,7 +278,6 @@ const LoanDetails = () => {
     }
   };
 
-
   const handleGenerateContract = async () => {
     if (!loan || !user) return;
     try {
@@ -284,8 +285,7 @@ const LoanDetails = () => {
       toast.success('Договор сформирован и скачан');
       fetchAll();
     } catch (err: unknown) {
-      const message = err instanceof Error ? err.message : 'Ошибка генерации';
-      toast.error(message);
+      toast.error(err instanceof Error ? err.message : 'Ошибка генерации');
     }
   };
 
@@ -293,11 +293,54 @@ const LoanDetails = () => {
     if (!loan || !user) return;
     try {
       await generateTrancheReceipt(loan.id, trancheId, user.id);
-      toast.success('Расписка о получении транша сформирована и скачана');
+      toast.success('Расписка сформирована и скачана');
       fetchAll();
     } catch (err: unknown) {
-      const message = err instanceof Error ? err.message : 'Ошибка генерации';
-      toast.error(message);
+      toast.error(err instanceof Error ? err.message : 'Ошибка генерации');
+    }
+  };
+
+  const handleGenerateAppendix1 = async () => {
+    if (!loan || !user) return;
+    try {
+      await generateAppendixBankDetails(loan.id, user.id);
+      toast.success('Приложение 1 сформировано и скачано');
+      fetchAll();
+    } catch (err: unknown) {
+      toast.error(err instanceof Error ? err.message : 'Ошибка генерации');
+    }
+  };
+
+  const handleGenerateAppendix2 = async () => {
+    if (!loan || !user) return;
+    try {
+      await generateAppendixSchedule(loan.id, user.id);
+      toast.success('Приложение 2 сформировано и скачано');
+      fetchAll();
+    } catch (err: unknown) {
+      toast.error(err instanceof Error ? err.message : 'Ошибка генерации');
+    }
+  };
+
+  const handleGeneratePartialConfirmation = async (paymentId: string) => {
+    if (!loan || !user) return;
+    try {
+      await generatePartialRepaymentConfirmation(loan.id, paymentId, user.id);
+      toast.success('Подтверждение частичного погашения сформировано');
+      fetchAll();
+    } catch (err: unknown) {
+      toast.error(err instanceof Error ? err.message : 'Ошибка генерации');
+    }
+  };
+
+  const handleGenerateFullConfirmation = async () => {
+    if (!loan || !user) return;
+    try {
+      await generateFullRepaymentConfirmation(loan.id, user.id);
+      toast.success('Подтверждение полного погашения сформировано');
+      fetchAll();
+    } catch (err: unknown) {
+      toast.error(err instanceof Error ? err.message : 'Ошибка генерации');
     }
   };
 
@@ -319,6 +362,7 @@ const LoanDetails = () => {
   const canSend = isLender && !loan.borrower_id;
   const isFullySigned = Boolean(lenderSig && borrowerSig) ||
     ['fully_signed', 'active', 'repaid'].includes(loan.status);
+  const hasSchedule = ['installments_fixed', 'installments_variable'].includes(loan.repayment_schedule_type);
 
   return (
     <div className="min-h-screen bg-background">
@@ -470,7 +514,7 @@ const LoanDetails = () => {
             )}
           </div>
           <p className="text-xs text-muted-foreground mb-4 italic">
-            Рукописная подпись в электронной форме (не является квалифицированной электронной подписью — УКЭП)
+            Простая электронная подпись на Платформе (не является УКЭП)
           </p>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -566,12 +610,24 @@ const LoanDetails = () => {
             isBorrower={isBorrower}
             loanStatus={loan.status}
             onRefresh={fetchAll}
+            onGenerateConfirmation={handleGeneratePartialConfirmation}
           />
         </div>
 
         {/* Generated Documents */}
         <div className="card-elevated p-7">
-          <DocumentsList documents={documents} />
+          <DocumentsList
+            documents={documents}
+            isFullySigned={isFullySigned}
+            isLender={isLender}
+            loanStatus={loan.status}
+            hasSchedule={hasSchedule}
+            hasScheduleItems={scheduleItems.length > 0}
+            onGenerateContract={handleGenerateContract}
+            onGenerateAppendix1={handleGenerateAppendix1}
+            onGenerateAppendix2={handleGenerateAppendix2}
+            onGenerateFullConfirmation={handleGenerateFullConfirmation}
+          />
         </div>
       </main>
 
