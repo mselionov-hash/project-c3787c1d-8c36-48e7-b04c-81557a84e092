@@ -161,7 +161,7 @@ export const AllowedBankDetailsSelector = ({
                   </p>
                   <p className="text-xs text-muted-foreground">{PURPOSE_LABELS[a.purpose] || a.purpose}</p>
                 </div>
-                {isDraft && (
+                {canEdit && (
                   <button
                     onClick={() => handleRemove(a.id)}
                     className="p-1.5 rounded-lg hover:bg-destructive/10 text-muted-foreground hover:text-destructive transition-colors"
