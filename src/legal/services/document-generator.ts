@@ -43,6 +43,12 @@ export async function generateLoanContract(
   const variables = await resolveContractVariables(loanId);
   const resolvedText = renderTemplate(template.template, variables);
 
+  // Validate output cleanliness
+  const renderIssues = validateRenderedOutput(resolvedText);
+  if (renderIssues.length > 0) {
+    throw new Error(`Документ содержит нерезолвленные элементы шаблона:\n${renderIssues.join('\n')}`);
+  }
+
   // Persist document metadata (one row per generation for audit trail)
   const { data, error } = await supabase
     .from('generated_documents')
