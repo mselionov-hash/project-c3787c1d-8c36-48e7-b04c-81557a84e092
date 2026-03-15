@@ -251,7 +251,7 @@ export const AllowedBankDetailsSelector = ({
         </div>
       )}
 
-      {isDraft && myDetails.length === 0 && (
+      {canEdit && myDetails.length === 0 && (
         <p className="text-xs text-muted-foreground">
           У вас нет банковских реквизитов. Добавьте их в профиле.
         </p>
