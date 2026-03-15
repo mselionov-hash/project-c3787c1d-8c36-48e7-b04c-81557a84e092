@@ -17,7 +17,6 @@ export type VariableRecord = Record<string, string>;
  * Nested conditionals are supported via recursive processing.
  */
 function resolveConditionals(template: string, variables: VariableRecord): string {
-  // Process from innermost outward by iterating until stable
   let result = template;
   let prevResult = '';
 
@@ -28,9 +27,10 @@ function resolveConditionals(template: string, variables: VariableRecord): strin
     prevResult = result;
     iteration++;
 
-    // Match innermost [[IF ...]] ... [[ENDIF]] (no nested IF inside)
+    // Match only innermost [[IF ...]] ... [[ENDIF]] blocks — those whose body
+    // contains NO nested [[IF]]. This ensures we peel from inside out.
     result = result.replace(
-      /\[\[IF\s+(.+?)\]\]([\s\S]*?)\[\[ENDIF\]\]/g,
+      /\[\[IF\s+(.+?)\]\]((?:(?!\[\[IF\s)[\s\S])*?)\[\[ENDIF\]\]/g,
       (_match, condition: string, body: string) => {
         const conditionMet = evaluateCondition(condition.trim(), variables);
         return conditionMet ? body : '';
