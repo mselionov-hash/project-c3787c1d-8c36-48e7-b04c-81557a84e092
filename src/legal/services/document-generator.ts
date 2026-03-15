@@ -26,13 +26,24 @@ export async function generateLoanContract(
   loanId: string,
   userId: string
 ): Promise<GenerateResult> {
+  // Gate: both parties must have signed
+  const { data: sigs } = await supabase
+    .from('loan_signatures')
+    .select('role')
+    .eq('loan_id', loanId);
+
+  const roles = new Set((sigs || []).map(s => s.role));
+  if (!roles.has('lender') || !roles.has('borrower')) {
+    throw new Error('Договор можно сформировать только после подписания обеими сторонами');
+  }
+
   const template = getTemplate('loan_contract');
   if (!template) throw new Error('Loan contract template not found');
 
   const variables = await resolveContractVariables(loanId);
   const resolvedText = renderTemplate(template.template, variables);
 
-  // Persist document metadata
+  // Persist document metadata (one row per generation for audit trail)
   const { data, error } = await supabase
     .from('generated_documents')
     .insert({
