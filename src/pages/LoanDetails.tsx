@@ -553,6 +553,7 @@ const LoanDetails = () => {
             isBorrower={isBorrower}
             loanStatus={loan.status}
             onRefresh={fetchAll}
+            onGenerateReceipt={handleGenerateTrancheReceipt}
           />
         </div>
 
