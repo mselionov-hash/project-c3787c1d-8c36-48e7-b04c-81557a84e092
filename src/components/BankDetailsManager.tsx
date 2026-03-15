@@ -7,22 +7,26 @@ import { Label } from '@/components/ui/label';
 import { toast } from 'sonner';
 import { Plus, Trash2, Star, StarOff, Loader2, Link2, Image, X, Eye } from 'lucide-react';
 
-interface PaymentMethod {
+interface BankDetail {
   id: string;
   user_id: string;
-  method_type: string;
   label: string;
-  bank_name: string | null;
+  bank_name: string;
+  detail_type: string;
   transfer_link: string | null;
   qr_image_url: string | null;
   recipient_display_name: string | null;
+  card_number: string | null;
+  phone: string | null;
+  account_number: string | null;
+  bik: string | null;
   is_default: boolean;
 }
 
 const BANK_PRESETS = [
-  { id: 'tbank', label: 'Т-Банк', domain: 'tinkoff.ru' },
-  { id: 'sber', label: 'Сбер', domain: 'sberbank.ru' },
-  { id: 'other', label: 'Другой банк', domain: '' },
+  { id: 'tbank', label: 'Т-Банк' },
+  { id: 'sber', label: 'Сбер' },
+  { id: 'other', label: 'Другой банк' },
 ];
 
 function detectBank(url: string): string | null {
@@ -30,7 +34,7 @@ function detectBank(url: string): string | null {
     const hostname = new URL(url).hostname.toLowerCase();
     if (hostname.includes('tinkoff') || hostname.includes('t-bank')) return 'Т-Банк';
     if (hostname.includes('sber')) return 'Сбер';
-  } catch {}
+  } catch { /* invalid URL */ }
   return null;
 }
 
@@ -43,33 +47,34 @@ function isValidUrl(s: string): boolean {
   }
 }
 
-const PaymentMethodsManager = () => {
+export const BankDetailsManager = () => {
   const { user } = useAuth();
-  const [methods, setMethods] = useState<PaymentMethod[]>([]);
+  const [details, setDetails] = useState<BankDetail[]>([]);
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
   const [saving, setSaving] = useState(false);
   const [previewQr, setPreviewQr] = useState<string | null>(null);
 
-  // Form state
   const [selectedBank, setSelectedBank] = useState('tbank');
   const [transferLink, setTransferLink] = useState('');
   const [recipientName, setRecipientName] = useState('');
+  const [cardNumber, setCardNumber] = useState('');
+  const [phone, setPhone] = useState('');
   const [qrFile, setQrFile] = useState<File | null>(null);
   const [qrPreviewUrl, setQrPreviewUrl] = useState<string | null>(null);
   const [uploading, setUploading] = useState(false);
 
   useEffect(() => {
-    if (user) fetchMethods();
+    if (user) fetchDetails();
   }, [user]);
 
-  const fetchMethods = async () => {
+  const fetchDetails = async () => {
     const { data } = await supabase
-      .from('payment_methods')
+      .from('bank_details')
       .select('*')
       .eq('user_id', user!.id)
       .order('created_at', { ascending: false });
-    setMethods((data as any[]) || []);
+    setDetails((data as BankDetail[]) || []);
     setLoading(false);
   };
 
@@ -77,6 +82,8 @@ const PaymentMethodsManager = () => {
     setSelectedBank('tbank');
     setTransferLink('');
     setRecipientName('');
+    setCardNumber('');
+    setPhone('');
     setQrFile(null);
     setQrPreviewUrl(null);
     setShowForm(false);
@@ -97,9 +104,10 @@ const PaymentMethodsManager = () => {
 
     const hasLink = transferLink.trim().length > 0;
     const hasQr = !!qrFile;
+    const hasCard = cardNumber.trim().length > 0;
 
-    if (!hasLink && !hasQr) {
-      toast.error('Укажите ссылку на перевод или загрузите QR-код');
+    if (!hasLink && !hasQr && !hasCard) {
+      toast.error('Укажите ссылку, номер карты или загрузите QR-код');
       return;
     }
 
@@ -130,26 +138,28 @@ const PaymentMethodsManager = () => {
       const bankPreset = BANK_PRESETS.find(b => b.id === selectedBank);
       const detectedBank = hasLink ? detectBank(transferLink.trim()) : null;
       const bankName = detectedBank || bankPreset?.label || 'Другой банк';
+      const isFirst = details.length === 0;
 
-      const isFirst = methods.length === 0;
-
-      const { error } = await supabase.from('payment_methods').insert({
+      const { error } = await supabase.from('bank_details').insert({
         user_id: user.id,
-        method_type: 'transfer_link',
         label: bankName,
         bank_name: bankName,
+        detail_type: 'general',
         transfer_link: hasLink ? transferLink.trim() : null,
         qr_image_url: qrImageUrl,
         recipient_display_name: recipientName.trim() || null,
+        card_number: hasCard ? cardNumber.trim() : null,
+        phone: phone.trim() || null,
         is_default: isFirst,
-      } as any);
+      });
       if (error) throw error;
 
       toast.success('Реквизиты добавлены');
       resetForm();
-      fetchMethods();
-    } catch (err: any) {
-      toast.error(err.message || 'Ошибка сохранения');
+      fetchDetails();
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : 'Ошибка сохранения';
+      toast.error(message);
       setUploading(false);
     } finally {
       setSaving(false);
@@ -157,25 +167,25 @@ const PaymentMethodsManager = () => {
   };
 
   const handleDelete = async (id: string) => {
-    const { error } = await supabase.from('payment_methods').delete().eq('id', id);
+    const { error } = await supabase.from('bank_details').delete().eq('id', id);
     if (error) {
       toast.error('Ошибка удаления');
       return;
     }
     toast.success('Реквизиты удалены');
-    fetchMethods();
+    fetchDetails();
   };
 
   const handleSetDefault = async (id: string) => {
     await supabase
-      .from('payment_methods')
-      .update({ is_default: false } as any)
+      .from('bank_details')
+      .update({ is_default: false })
       .eq('user_id', user!.id);
     await supabase
-      .from('payment_methods')
-      .update({ is_default: true } as any)
+      .from('bank_details')
+      .update({ is_default: true })
       .eq('id', id);
-    fetchMethods();
+    fetchDetails();
     toast.success('Основные реквизиты обновлены');
   };
 
@@ -185,10 +195,9 @@ const PaymentMethodsManager = () => {
 
   return (
     <div className="space-y-6">
-      {/* Existing methods */}
-      {methods.length > 0 && (
+      {details.length > 0 && (
         <div className="space-y-3">
-          {methods.map(m => (
+          {details.map(m => (
             <div key={m.id} className="flex items-center gap-4 p-4 rounded-xl bg-muted/50 border border-border/40">
               <div className="w-10 h-10 rounded-xl flex items-center justify-center bg-card">
                 <Link2 className="w-5 h-5 text-primary" />
@@ -202,6 +211,7 @@ const PaymentMethodsManager = () => {
                 </div>
                 <p className="text-xs text-muted-foreground truncate">
                   {m.recipient_display_name && `${m.recipient_display_name} • `}
+                  {m.card_number && `*${m.card_number.slice(-4)} • `}
                   {m.transfer_link ? 'Ссылка' : ''}
                   {m.transfer_link && m.qr_image_url ? ' + ' : ''}
                   {m.qr_image_url ? 'QR' : ''}
@@ -209,20 +219,12 @@ const PaymentMethodsManager = () => {
               </div>
               <div className="flex items-center gap-1">
                 {m.qr_image_url && (
-                  <button
-                    onClick={() => setPreviewQr(m.qr_image_url)}
-                    className="p-2 rounded-lg hover:bg-muted transition-colors text-muted-foreground hover:text-foreground"
-                    title="Показать QR"
-                  >
+                  <button onClick={() => setPreviewQr(m.qr_image_url)} className="p-2 rounded-lg hover:bg-muted transition-colors text-muted-foreground hover:text-foreground" title="Показать QR">
                     <Eye className="w-4 h-4" />
                   </button>
                 )}
                 {!m.is_default && (
-                  <button
-                    onClick={() => handleSetDefault(m.id)}
-                    className="p-2 rounded-lg hover:bg-muted transition-colors text-muted-foreground hover:text-foreground"
-                    title="Сделать основным"
-                  >
+                  <button onClick={() => handleSetDefault(m.id)} className="p-2 rounded-lg hover:bg-muted transition-colors text-muted-foreground hover:text-foreground" title="Сделать основным">
                     <StarOff className="w-4 h-4" />
                   </button>
                 )}
@@ -231,11 +233,7 @@ const PaymentMethodsManager = () => {
                     <Star className="w-4 h-4 fill-current" />
                   </div>
                 )}
-                <button
-                  onClick={() => handleDelete(m.id)}
-                  className="p-2 rounded-lg hover:bg-destructive/10 transition-colors text-muted-foreground hover:text-destructive"
-                  title="Удалить"
-                >
+                <button onClick={() => handleDelete(m.id)} className="p-2 rounded-lg hover:bg-destructive/10 transition-colors text-muted-foreground hover:text-destructive" title="Удалить">
                   <Trash2 className="w-4 h-4" />
                 </button>
               </div>
@@ -244,31 +242,20 @@ const PaymentMethodsManager = () => {
         </div>
       )}
 
-      {/* Add button */}
       {!showForm && (
-        <Button
-          variant="outline"
-          className="w-full gap-2 rounded-xl h-11"
-          onClick={() => setShowForm(true)}
-        >
+        <Button variant="outline" className="w-full gap-2 rounded-xl h-11" onClick={() => setShowForm(true)}>
           <Plus className="w-4 h-4" />
           Добавить реквизиты
         </Button>
       )}
 
-      {/* Add form */}
       {showForm && (
         <div className="p-5 rounded-xl border border-border/40 bg-card space-y-4">
           <div className="flex items-center gap-2 mb-2">
             <Link2 className="w-5 h-5 text-primary" />
-            <h4 className="font-semibold text-sm font-display">Новые реквизиты для перевода</h4>
+            <h4 className="font-semibold text-sm font-display">Новые банковские реквизиты</h4>
           </div>
 
-          <p className="text-xs text-muted-foreground">
-            Можно добавить ссылку, QR или оба варианта сразу
-          </p>
-
-          {/* Bank selector */}
           <div className="space-y-2">
             <Label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Банк</Label>
             <div className="flex gap-2">
@@ -288,51 +275,37 @@ const PaymentMethodsManager = () => {
             </div>
           </div>
 
-          {/* Transfer link */}
           <div className="space-y-2">
-            <Label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Ссылка на перевод</Label>
-            <Input
-              value={transferLink}
-              onChange={e => setTransferLink(e.target.value)}
-              placeholder="Вставьте ссылку из Т-Банка или Сбербанка"
-              className={inputClass}
-            />
+            <Label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Номер карты</Label>
+            <Input value={cardNumber} onChange={e => setCardNumber(e.target.value)} placeholder="0000 0000 0000 0000" className={inputClass} />
           </div>
 
-          {/* QR upload */}
           <div className="space-y-2">
-            <Label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-              QR-код или скрин QR из банковского приложения
-            </Label>
+            <Label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Телефон (СБП)</Label>
+            <Input value={phone} onChange={e => setPhone(e.target.value)} placeholder="+7 (999) 123-45-67" className={inputClass} />
+          </div>
+
+          <div className="space-y-2">
+            <Label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Ссылка на перевод</Label>
+            <Input value={transferLink} onChange={e => setTransferLink(e.target.value)} placeholder="Ссылка из банковского приложения" className={inputClass} />
+          </div>
+
+          <div className="space-y-2">
+            <Label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">QR-код</Label>
             {qrPreviewUrl ? (
               <div className="relative inline-block">
                 <img src={qrPreviewUrl} alt="QR" className="w-32 h-32 object-contain rounded-xl border border-border/40" />
                 <div className="flex gap-2 mt-2">
                   <label className="text-xs text-primary cursor-pointer hover:underline">
                     Заменить
-                    <input
-                      type="file"
-                      accept="image/*"
-                      className="hidden"
-                      onChange={e => handleQrFileChange(e.target.files?.[0] || null)}
-                    />
+                    <input type="file" accept="image/*" className="hidden" onChange={e => handleQrFileChange(e.target.files?.[0] || null)} />
                   </label>
-                  <button
-                    onClick={() => handleQrFileChange(null)}
-                    className="text-xs text-destructive hover:underline"
-                  >
-                    Удалить
-                  </button>
+                  <button onClick={() => handleQrFileChange(null)} className="text-xs text-destructive hover:underline">Удалить</button>
                 </div>
               </div>
             ) : (
               <div className="relative">
-                <input
-                  type="file"
-                  accept="image/*"
-                  onChange={e => handleQrFileChange(e.target.files?.[0] || null)}
-                  className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10"
-                />
+                <input type="file" accept="image/*" onChange={e => handleQrFileChange(e.target.files?.[0] || null)} className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10" />
                 <div className={`${inputClass} flex items-center gap-2 px-3 border rounded-xl cursor-pointer`}>
                   <Image className="w-4 h-4 text-muted-foreground" />
                   <span className="text-sm text-muted-foreground">Загрузить изображение QR</span>
@@ -341,21 +314,13 @@ const PaymentMethodsManager = () => {
             )}
           </div>
 
-          {/* Recipient name */}
           <div className="space-y-2">
             <Label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Имя получателя</Label>
-            <Input
-              value={recipientName}
-              onChange={e => setRecipientName(e.target.value)}
-              placeholder="Иван Иванов"
-              className={inputClass}
-            />
+            <Input value={recipientName} onChange={e => setRecipientName(e.target.value)} placeholder="Иван Иванов" className={inputClass} />
           </div>
 
           <div className="flex gap-3 pt-2">
-            <Button onClick={resetForm} variant="outline" className="flex-1 rounded-xl h-11">
-              Отмена
-            </Button>
+            <Button onClick={resetForm} variant="outline" className="flex-1 rounded-xl h-11">Отмена</Button>
             <Button onClick={handleSave} disabled={saving || uploading} className="flex-1 rounded-xl h-11 gap-2">
               {(saving || uploading) ? <Loader2 className="w-4 h-4 animate-spin" /> : <Plus className="w-4 h-4" />}
               Сохранить
@@ -364,13 +329,12 @@ const PaymentMethodsManager = () => {
         </div>
       )}
 
-      {methods.length === 0 && !showForm && (
+      {details.length === 0 && !showForm && (
         <p className="text-sm text-muted-foreground text-center py-4">
-          Добавьте реквизиты для получения переводов от займодавцев
+          Добавьте банковские реквизиты для выдачи и получения переводов
         </p>
       )}
 
-      {/* QR Preview modal */}
       {previewQr && (
         <div className="fixed inset-0 bg-foreground/15 backdrop-blur-md z-50 flex items-center justify-center p-4" onClick={() => setPreviewQr(null)}>
           <div className="card-elevated p-6 max-w-sm w-full" onClick={e => e.stopPropagation()}>
@@ -387,5 +351,3 @@ const PaymentMethodsManager = () => {
     </div>
   );
 };
-
-export default PaymentMethodsManager;

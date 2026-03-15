@@ -14,14 +14,157 @@ export type Database = {
   }
   public: {
     Tables: {
+      bank_details: {
+        Row: {
+          account_number: string | null
+          bank_name: string
+          bik: string | null
+          card_number: string | null
+          created_at: string
+          detail_type: string
+          id: string
+          is_default: boolean
+          label: string
+          phone: string | null
+          qr_image_url: string | null
+          recipient_display_name: string | null
+          transfer_link: string | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          account_number?: string | null
+          bank_name?: string
+          bik?: string | null
+          card_number?: string | null
+          created_at?: string
+          detail_type?: string
+          id?: string
+          is_default?: boolean
+          label?: string
+          phone?: string | null
+          qr_image_url?: string | null
+          recipient_display_name?: string | null
+          transfer_link?: string | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          account_number?: string | null
+          bank_name?: string
+          bik?: string | null
+          card_number?: string | null
+          created_at?: string
+          detail_type?: string
+          id?: string
+          is_default?: boolean
+          label?: string
+          phone?: string | null
+          qr_image_url?: string | null
+          recipient_display_name?: string | null
+          transfer_link?: string | null
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      generated_documents: {
+        Row: {
+          created_at: string
+          created_by: string
+          document_type: string
+          file_url: string | null
+          id: string
+          loan_id: string
+          render_data_snapshot: Json
+          source_entity_id: string | null
+          template_version: string
+        }
+        Insert: {
+          created_at?: string
+          created_by: string
+          document_type: string
+          file_url?: string | null
+          id?: string
+          loan_id: string
+          render_data_snapshot: Json
+          source_entity_id?: string | null
+          template_version?: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string
+          document_type?: string
+          file_url?: string | null
+          id?: string
+          loan_id?: string
+          render_data_snapshot?: Json
+          source_entity_id?: string | null
+          template_version?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "generated_documents_loan_id_fkey"
+            columns: ["loan_id"]
+            isOneToOne: false
+            referencedRelation: "loans"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      loan_allowed_bank_details: {
+        Row: {
+          bank_detail_id: string
+          created_at: string
+          id: string
+          loan_id: string
+          party_role: string
+          purpose: string
+        }
+        Insert: {
+          bank_detail_id: string
+          created_at?: string
+          id?: string
+          loan_id: string
+          party_role: string
+          purpose?: string
+        }
+        Update: {
+          bank_detail_id?: string
+          created_at?: string
+          id?: string
+          loan_id?: string
+          party_role?: string
+          purpose?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "loan_allowed_bank_details_bank_detail_id_fkey"
+            columns: ["bank_detail_id"]
+            isOneToOne: false
+            referencedRelation: "bank_details"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "loan_allowed_bank_details_loan_id_fkey"
+            columns: ["loan_id"]
+            isOneToOne: false
+            referencedRelation: "loans"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       loan_payments: {
         Row: {
           bank_name: string | null
+          confirmed_at: string | null
+          confirmed_by: string | null
           created_at: string
           id: string
           loan_id: string
           payer_id: string
           payment_reference: string | null
+          schedule_item_id: string | null
           screenshot_url: string | null
           status: string
           transaction_id: string | null
@@ -31,11 +174,14 @@ export type Database = {
         }
         Insert: {
           bank_name?: string | null
+          confirmed_at?: string | null
+          confirmed_by?: string | null
           created_at?: string
           id?: string
           loan_id: string
           payer_id: string
           payment_reference?: string | null
+          schedule_item_id?: string | null
           screenshot_url?: string | null
           status?: string
           transaction_id?: string | null
@@ -45,11 +191,14 @@ export type Database = {
         }
         Update: {
           bank_name?: string | null
+          confirmed_at?: string | null
+          confirmed_by?: string | null
           created_at?: string
           id?: string
           loan_id?: string
           payer_id?: string
           payment_reference?: string | null
+          schedule_item_id?: string | null
           screenshot_url?: string | null
           status?: string
           transaction_id?: string | null
@@ -63,6 +212,13 @@ export type Database = {
             columns: ["loan_id"]
             isOneToOne: false
             referencedRelation: "loans"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "loan_payments_schedule_item_id_fkey"
+            columns: ["schedule_item_id"]
+            isOneToOne: false
+            referencedRelation: "payment_schedule_items"
             referencedColumns: ["id"]
           },
         ]
@@ -105,6 +261,109 @@ export type Database = {
           },
         ]
       }
+      loan_tranches: {
+        Row: {
+          actual_date: string | null
+          actual_time: string | null
+          amount: number
+          bank_document_date: string | null
+          bank_document_id: string | null
+          confirmed_at: string | null
+          confirmed_by: string | null
+          created_at: string
+          created_by: string
+          currency: string
+          id: string
+          loan_id: string
+          method: string
+          notes: string | null
+          planned_date: string
+          receiver_account_display: string | null
+          receiver_bank_detail_id: string | null
+          reference_text: string | null
+          sender_account_display: string | null
+          sender_bank_detail_id: string | null
+          status: string
+          timezone: string | null
+          tranche_number: number
+          transfer_source: string | null
+        }
+        Insert: {
+          actual_date?: string | null
+          actual_time?: string | null
+          amount: number
+          bank_document_date?: string | null
+          bank_document_id?: string | null
+          confirmed_at?: string | null
+          confirmed_by?: string | null
+          created_at?: string
+          created_by: string
+          currency?: string
+          id?: string
+          loan_id: string
+          method?: string
+          notes?: string | null
+          planned_date: string
+          receiver_account_display?: string | null
+          receiver_bank_detail_id?: string | null
+          reference_text?: string | null
+          sender_account_display?: string | null
+          sender_bank_detail_id?: string | null
+          status?: string
+          timezone?: string | null
+          tranche_number: number
+          transfer_source?: string | null
+        }
+        Update: {
+          actual_date?: string | null
+          actual_time?: string | null
+          amount?: number
+          bank_document_date?: string | null
+          bank_document_id?: string | null
+          confirmed_at?: string | null
+          confirmed_by?: string | null
+          created_at?: string
+          created_by?: string
+          currency?: string
+          id?: string
+          loan_id?: string
+          method?: string
+          notes?: string | null
+          planned_date?: string
+          receiver_account_display?: string | null
+          receiver_bank_detail_id?: string | null
+          reference_text?: string | null
+          sender_account_display?: string | null
+          sender_bank_detail_id?: string | null
+          status?: string
+          timezone?: string | null
+          tranche_number?: number
+          transfer_source?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "loan_tranches_loan_id_fkey"
+            columns: ["loan_id"]
+            isOneToOne: false
+            referencedRelation: "loans"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "loan_tranches_receiver_bank_detail_id_fkey"
+            columns: ["receiver_bank_detail_id"]
+            isOneToOne: false
+            referencedRelation: "bank_details"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "loan_tranches_sender_bank_detail_id_fkey"
+            columns: ["sender_bank_detail_id"]
+            isOneToOne: false
+            referencedRelation: "bank_details"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       loans: {
         Row: {
           amount: number
@@ -113,8 +372,13 @@ export type Database = {
           borrower_name: string
           borrower_passport: string | null
           city: string
+          contract_number: string | null
           created_at: string
+          disbursement_method: string
+          early_repayment_notice_days: number
           id: string
+          interest_mode: string
+          interest_payment_schedule: string | null
           interest_rate: number
           issue_date: string
           lender_address: string | null
@@ -124,6 +388,7 @@ export type Database = {
           notes: string | null
           penalty_rate: number
           repayment_date: string
+          repayment_schedule_type: string
           status: string
           updated_at: string
         }
@@ -134,8 +399,13 @@ export type Database = {
           borrower_name: string
           borrower_passport?: string | null
           city?: string
+          contract_number?: string | null
           created_at?: string
+          disbursement_method?: string
+          early_repayment_notice_days?: number
           id?: string
+          interest_mode?: string
+          interest_payment_schedule?: string | null
           interest_rate?: number
           issue_date?: string
           lender_address?: string | null
@@ -145,6 +415,7 @@ export type Database = {
           notes?: string | null
           penalty_rate?: number
           repayment_date: string
+          repayment_schedule_type?: string
           status?: string
           updated_at?: string
         }
@@ -155,8 +426,13 @@ export type Database = {
           borrower_name?: string
           borrower_passport?: string | null
           city?: string
+          contract_number?: string | null
           created_at?: string
+          disbursement_method?: string
+          early_repayment_notice_days?: number
           id?: string
+          interest_mode?: string
+          interest_payment_schedule?: string | null
           interest_rate?: number
           issue_date?: string
           lender_address?: string | null
@@ -166,6 +442,7 @@ export type Database = {
           notes?: string | null
           penalty_rate?: number
           repayment_date?: string
+          repayment_schedule_type?: string
           status?: string
           updated_at?: string
         }
@@ -222,12 +499,63 @@ export type Database = {
         }
         Relationships: []
       }
+      payment_schedule_items: {
+        Row: {
+          created_at: string
+          due_date: string
+          id: string
+          interest_amount: number
+          item_number: number
+          loan_id: string
+          principal_amount: number
+          status: string
+          total_amount: number
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          due_date: string
+          id?: string
+          interest_amount?: number
+          item_number: number
+          loan_id: string
+          principal_amount?: number
+          status?: string
+          total_amount: number
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          due_date?: string
+          id?: string
+          interest_amount?: number
+          item_number?: number
+          loan_id?: string
+          principal_amount?: number
+          status?: string
+          total_amount?: number
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "payment_schedule_items_loan_id_fkey"
+            columns: ["loan_id"]
+            isOneToOne: false
+            referencedRelation: "loans"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       profiles: {
         Row: {
           address: string | null
           created_at: string
+          date_of_birth: string | null
           full_name: string
           id: string
+          passport_division_code: string | null
+          passport_issue_date: string | null
+          passport_issued_by: string | null
           passport_number: string | null
           passport_series: string | null
           phone: string | null
@@ -237,8 +565,12 @@ export type Database = {
         Insert: {
           address?: string | null
           created_at?: string
+          date_of_birth?: string | null
           full_name?: string
           id?: string
+          passport_division_code?: string | null
+          passport_issue_date?: string | null
+          passport_issued_by?: string | null
           passport_number?: string | null
           passport_series?: string | null
           phone?: string | null
@@ -248,8 +580,12 @@ export type Database = {
         Update: {
           address?: string | null
           created_at?: string
+          date_of_birth?: string | null
           full_name?: string
           id?: string
+          passport_division_code?: string | null
+          passport_issue_date?: string | null
+          passport_issued_by?: string | null
           passport_number?: string | null
           passport_series?: string | null
           phone?: string | null
@@ -257,6 +593,44 @@ export type Database = {
           user_id?: string
         }
         Relationships: []
+      }
+      signing_snapshots: {
+        Row: {
+          created_at: string
+          id: string
+          loan_id: string
+          role: string | null
+          signer_id: string | null
+          snapshot_data: Json
+          snapshot_type: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          loan_id: string
+          role?: string | null
+          signer_id?: string | null
+          snapshot_data: Json
+          snapshot_type: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          loan_id?: string
+          role?: string | null
+          signer_id?: string | null
+          snapshot_data?: Json
+          snapshot_type?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "signing_snapshots_loan_id_fkey"
+            columns: ["loan_id"]
+            isOneToOne: false
+            referencedRelation: "loans"
+            referencedColumns: ["id"]
+          },
+        ]
       }
     }
     Views: {
