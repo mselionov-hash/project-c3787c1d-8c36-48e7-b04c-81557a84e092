@@ -68,7 +68,8 @@ function renderSignatureBlock(sig: Signature | undefined, role: string): string 
   if (!sig) return '[подпись не проставлена]';
   const dateStr = formatDateTimeRu(sig.signed_at);
   const ipStr = sig.signer_ip ? ` | IP: ${sig.signer_ip}` : '';
-  return `Электронная подпись (${role === 'lender' ? 'Займодавец' : 'Заёмщик'}): подписано ${dateStr}${ipStr}\n(не является квалифицированной электронной подписью — УКЭП)`;
+  const roleLabel = role === 'lender' ? 'Займодавец' : 'Заёмщик';
+  return `Электронная подпись (${roleLabel}): подписано ${dateStr}${ipStr}\n(простая электронная подпись на Платформе; не является УКЭП)`;
 }
 
 function renderBankDetailsTable(details: BankDetailSnapshotItem[], purpose: string, partyRole: string): string {
