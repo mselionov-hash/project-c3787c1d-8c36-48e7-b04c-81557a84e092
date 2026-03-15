@@ -277,7 +277,7 @@ const LoanDetails = () => {
     }
   };
 
-  const handleDownloadPDF = () => {
+  const handleDownloadLegacyPDF = () => {
     if (!loan) return;
     generateLoanPDF({
       ...loan,
@@ -288,6 +288,30 @@ const LoanDetails = () => {
         signer_ip: s.signer_ip,
       })),
     });
+  };
+
+  const handleGenerateContract = async () => {
+    if (!loan || !user) return;
+    try {
+      await generateLoanContract(loan.id, user.id);
+      toast.success('Договор сформирован и скачан');
+      fetchAll();
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : 'Ошибка генерации';
+      toast.error(message);
+    }
+  };
+
+  const handleGenerateTrancheReceipt = async (trancheId: string) => {
+    if (!loan || !user) return;
+    try {
+      await generateTrancheReceipt(loan.id, trancheId, user.id);
+      toast.success('Расписка о получении транша сформирована и скачана');
+      fetchAll();
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : 'Ошибка генерации';
+      toast.error(message);
+    }
   };
 
   if (loading || authLoading || !loan) {
