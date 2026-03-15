@@ -332,6 +332,8 @@ const LoanDetails = () => {
   const isBorrower = user?.id === loan.borrower_id;
   const canSign = (isLender && !lenderSig) || (isBorrower && !borrowerSig);
   const canSend = isLender && !loan.borrower_id;
+  const isFullySigned = Boolean(lenderSig && borrowerSig) ||
+    ['fully_signed', 'active', 'repaid'].includes(loan.status);
 
   return (
     <div className="min-h-screen bg-background">
