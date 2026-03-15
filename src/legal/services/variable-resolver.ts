@@ -12,6 +12,7 @@ import type { Tables, Json } from '@/integrations/supabase/types';
 type Loan = Tables<'loans'>;
 type Tranche = Tables<'loan_tranches'>;
 type Signature = Tables<'loan_signatures'>;
+type Payment = Tables<'loan_payments'>;
 
 interface ProfileSnapshot {
   user_id: string;
