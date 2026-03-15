@@ -75,6 +75,17 @@ export async function generateTrancheReceipt(
   trancheId: string,
   userId: string
 ): Promise<GenerateResult> {
+  // Gate: tranche must be confirmed
+  const { data: tranche } = await supabase
+    .from('loan_tranches')
+    .select('status')
+    .eq('id', trancheId)
+    .single();
+
+  if (!tranche || tranche.status !== 'confirmed') {
+    throw new Error('Расписку можно сформировать только для подтверждённого транша');
+  }
+
   const template = getTemplate('tranche_receipt');
   if (!template) throw new Error('Tranche receipt template not found');
 
