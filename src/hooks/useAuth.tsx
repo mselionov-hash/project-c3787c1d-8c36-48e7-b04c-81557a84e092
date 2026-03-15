@@ -8,6 +8,10 @@ interface Profile {
   full_name: string;
   passport_series: string | null;
   passport_number: string | null;
+  passport_issued_by: string | null;
+  passport_issue_date: string | null;
+  passport_division_code: string | null;
+  date_of_birth: string | null;
   address: string | null;
   phone: string | null;
 }

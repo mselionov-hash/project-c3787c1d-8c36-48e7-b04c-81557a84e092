@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { toast } from 'sonner';
-import PaymentMethodsManager from '@/components/PaymentMethodsManager';
+import { BankDetailsManager } from '@/components/BankDetailsManager';
 import {
   ArrowLeft, User, CreditCard, Save, Loader2
 } from 'lucide-react';
@@ -19,6 +19,10 @@ const Profile = () => {
   const [phone, setPhone] = useState('');
   const [passportSeries, setPassportSeries] = useState('');
   const [passportNumber, setPassportNumber] = useState('');
+  const [passportIssuedBy, setPassportIssuedBy] = useState('');
+  const [passportIssueDate, setPassportIssueDate] = useState('');
+  const [passportDivisionCode, setPassportDivisionCode] = useState('');
+  const [dateOfBirth, setDateOfBirth] = useState('');
   const [address, setAddress] = useState('');
   const [saving, setSaving] = useState(false);
 
@@ -32,6 +36,10 @@ const Profile = () => {
       setPhone(profile.phone || '');
       setPassportSeries(profile.passport_series || '');
       setPassportNumber(profile.passport_number || '');
+      setPassportIssuedBy(profile.passport_issued_by || '');
+      setPassportIssueDate(profile.passport_issue_date || '');
+      setPassportDivisionCode(profile.passport_division_code || '');
+      setDateOfBirth(profile.date_of_birth || '');
       setAddress(profile.address || '');
     }
   }, [profile]);
@@ -47,14 +55,19 @@ const Profile = () => {
           phone: phone.trim(),
           passport_series: passportSeries.trim(),
           passport_number: passportNumber.trim(),
+          passport_issued_by: passportIssuedBy.trim(),
+          passport_issue_date: passportIssueDate || null,
+          passport_division_code: passportDivisionCode.trim(),
+          date_of_birth: dateOfBirth || null,
           address: address.trim(),
         })
         .eq('user_id', user.id);
       if (error) throw error;
       await refreshProfile();
       toast.success('Профиль обновлён');
-    } catch (err: any) {
-      toast.error(err.message || 'Ошибка сохранения');
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : 'Ошибка сохранения';
+      toast.error(message);
     } finally {
       setSaving(false);
     }
@@ -94,6 +107,10 @@ const Profile = () => {
               <Input value={fullName} onChange={e => setFullName(e.target.value)} className={inputClass} />
             </div>
             <div className="space-y-2">
+              <Label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Дата рождения</Label>
+              <Input type="date" value={dateOfBirth} onChange={e => setDateOfBirth(e.target.value)} className={inputClass} />
+            </div>
+            <div className="space-y-2">
               <Label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Телефон</Label>
               <Input value={phone} onChange={e => setPhone(e.target.value)} placeholder="+7 (999) 123-45-67" className={inputClass} />
             </div>
@@ -110,7 +127,19 @@ const Profile = () => {
               <Input value={passportNumber} onChange={e => setPassportNumber(e.target.value)} placeholder="567890" className={inputClass} />
             </div>
             <div className="space-y-2 sm:col-span-2">
-              <Label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Адрес</Label>
+              <Label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Кем выдан</Label>
+              <Input value={passportIssuedBy} onChange={e => setPassportIssuedBy(e.target.value)} placeholder="ОВД района..." className={inputClass} />
+            </div>
+            <div className="space-y-2">
+              <Label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Дата выдачи паспорта</Label>
+              <Input type="date" value={passportIssueDate} onChange={e => setPassportIssueDate(e.target.value)} className={inputClass} />
+            </div>
+            <div className="space-y-2">
+              <Label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Код подразделения</Label>
+              <Input value={passportDivisionCode} onChange={e => setPassportDivisionCode(e.target.value)} placeholder="123-456" className={inputClass} />
+            </div>
+            <div className="space-y-2 sm:col-span-2">
+              <Label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Адрес регистрации</Label>
               <Input value={address} onChange={e => setAddress(e.target.value)} className={inputClass} />
             </div>
           </div>
@@ -121,19 +150,19 @@ const Profile = () => {
           </Button>
         </div>
 
-        {/* Payment methods */}
+        {/* Bank details */}
         <div className="card-elevated p-5 sm:p-7">
           <div className="flex items-center gap-3 mb-5 sm:mb-6">
             <div className="w-10 h-10 rounded-xl bg-accent/10 flex items-center justify-center">
               <CreditCard className="w-5 h-5 text-accent" />
             </div>
             <div>
-              <h3 className="text-sm font-semibold uppercase tracking-wider">Реквизиты для получения</h3>
-              <p className="text-xs text-muted-foreground">Карты и СБП для приёма переводов</p>
+              <h3 className="text-sm font-semibold uppercase tracking-wider">Банковские реквизиты</h3>
+              <p className="text-xs text-muted-foreground">Реквизиты для выдачи и получения переводов</p>
             </div>
           </div>
 
-          <PaymentMethodsManager />
+          <BankDetailsManager />
         </div>
       </main>
     </div>

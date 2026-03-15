@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -8,7 +8,30 @@ import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 import { toast } from 'sonner';
 import { FileText, ArrowLeft, Loader2 } from 'lucide-react';
-import { useEffect } from 'react';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
+
+const INTEREST_MODES = [
+  { value: 'interest_free', label: 'Беспроцентный' },
+  { value: 'fixed_rate', label: 'Фиксированная ставка' },
+] as const;
+
+const INTEREST_PAYMENT_SCHEDULES = [
+  { value: 'monthly', label: 'Ежемесячно' },
+  { value: 'at_maturity', label: 'В конце срока' },
+  { value: 'with_each_repayment', label: 'С каждым погашением' },
+] as const;
+
+const REPAYMENT_SCHEDULE_TYPES = [
+  { value: 'no_schedule_single_deadline', label: 'Единый срок возврата' },
+  { value: 'installments_fixed', label: 'Фиксированные платежи' },
+  { value: 'installments_variable', label: 'Переменные платежи' },
+] as const;
 
 const CreateLoan = () => {
   const navigate = useNavigate();
@@ -27,6 +50,10 @@ const CreateLoan = () => {
   const [issueDate, setIssueDate] = useState(new Date().toISOString().split('T')[0]);
   const [city, setCity] = useState('Москва');
   const [notes, setNotes] = useState('');
+  const [interestMode, setInterestMode] = useState('interest_free');
+  const [interestPaymentSchedule, setInterestPaymentSchedule] = useState('at_maturity');
+  const [repaymentScheduleType, setRepaymentScheduleType] = useState('no_schedule_single_deadline');
+  const [earlyRepaymentNoticeDays, setEarlyRepaymentNoticeDays] = useState('30');
   const [submitting, setSubmitting] = useState(false);
 
   useEffect(() => {
@@ -45,8 +72,13 @@ const CreateLoan = () => {
     e.preventDefault();
     if (!user) return;
 
-    if (!lenderName.trim() || !borrowerName.trim() || !amount || !interestRate || !repaymentDate) {
+    if (!lenderName.trim() || !borrowerName.trim() || !amount || !repaymentDate) {
       toast.error('Заполните все обязательные поля');
+      return;
+    }
+
+    if (interestMode === 'fixed_rate' && !interestRate) {
+      toast.error('Укажите процентную ставку');
       return;
     }
 
@@ -61,20 +93,25 @@ const CreateLoan = () => {
         lender_address: lenderAddress.trim(),
         borrower_address: borrowerAddress.trim(),
         amount: parseFloat(amount),
-        interest_rate: parseFloat(interestRate),
+        interest_rate: interestMode === 'fixed_rate' ? parseFloat(interestRate) : 0,
         penalty_rate: parseFloat(penaltyRate),
         repayment_date: repaymentDate,
         issue_date: issueDate,
         city: city.trim(),
         notes: notes.trim(),
         status: 'draft',
+        interest_mode: interestMode,
+        interest_payment_schedule: interestMode === 'fixed_rate' ? interestPaymentSchedule : null,
+        repayment_schedule_type: repaymentScheduleType,
+        early_repayment_notice_days: parseInt(earlyRepaymentNoticeDays, 10) || 30,
       }).select().single();
 
       if (error) throw error;
       toast.success('Договор создан!');
       navigate(`/loans/${data.id}`);
-    } catch (err: any) {
-      toast.error(err.message || 'Ошибка создания договора');
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : 'Ошибка создания договора';
+      toast.error(message);
     } finally {
       setSubmitting(false);
     }
@@ -152,12 +189,57 @@ const CreateLoan = () => {
                 <Input type="number" min="0" step="0.01" value={amount} onChange={e => setAmount(e.target.value)} placeholder="100 000" className={inputClass} />
               </div>
               <div className="space-y-2">
-                <Label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Ставка (%) *</Label>
-                <Input type="number" min="0" step="0.1" value={interestRate} onChange={e => setInterestRate(e.target.value)} placeholder="12" className={inputClass} />
+                <Label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Тип процентов</Label>
+                <Select value={interestMode} onValueChange={setInterestMode}>
+                  <SelectTrigger className={inputClass}>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {INTEREST_MODES.map(m => (
+                      <SelectItem key={m.value} value={m.value}>{m.label}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </div>
+
+              {interestMode === 'fixed_rate' && (
+                <>
+                  <div className="space-y-2">
+                    <Label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Ставка (% годовых) *</Label>
+                    <Input type="number" min="0" step="0.1" value={interestRate} onChange={e => setInterestRate(e.target.value)} placeholder="12" className={inputClass} />
+                  </div>
+                  <div className="space-y-2">
+                    <Label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Выплата процентов</Label>
+                    <Select value={interestPaymentSchedule} onValueChange={setInterestPaymentSchedule}>
+                      <SelectTrigger className={inputClass}>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {INTEREST_PAYMENT_SCHEDULES.map(s => (
+                          <SelectItem key={s.value} value={s.value}>{s.label}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </>
+              )}
+
               <div className="space-y-2">
                 <Label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Неустойка (%/день)</Label>
                 <Input type="number" min="0" step="0.01" value={penaltyRate} onChange={e => setPenaltyRate(e.target.value)} placeholder="0.1" className={inputClass} />
+              </div>
+              <div className="space-y-2">
+                <Label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">График погашения</Label>
+                <Select value={repaymentScheduleType} onValueChange={setRepaymentScheduleType}>
+                  <SelectTrigger className={inputClass}>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {REPAYMENT_SCHEDULE_TYPES.map(t => (
+                      <SelectItem key={t.value} value={t.value}>{t.label}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </div>
               <div className="space-y-2">
                 <Label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Город</Label>
@@ -170,6 +252,10 @@ const CreateLoan = () => {
               <div className="space-y-2">
                 <Label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Дата возврата *</Label>
                 <Input type="date" value={repaymentDate} onChange={e => setRepaymentDate(e.target.value)} className={inputClass} />
+              </div>
+              <div className="space-y-2">
+                <Label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Досрочное погашение (дней уведомления)</Label>
+                <Input type="number" min="0" value={earlyRepaymentNoticeDays} onChange={e => setEarlyRepaymentNoticeDays(e.target.value)} placeholder="30" className={inputClass} />
               </div>
               <div className="space-y-2 sm:col-span-2">
                 <Label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Примечания</Label>
