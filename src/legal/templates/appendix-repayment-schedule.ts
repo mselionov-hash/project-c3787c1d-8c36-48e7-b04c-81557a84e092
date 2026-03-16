@@ -1,27 +1,45 @@
 /**
  * Runtime text template: Приложение 2 — График погашения
- * Variables: contract_number, schedule_items[] (item_number, due_date,
- *   principal_amount, interest_amount, total_amount)
- *
- * TODO: Final legal text to be defined in Phase 4.
- * This is a safe placeholder. Do not use for production document generation.
+ * Generated only when repayment_schedule_type is INSTALLMENTS_FIXED or INSTALLMENTS_VARIABLE.
  */
 
-export const APPENDIX_REPAYMENT_SCHEDULE_TEMPLATE_VERSION = '0.1-placeholder';
+export const APPENDIX_REPAYMENT_SCHEDULE_TEMPLATE_VERSION = '1.0';
 
 export const APPENDIX_REPAYMENT_SCHEDULE_TEMPLATE = `Приложение № 2
 к Договору денежного займа № {CONTRACT_NUMBER}
 
 График погашения займа
 
-<!-- TODO: Phase 4 — final legal text with schedule table:
-  | № | Дата платежа | Основной долг | Проценты | Итого |
-  Conditional on REPAYMENT_SCHEDULE_TYPE (INSTALLMENTS_FIXED / INSTALLMENTS_VARIABLE)
--->
+Дата формирования: {APPENDIX_DATE}
 
-[Placeholder — awaiting final legal text]
+Тип графика: {SCHEDULE_TYPE_LABEL}
+
+Предельная сумма займа: {LOAN_AMOUNT} ({LOAN_AMOUNT_IN_WORDS}) {LOAN_CURRENCY}
+
+[[IF {INTEREST_MODE} == FIXED_RATE]]
+Процентная ставка: {INTEREST_RATE_ANNUAL}% годовых
+[[ENDIF]]
+
+Срок окончательного возврата: {FINAL_REPAYMENT_DEADLINE}
+
+{SCHEDULE_TABLE}
+
+Примечания:
+- Суммы указаны исходя из Предельной суммы займа. Если фактически предоставленная сумма займа окажется меньше, обязательства Заёмщика определяются исходя из фактически предоставленной и непогашенной суммы.
+- При частичном досрочном погашении оставшиеся платежи подлежат пересчёту.
+
+Настоящее Приложение является неотъемлемой частью Договора денежного займа № {CONTRACT_NUMBER}.
 `;
 
 export const APPENDIX_REPAYMENT_SCHEDULE_VARIABLES = [
   'CONTRACT_NUMBER',
+  'APPENDIX_DATE',
+  'SCHEDULE_TYPE_LABEL',
+  'LOAN_AMOUNT',
+  'LOAN_AMOUNT_IN_WORDS',
+  'LOAN_CURRENCY',
+  'INTEREST_MODE',
+  'INTEREST_RATE_ANNUAL',
+  'FINAL_REPAYMENT_DEADLINE',
+  'SCHEDULE_TABLE',
 ] as const;

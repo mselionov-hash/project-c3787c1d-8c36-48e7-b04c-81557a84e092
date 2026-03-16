@@ -6,7 +6,14 @@
 import { supabase } from '@/integrations/supabase/client';
 import { getTemplate } from '@/legal/document-registry';
 import { renderTemplate, validateRenderedOutput } from './template-engine';
-import { resolveContractVariables, resolveTrancheReceiptVariables } from './variable-resolver';
+import {
+  resolveContractVariables,
+  resolveTrancheReceiptVariables,
+  resolveAppendixBankDetailsVariables,
+  resolveAppendixScheduleVariables,
+  resolvePartialRepaymentVariables,
+  resolveFullRepaymentVariables,
+} from './variable-resolver';
 import { renderDocumentToPdf } from './pdf-renderer';
 import type { DocumentType } from '@/legal/document-types';
 
@@ -16,17 +23,59 @@ interface GenerateResult {
 }
 
 /**
- * Generate a loan contract document:
- * 1. Resolve all variables from snapshots + live data
- * 2. Render the template
- * 3. Generate PDF and trigger download
- * 4. Persist metadata to generated_documents
+ * Common helper: render template, validate, persist metadata, generate PDF.
+ */
+async function generateDocument(
+  loanId: string,
+  userId: string,
+  documentType: DocumentType,
+  resolverFn: () => Promise<Record<string, string>>,
+  pdfOptions: { title: string; fileNamePrefix: string },
+  sourceEntityId?: string
+): Promise<GenerateResult> {
+  const template = getTemplate(documentType);
+  if (!template) throw new Error(`Template not found: ${documentType}`);
+
+  const variables = await resolverFn();
+  const resolvedText = renderTemplate(template.template, variables);
+
+  const renderIssues = validateRenderedOutput(resolvedText);
+  if (renderIssues.length > 0) {
+    throw new Error(`Документ содержит нерезолвленные элементы шаблона:\n${renderIssues.join('\n')}`);
+  }
+
+  const contractNumber = variables['CONTRACT_NUMBER'] || loanId.slice(0, 8);
+
+  const { data, error } = await supabase
+    .from('generated_documents')
+    .insert({
+      loan_id: loanId,
+      document_type: documentType as string,
+      template_version: template.version,
+      created_by: userId,
+      source_entity_id: sourceEntityId || null,
+      render_data_snapshot: JSON.parse(JSON.stringify(variables)),
+    })
+    .select('id')
+    .single();
+
+  if (error) throw new Error(`Failed to save document metadata: ${error.message}`);
+
+  renderDocumentToPdf(resolvedText, {
+    title: `${pdfOptions.title} ${contractNumber}`,
+    fileName: `${pdfOptions.fileNamePrefix}-${contractNumber}.pdf`,
+  });
+
+  return { documentId: data.id, resolvedText };
+}
+
+/**
+ * Generate a loan contract document.
  */
 export async function generateLoanContract(
   loanId: string,
   userId: string
 ): Promise<GenerateResult> {
-  // Gate: both parties must have signed
   const { data: sigs } = await supabase
     .from('loan_signatures')
     .select('role')
@@ -37,40 +86,11 @@ export async function generateLoanContract(
     throw new Error('Договор можно сформировать только после подписания обеими сторонами');
   }
 
-  const template = getTemplate('loan_contract');
-  if (!template) throw new Error('Loan contract template not found');
-
-  const variables = await resolveContractVariables(loanId);
-  const resolvedText = renderTemplate(template.template, variables);
-
-  // Validate output cleanliness
-  const renderIssues = validateRenderedOutput(resolvedText);
-  if (renderIssues.length > 0) {
-    throw new Error(`Документ содержит нерезолвленные элементы шаблона:\n${renderIssues.join('\n')}`);
-  }
-
-  // Persist document metadata (one row per generation for audit trail)
-  const { data, error } = await supabase
-    .from('generated_documents')
-    .insert({
-      loan_id: loanId,
-      document_type: 'loan_contract' as DocumentType,
-      template_version: template.version,
-      created_by: userId,
-      render_data_snapshot: JSON.parse(JSON.stringify(variables)),
-    })
-    .select('id')
-    .single();
-
-  if (error) throw new Error(`Failed to save document metadata: ${error.message}`);
-
-  const contractNumber = variables['CONTRACT_NUMBER'] || loanId.slice(0, 8);
-  renderDocumentToPdf(resolvedText, {
-    title: `Договор займа № ${contractNumber}`,
-    fileName: `договор-займа-${contractNumber}.pdf`,
-  });
-
-  return { documentId: data.id, resolvedText };
+  return generateDocument(
+    loanId, userId, 'loan_contract',
+    () => resolveContractVariables(loanId),
+    { title: 'Договор займа №', fileNamePrefix: 'договор-займа' }
+  );
 }
 
 /**
@@ -81,7 +101,6 @@ export async function generateTrancheReceipt(
   trancheId: string,
   userId: string
 ): Promise<GenerateResult> {
-  // Gate: tranche must be confirmed
   const { data: tranche } = await supabase
     .from('loan_tranches')
     .select('status')
@@ -92,40 +111,88 @@ export async function generateTrancheReceipt(
     throw new Error('Расписку можно сформировать только для подтверждённого транша');
   }
 
-  const template = getTemplate('tranche_receipt');
-  if (!template) throw new Error('Tranche receipt template not found');
+  return generateDocument(
+    loanId, userId, 'tranche_receipt',
+    () => resolveTrancheReceiptVariables(loanId, trancheId),
+    { title: 'Расписка транш', fileNamePrefix: 'расписка-транш' },
+    trancheId
+  );
+}
 
-  const variables = await resolveTrancheReceiptVariables(loanId, trancheId);
-  const resolvedText = renderTemplate(template.template, variables);
+/**
+ * Generate Appendix 1 — allowed bank details.
+ */
+export async function generateAppendixBankDetails(
+  loanId: string,
+  userId: string
+): Promise<GenerateResult> {
+  const { data: sigs } = await supabase
+    .from('loan_signatures')
+    .select('role')
+    .eq('loan_id', loanId);
 
-  // Validate output cleanliness
-  const renderIssues = validateRenderedOutput(resolvedText);
-  if (renderIssues.length > 0) {
-    throw new Error(`Расписка содержит нерезолвленные элементы шаблона:\n${renderIssues.join('\n')}`);
+  const roles = new Set((sigs || []).map(s => s.role));
+  if (!roles.has('lender') || !roles.has('borrower')) {
+    throw new Error('Приложение 1 можно сформировать только после подписания договора обеими сторонами');
   }
 
-  // Persist document metadata
-  const { data, error } = await supabase
-    .from('generated_documents')
-    .insert({
-      loan_id: loanId,
-      document_type: 'tranche_receipt' as DocumentType,
-      template_version: template.version,
-      created_by: userId,
-      source_entity_id: trancheId,
-      render_data_snapshot: JSON.parse(JSON.stringify(variables)),
-    })
-    .select('id')
-    .single();
+  return generateDocument(
+    loanId, userId, 'appendix_bank_details',
+    () => resolveAppendixBankDetailsVariables(loanId),
+    { title: 'Приложение 1 к договору №', fileNamePrefix: 'приложение-1-реквизиты' }
+  );
+}
 
-  if (error) throw new Error(`Failed to save document metadata: ${error.message}`);
+/**
+ * Generate Appendix 2 — repayment schedule.
+ */
+export async function generateAppendixSchedule(
+  loanId: string,
+  userId: string
+): Promise<GenerateResult> {
+  const { data: sigs } = await supabase
+    .from('loan_signatures')
+    .select('role')
+    .eq('loan_id', loanId);
 
-  const contractNumber = variables['CONTRACT_NUMBER'] || loanId.slice(0, 8);
-  const receiptNumber = variables['TRANCHE_RECEIPT_NUMBER'] || '1';
-  renderDocumentToPdf(resolvedText, {
-    title: `Расписка о получении транша № ${receiptNumber}`,
-    fileName: `расписка-транш-${receiptNumber}-${contractNumber}.pdf`,
-  });
+  const roles = new Set((sigs || []).map(s => s.role));
+  if (!roles.has('lender') || !roles.has('borrower')) {
+    throw new Error('Приложение 2 можно сформировать только после подписания договора обеими сторонами');
+  }
 
-  return { documentId: data.id, resolvedText };
+  return generateDocument(
+    loanId, userId, 'appendix_repayment_schedule',
+    () => resolveAppendixScheduleVariables(loanId),
+    { title: 'Приложение 2 к договору №', fileNamePrefix: 'приложение-2-график' }
+  );
+}
+
+/**
+ * Generate partial repayment confirmation.
+ */
+export async function generatePartialRepaymentConfirmation(
+  loanId: string,
+  paymentId: string,
+  userId: string
+): Promise<GenerateResult> {
+  return generateDocument(
+    loanId, userId, 'partial_repayment_confirmation',
+    () => resolvePartialRepaymentVariables(loanId, paymentId),
+    { title: 'Подтверждение частичного погашения по договору №', fileNamePrefix: 'подтверждение-частичного-погашения' },
+    paymentId
+  );
+}
+
+/**
+ * Generate full repayment confirmation.
+ */
+export async function generateFullRepaymentConfirmation(
+  loanId: string,
+  userId: string
+): Promise<GenerateResult> {
+  return generateDocument(
+    loanId, userId, 'full_repayment_confirmation',
+    () => resolveFullRepaymentVariables(loanId),
+    { title: 'Подтверждение полного погашения по договору №', fileNamePrefix: 'подтверждение-полного-погашения' }
+  );
 }
