@@ -163,6 +163,7 @@ export const RepaymentList = ({
           loanId={loanId}
           payerId={userId}
           lenderId={lenderId}
+          contractNumber={contractNumber}
           onClose={() => setShowCreate(false)}
           onSuccess={onRefresh}
         />

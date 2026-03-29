@@ -395,6 +395,7 @@ const LoanDetails = () => {
             isLender={isLender}
             isBorrower={isBorrower}
             loanStatus={loan.status}
+            contractNumber={loan.contract_number}
             onRefresh={fetchAll}
             onGenerateReceipt={handleGenerateTrancheReceipt}
           />
@@ -424,6 +425,7 @@ const LoanDetails = () => {
             isLender={isLender}
             isBorrower={isBorrower}
             loanStatus={loan.status}
+            contractNumber={loan.contract_number}
             onRefresh={fetchAll}
             onGenerateConfirmation={handleGeneratePartialConfirmation}
           />

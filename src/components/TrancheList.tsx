@@ -129,6 +129,7 @@ export const TrancheList = ({
           lenderId={lenderId}
           borrowerId={borrowerId}
           nextTrancheNumber={nextNumber}
+          contractNumber={contractNumber}
           onClose={() => setShowCreate(false)}
           onSuccess={onRefresh}
         />
