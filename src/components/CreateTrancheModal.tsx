@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -8,18 +8,34 @@ import { X, Loader2, Banknote } from 'lucide-react';
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from '@/components/ui/select';
+import type { Tables } from '@/integrations/supabase/types';
+
+type BankDetail = Tables<'bank_details'>;
 
 interface CreateTrancheModalProps {
   loanId: string;
   userId: string;
+  lenderId: string;
+  borrowerId: string | null;
   nextTrancheNumber: number;
   onClose: () => void;
   onSuccess: () => void;
 }
 
+const formatBankLabel = (bd: BankDetail) => {
+  const parts = [bd.bank_name];
+  if (bd.card_number) parts.push(`•••• ${bd.card_number.slice(-4)}`);
+  else if (bd.phone) parts.push(bd.phone);
+  else if (bd.account_number) parts.push(`р/с •••${bd.account_number.slice(-4)}`);
+  if (bd.label) parts.push(`(${bd.label})`);
+  return parts.join(' ');
+};
+
 export const CreateTrancheModal = ({
   loanId,
   userId,
+  lenderId,
+  borrowerId,
   nextTrancheNumber,
   onClose,
   onSuccess,
@@ -32,7 +48,60 @@ export const CreateTrancheModal = ({
   const [referenceText, setReferenceText] = useState('');
   const [saving, setSaving] = useState(false);
 
+  const [senderBankDetails, setSenderBankDetails] = useState<BankDetail[]>([]);
+  const [receiverBankDetails, setReceiverBankDetails] = useState<BankDetail[]>([]);
+  const [selectedSenderId, setSelectedSenderId] = useState<string>('');
+  const [selectedReceiverId, setSelectedReceiverId] = useState<string>('');
+
   const inputClass = 'h-11 rounded-xl bg-muted/50 border-border/50 focus:bg-card';
+
+  useEffect(() => {
+    const fetchBankDetails = async () => {
+      const { data: senderData } = await supabase
+        .from('bank_details')
+        .select('*')
+        .eq('user_id', lenderId);
+      
+      const senderList = senderData || [];
+      setSenderBankDetails(senderList);
+      
+      // Auto-select if only one or default
+      const defaultSender = senderList.find(b => b.is_default) || (senderList.length === 1 ? senderList[0] : null);
+      if (defaultSender) {
+        setSelectedSenderId(defaultSender.id);
+        setSenderDisplay(formatBankLabel(defaultSender));
+      }
+
+      if (borrowerId) {
+        const { data: receiverData } = await supabase
+          .from('bank_details')
+          .select('*')
+          .eq('user_id', borrowerId);
+        
+        const receiverList = receiverData || [];
+        setReceiverBankDetails(receiverList);
+        
+        const defaultReceiver = receiverList.find(b => b.is_default) || (receiverList.length === 1 ? receiverList[0] : null);
+        if (defaultReceiver) {
+          setSelectedReceiverId(defaultReceiver.id);
+          setReceiverDisplay(formatBankLabel(defaultReceiver));
+        }
+      }
+    };
+    fetchBankDetails();
+  }, [lenderId, borrowerId]);
+
+  const handleSenderSelect = (bdId: string) => {
+    setSelectedSenderId(bdId);
+    const bd = senderBankDetails.find(b => b.id === bdId);
+    if (bd) setSenderDisplay(formatBankLabel(bd));
+  };
+
+  const handleReceiverSelect = (bdId: string) => {
+    setSelectedReceiverId(bdId);
+    const bd = receiverBankDetails.find(b => b.id === bdId);
+    if (bd) setReceiverDisplay(formatBankLabel(bd));
+  };
 
   const handleSave = async () => {
     if (!amount || parseFloat(amount) <= 0) {
@@ -55,6 +124,8 @@ export const CreateTrancheModal = ({
         method,
         sender_account_display: senderDisplay.trim() || null,
         receiver_account_display: receiverDisplay.trim() || null,
+        sender_bank_detail_id: selectedSenderId || null,
+        receiver_bank_detail_id: selectedReceiverId || null,
         reference_text: referenceText.trim() || null,
         status: 'planned',
       });
@@ -71,7 +142,7 @@ export const CreateTrancheModal = ({
 
   return (
     <div className="fixed inset-0 bg-foreground/15 backdrop-blur-md z-50 flex items-center justify-center p-4">
-      <div className="card-elevated w-full max-w-md p-7">
+      <div className="card-elevated w-full max-w-md p-7 max-h-[90vh] overflow-y-auto">
         <div className="flex items-center justify-between mb-6">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-xl bg-accent/10 flex items-center justify-center">
@@ -106,14 +177,41 @@ export const CreateTrancheModal = ({
               </SelectContent>
             </Select>
           </div>
+
+          {/* Sender (lender) bank detail */}
           <div className="space-y-2">
-            <Label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Счёт/реквизит отправителя</Label>
-            <Input value={senderDisplay} onChange={e => setSenderDisplay(e.target.value)} placeholder="Номер карты / счёт" className={inputClass} />
+            <Label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Счёт отправителя (займодавец)</Label>
+            {senderBankDetails.length > 0 ? (
+              <Select value={selectedSenderId} onValueChange={handleSenderSelect}>
+                <SelectTrigger className={inputClass}><SelectValue placeholder="Выберите реквизит" /></SelectTrigger>
+                <SelectContent>
+                  {senderBankDetails.map(bd => (
+                    <SelectItem key={bd.id} value={bd.id}>{formatBankLabel(bd)}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            ) : (
+              <Input value={senderDisplay} onChange={e => setSenderDisplay(e.target.value)} placeholder="Номер карты / счёт" className={inputClass} />
+            )}
           </div>
+
+          {/* Receiver (borrower) bank detail */}
           <div className="space-y-2">
-            <Label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Счёт/реквизит получателя</Label>
-            <Input value={receiverDisplay} onChange={e => setReceiverDisplay(e.target.value)} placeholder="Номер карты / счёт" className={inputClass} />
+            <Label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Счёт получателя (заёмщик)</Label>
+            {receiverBankDetails.length > 0 ? (
+              <Select value={selectedReceiverId} onValueChange={handleReceiverSelect}>
+                <SelectTrigger className={inputClass}><SelectValue placeholder="Выберите реквизит" /></SelectTrigger>
+                <SelectContent>
+                  {receiverBankDetails.map(bd => (
+                    <SelectItem key={bd.id} value={bd.id}>{formatBankLabel(bd)}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            ) : (
+              <Input value={receiverDisplay} onChange={e => setReceiverDisplay(e.target.value)} placeholder="Номер карты / счёт" className={inputClass} />
+            )}
           </div>
+
           <div className="space-y-2">
             <Label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Назначение платежа</Label>
             <Input value={referenceText} onChange={e => setReferenceText(e.target.value)} placeholder="По договору займа №..." className={inputClass} />
