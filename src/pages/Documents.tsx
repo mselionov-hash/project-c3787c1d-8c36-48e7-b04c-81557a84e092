@@ -186,16 +186,17 @@ const Documents = () => {
                         <div className="text-sm text-muted-foreground py-4 text-center">Загрузка...</div>
                       ) : (
                         <>
-                          {/* Generation buttons */}
+                          {/* Document list */}
                           {isFullySigned && (
-                            <div className="flex flex-wrap gap-2 mb-2">
-                              <GenBtn label="Договор" type="loan_contract" loanId={loan.id} generating={generating} onGen={generate} />
-                              <GenBtn label="Прил. 1 — Реквизиты" type="appendix_bank_details" loanId={loan.id} generating={generating} onGen={generate} />
+                            <div className="space-y-1.5">
+                              {/* Static document entries */}
+                              <DocRow label="Договор займа" type="loan_contract" loanId={loan.id} generating={generating} onGen={generate} />
+                              <DocRow label="Приложение 1: Банковские реквизиты" type="appendix_bank_details" loanId={loan.id} generating={generating} onGen={generate} />
                               {hasSchedule && loanSchedule.length > 0 && (
-                                <GenBtn label="Прил. 2 — График" type="appendix_repayment_schedule" loanId={loan.id} generating={generating} onGen={generate} />
+                                <DocRow label="Приложение 2: График погашения" type="appendix_repayment_schedule" loanId={loan.id} generating={generating} onGen={generate} />
                               )}
                               {loanTranches.map(t => (
-                                <GenBtn
+                                <DocRow
                                   key={t.id}
                                   label={`Расписка — транш №${t.tranche_number}`}
                                   type="tranche_receipt"
@@ -206,7 +207,7 @@ const Documents = () => {
                                 />
                               ))}
                               {loanPayments.map(p => (
-                                <GenBtn
+                                <DocRow
                                   key={p.id}
                                   label={`Погашение — ${Number(p.transfer_amount).toLocaleString('ru-RU')} ₽`}
                                   type="partial_repayment_confirmation"
@@ -217,7 +218,7 @@ const Documents = () => {
                                 />
                               ))}
                               {isLender && loan.status === 'repaid' && totalDisbursed > 0 && totalRepaid >= totalDisbursed && (
-                                <GenBtn label="Полное погашение" type="full_repayment_confirmation" loanId={loan.id} generating={generating} onGen={generate} />
+                                <DocRow label="Полное погашение" type="full_repayment_confirmation" loanId={loan.id} generating={generating} onGen={generate} />
                               )}
                             </div>
                           )}
