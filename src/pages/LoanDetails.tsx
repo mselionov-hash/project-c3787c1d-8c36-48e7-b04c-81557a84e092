@@ -59,7 +59,6 @@ const LoanDetails = () => {
   const [tranches, setTranches] = useState<Tranche[]>([]);
   const [scheduleItems, setScheduleItems] = useState<ScheduleItem[]>([]);
   const [payments, setPayments] = useState<Payment[]>([]);
-  const [documents, setDocuments] = useState<GeneratedDocument[]>([]);
   const [loading, setLoading] = useState(true);
   const [showSignature, setShowSignature] = useState(false);
   const [showSend, setShowSend] = useState(false);
@@ -80,20 +79,18 @@ const LoanDetails = () => {
     setExpandedSections(prev => ({ ...prev, [key]: !prev[key] }));
 
   const fetchAll = async () => {
-    const [loanRes, sigRes, trancheRes, schedRes, payRes, docRes] = await Promise.all([
+    const [loanRes, sigRes, trancheRes, schedRes, payRes] = await Promise.all([
       supabase.from('loans').select('*').eq('id', id!).single(),
       supabase.from('loan_signatures').select('*').eq('loan_id', id!),
       supabase.from('loan_tranches').select('*').eq('loan_id', id!).order('tranche_number'),
       supabase.from('payment_schedule_items').select('*').eq('loan_id', id!).order('item_number'),
       supabase.from('loan_payments').select('*').eq('loan_id', id!).order('transfer_date', { ascending: false }),
-      supabase.from('generated_documents').select('*').eq('loan_id', id!).order('created_at', { ascending: false }),
     ]);
     setLoan(loanRes.data);
     setSignatures(sigRes.data || []);
     setTranches(trancheRes.data || []);
     setScheduleItems(schedRes.data || []);
     setPayments(payRes.data || []);
-    setDocuments(docRes.data || []);
     setLoading(false);
 
     if (loanRes.data && loanRes.data.status === 'fully_signed') {
@@ -193,13 +190,6 @@ const LoanDetails = () => {
     }
   };
 
-  // --- Document generators (preserved, run in background) ---
-  const handleGenerateContract = async () => { if (!loan || !user) return; try { await generateLoanContract(loan.id, user.id); toast.success('Договор сформирован'); fetchAll(); } catch (err: unknown) { toast.error(err instanceof Error ? err.message : 'Ошибка'); } };
-  const handleGenerateTrancheReceipt = async (trancheId: string) => { if (!loan || !user) return; try { await generateTrancheReceipt(loan.id, trancheId, user.id); toast.success('Расписка сформирована'); fetchAll(); } catch (err: unknown) { toast.error(err instanceof Error ? err.message : 'Ошибка'); } };
-  const handleGenerateAppendix1 = async () => { if (!loan || !user) return; try { await generateAppendixBankDetails(loan.id, user.id); toast.success('Приложение 1 сформировано'); fetchAll(); } catch (err: unknown) { toast.error(err instanceof Error ? err.message : 'Ошибка'); } };
-  const handleGenerateAppendix2 = async () => { if (!loan || !user) return; try { await generateAppendixSchedule(loan.id, user.id); toast.success('Приложение 2 сформировано'); fetchAll(); } catch (err: unknown) { toast.error(err instanceof Error ? err.message : 'Ошибка'); } };
-  const handleGeneratePartialConfirmation = async (paymentId: string) => { if (!loan || !user) return; try { await generatePartialRepaymentConfirmation(loan.id, paymentId, user.id); toast.success('Подтверждение сформировано'); fetchAll(); } catch (err: unknown) { toast.error(err instanceof Error ? err.message : 'Ошибка'); } };
-  const handleGenerateFullConfirmation = async () => { if (!loan || !user) return; try { await generateFullRepaymentConfirmation(loan.id, user.id); toast.success('Подтверждение сформировано'); fetchAll(); } catch (err: unknown) { toast.error(err instanceof Error ? err.message : 'Ошибка'); } };
 
   if (loading || authLoading || !loan) {
     return <AppLayout><div className="flex items-center justify-center h-64 text-muted-foreground text-sm">Загрузка...</div></AppLayout>;
