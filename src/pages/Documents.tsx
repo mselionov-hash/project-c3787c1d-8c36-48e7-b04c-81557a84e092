@@ -232,7 +232,7 @@ const Documents = () => {
                           {loanDocs.length > 0 && (
                             <div className="space-y-1.5">
                               {loanDocs.map(doc => (
-                                <div key={doc.id} className="flex items-center gap-3 p-2.5 rounded-lg bg-muted/20 border border-border/20 hover:bg-muted/40 transition-colors cursor-pointer">
+                                <div key={doc.id} className="flex items-center gap-3 p-2.5 rounded-lg bg-muted/20 border border-border/20 hover:bg-muted/40 transition-colors">
                                   <FileText className="w-4 h-4 text-primary flex-shrink-0" />
                                   <div className="flex-1 min-w-0">
                                     <p className="text-sm font-medium truncate">
@@ -242,6 +242,17 @@ const Documents = () => {
                                       v{doc.template_version} • {new Date(doc.created_at).toLocaleDateString('ru-RU', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
                                     </p>
                                   </div>
+                                  <Button
+                                    variant="ghost"
+                                    size="icon"
+                                    className="h-8 w-8 flex-shrink-0 rounded-lg text-muted-foreground hover:text-primary"
+                                    onClick={() => generate(doc.document_type, doc.loan_id, doc.source_entity_id || undefined)}
+                                    disabled={generating !== null}
+                                  >
+                                    {generating === doc.document_type + (doc.source_entity_id || '')
+                                      ? <Loader2 className="w-4 h-4 animate-spin" />
+                                      : <Download className="w-4 h-4" />}
+                                  </Button>
                                 </div>
                               ))}
                             </div>
