@@ -16,6 +16,7 @@ interface RepaymentListProps {
   isLender: boolean;
   isBorrower: boolean;
   loanStatus: string;
+  contractNumber: string | null;
   onRefresh: () => void;
   onGenerateConfirmation?: (paymentId: string) => void;
 }

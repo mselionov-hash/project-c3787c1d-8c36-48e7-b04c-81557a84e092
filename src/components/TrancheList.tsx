@@ -16,6 +16,7 @@ interface TrancheListProps {
   isLender: boolean;
   isBorrower: boolean;
   loanStatus: string;
+  contractNumber: string | null;
   onRefresh: () => void;
   onGenerateReceipt?: (trancheId: string) => void;
 }
