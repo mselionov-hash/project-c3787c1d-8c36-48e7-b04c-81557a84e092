@@ -50,7 +50,7 @@ const SignaturePad = ({ onSave, onCancel, title }: SignaturePadProps) => {
               className: 'w-full',
               style: { width: '100%', height: '200px' },
             }}
-            penColor="hsl(222, 47%, 11%)"
+            penColor="#ffffff"
             onBegin={() => setIsEmpty(false)}
           />
         </div>
