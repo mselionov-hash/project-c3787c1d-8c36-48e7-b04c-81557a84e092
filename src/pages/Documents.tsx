@@ -276,5 +276,3 @@ const DocRow = ({
 };
 
 export default Documents;
-
-export default Documents;
