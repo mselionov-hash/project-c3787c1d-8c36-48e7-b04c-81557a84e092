@@ -3,29 +3,20 @@ import { useNavigate, useParams } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
 import { supabase } from '@/integrations/supabase/client';
 import { createSnapshot, SNAPSHOT_TYPES } from '@/legal/snapshots';
-import {
-  generateLoanContract,
-  generateTrancheReceipt,
-  generateAppendixBankDetails,
-  generateAppendixSchedule,
-  generatePartialRepaymentConfirmation,
-  generateFullRepaymentConfirmation,
-} from '@/legal/services/document-generator';
 import SignaturePad from '@/components/SignaturePad';
 import SendLoanModal from '@/components/SendLoanModal';
 import { AllowedBankDetailsSelector } from '@/components/AllowedBankDetailsSelector';
 import { TrancheList } from '@/components/TrancheList';
 import { PaymentSchedule } from '@/components/PaymentSchedule';
 import { RepaymentList } from '@/components/RepaymentList';
-import { DocStatusBadges } from '@/components/DocStatusBadges';
 import { TransferEvidence } from '@/components/TransferEvidence';
 import { LoanTimeline } from '@/components/LoanTimeline';
 import { AppLayout } from '@/components/AppLayout';
 import { Button } from '@/components/ui/button';
 import { toast } from 'sonner';
 import {
-  ArrowLeft, PenTool, CheckCircle2, Clock, FileText,
-  Calendar, Percent, AlertTriangle, Shield, Send,
+  ArrowLeft, PenTool, CheckCircle2, Clock,
+  AlertTriangle, Shield, Send,
   CreditCard, ChevronDown, ChevronUp,
 } from 'lucide-react';
 import type { Tables } from '@/integrations/supabase/types';
@@ -35,7 +26,6 @@ type Signature = Tables<'loan_signatures'>;
 type Tranche = Tables<'loan_tranches'>;
 type ScheduleItem = Tables<'payment_schedule_items'>;
 type Payment = Tables<'loan_payments'>;
-type GeneratedDocument = Tables<'generated_documents'>;
 
 const statusConfig: Record<string, { label: string; icon: React.ElementType; class: string }> = {
   draft: { label: 'Черновик', icon: Clock, class: 'bg-muted text-muted-foreground' },
