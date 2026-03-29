@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
 import { supabase } from '@/integrations/supabase/client';
@@ -12,15 +12,15 @@ import {
 } from '@/legal/services/document-generator';
 import { AppLayout } from '@/components/AppLayout';
 import { Button } from '@/components/ui/button';
-import {
-  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
-} from '@/components/ui/select';
-import { FileText, FileCheck, Download, ArrowLeft, Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
+import {
+  FileText, Download, Loader2, ChevronRight,
+  ArrowUpRight, ArrowDownLeft,
+} from 'lucide-react';
 import type { Tables } from '@/integrations/supabase/types';
 
-type Doc = Tables<'generated_documents'>;
 type Loan = Tables<'loans'>;
+type Doc = Tables<'generated_documents'>;
 type Tranche = Tables<'loan_tranches'>;
 type Payment = Tables<'loan_payments'>;
 type ScheduleItem = Tables<'payment_schedule_items'>;
@@ -34,16 +34,27 @@ const DOC_TYPE_LABELS: Record<string, string> = {
   full_repayment_confirmation: 'Подтверждение полного погашения',
 };
 
+const statusLabels: Record<string, { label: string; class: string }> = {
+  draft: { label: 'Черновик', class: 'bg-muted text-muted-foreground' },
+  awaiting_signatures: { label: 'Подписание', class: 'bg-warning/15 text-warning' },
+  signed_by_lender: { label: 'Ждёт заёмщика', class: 'bg-info/15 text-info' },
+  signed_by_borrower: { label: 'Ждёт займодавца', class: 'bg-info/15 text-info' },
+  fully_signed: { label: 'Подписан', class: 'bg-primary/15 text-primary' },
+  active: { label: 'Активный', class: 'bg-primary/15 text-primary' },
+  repaid: { label: 'Погашён', class: 'bg-muted text-muted-foreground' },
+  overdue: { label: 'Просрочен', class: 'bg-destructive/15 text-destructive' },
+};
+
 const Documents = () => {
   const navigate = useNavigate();
   const { user, loading } = useAuth();
   const [loans, setLoans] = useState<Loan[]>([]);
-  const [selectedLoanId, setSelectedLoanId] = useState<string>('');
-  const [docs, setDocs] = useState<Doc[]>([]);
-  const [tranches, setTranches] = useState<Tranche[]>([]);
-  const [payments, setPayments] = useState<Payment[]>([]);
-  const [scheduleItems, setScheduleItems] = useState<ScheduleItem[]>([]);
   const [loadingLoans, setLoadingLoans] = useState(true);
+  const [expandedLoanId, setExpandedLoanId] = useState<string | null>(null);
+  const [loanDocs, setLoanDocs] = useState<Doc[]>([]);
+  const [loanTranches, setLoanTranches] = useState<Tranche[]>([]);
+  const [loanPayments, setLoanPayments] = useState<Payment[]>([]);
+  const [loanSchedule, setLoanSchedule] = useState<ScheduleItem[]>([]);
   const [loadingDocs, setLoadingDocs] = useState(false);
   const [generating, setGenerating] = useState<string | null>(null);
 
@@ -55,61 +66,48 @@ const Documents = () => {
     if (user) fetchLoans();
   }, [user]);
 
-  useEffect(() => {
-    if (selectedLoanId) fetchLoanData();
-  }, [selectedLoanId]);
-
   const fetchLoans = async () => {
     const { data } = await supabase.from('loans').select('*').order('created_at', { ascending: false });
     setLoans(data || []);
     setLoadingLoans(false);
   };
 
-  const fetchLoanData = async () => {
+  const toggleLoan = async (loanId: string) => {
+    if (expandedLoanId === loanId) {
+      setExpandedLoanId(null);
+      return;
+    }
+    setExpandedLoanId(loanId);
     setLoadingDocs(true);
     const [docRes, trancheRes, payRes, schedRes] = await Promise.all([
-      supabase.from('generated_documents').select('*').eq('loan_id', selectedLoanId).order('created_at', { ascending: false }),
-      supabase.from('loan_tranches').select('*').eq('loan_id', selectedLoanId).order('tranche_number'),
-      supabase.from('loan_payments').select('*').eq('loan_id', selectedLoanId).order('transfer_date', { ascending: false }),
-      supabase.from('payment_schedule_items').select('*').eq('loan_id', selectedLoanId).order('item_number'),
+      supabase.from('generated_documents').select('*').eq('loan_id', loanId).order('created_at', { ascending: false }),
+      supabase.from('loan_tranches').select('*').eq('loan_id', loanId).eq('status', 'confirmed').order('tranche_number'),
+      supabase.from('loan_payments').select('*').eq('loan_id', loanId).eq('status', 'confirmed').order('transfer_date', { ascending: false }),
+      supabase.from('payment_schedule_items').select('*').eq('loan_id', loanId).order('item_number'),
     ]);
-    setDocs(docRes.data || []);
-    setTranches(trancheRes.data || []);
-    setPayments(payRes.data || []);
-    setScheduleItems(schedRes.data || []);
+    setLoanDocs(docRes.data || []);
+    setLoanTranches(trancheRes.data || []);
+    setLoanPayments(payRes.data || []);
+    setLoanSchedule(schedRes.data || []);
     setLoadingDocs(false);
   };
 
-  const selectedLoan = useMemo(() => loans.find(l => l.id === selectedLoanId), [loans, selectedLoanId]);
-
-  const isLender = selectedLoan?.lender_id === user?.id;
-  const isFullySigned = selectedLoan && ['fully_signed', 'active', 'repaid'].includes(selectedLoan.status);
-  const hasSchedule = selectedLoan && ['installments_fixed', 'installments_variable'].includes(selectedLoan.repayment_schedule_type);
-  const confirmedTranches = tranches.filter(t => t.status === 'confirmed');
-  const confirmedPayments = payments.filter(p => p.status === 'confirmed');
-  const totalDisbursed = confirmedTranches.reduce((s, t) => s + Number(t.amount), 0);
-  const totalRepaid = confirmedPayments.reduce((s, p) => s + Number(p.transfer_amount), 0);
-
-  const generate = async (type: string, entityId?: string) => {
-    if (!selectedLoan || !user) return;
+  const generate = async (type: string, loanId: string, entityId?: string) => {
+    if (!user) return;
     setGenerating(type + (entityId || ''));
     try {
       switch (type) {
-        case 'loan_contract':
-          await generateLoanContract(selectedLoan.id, user.id); break;
-        case 'appendix_bank_details':
-          await generateAppendixBankDetails(selectedLoan.id, user.id); break;
-        case 'appendix_repayment_schedule':
-          await generateAppendixSchedule(selectedLoan.id, user.id); break;
-        case 'tranche_receipt':
-          if (entityId) await generateTrancheReceipt(selectedLoan.id, entityId, user.id); break;
-        case 'partial_repayment_confirmation':
-          if (entityId) await generatePartialRepaymentConfirmation(selectedLoan.id, entityId, user.id); break;
-        case 'full_repayment_confirmation':
-          await generateFullRepaymentConfirmation(selectedLoan.id, user.id); break;
+        case 'loan_contract': await generateLoanContract(loanId, user.id); break;
+        case 'appendix_bank_details': await generateAppendixBankDetails(loanId, user.id); break;
+        case 'appendix_repayment_schedule': await generateAppendixSchedule(loanId, user.id); break;
+        case 'tranche_receipt': if (entityId) await generateTrancheReceipt(loanId, entityId, user.id); break;
+        case 'partial_repayment_confirmation': if (entityId) await generatePartialRepaymentConfirmation(loanId, entityId, user.id); break;
+        case 'full_repayment_confirmation': await generateFullRepaymentConfirmation(loanId, user.id); break;
       }
-      toast.success('Документ сформирован');
-      fetchLoanData();
+      toast.success('Документ сформирован и скачан');
+      // Refresh docs for this loan
+      const { data } = await supabase.from('generated_documents').select('*').eq('loan_id', loanId).order('created_at', { ascending: false });
+      setLoanDocs(data || []);
     } catch (err: unknown) {
       toast.error(err instanceof Error ? err.message : 'Ошибка генерации');
     } finally {
@@ -119,19 +117,12 @@ const Documents = () => {
 
   if (loading || !user) return null;
 
-  const loanLabel = (l: Loan) => {
-    const counterparty = l.lender_id === user.id ? l.borrower_name : l.lender_name;
-    const role = l.lender_id === user.id ? 'выдан' : 'получен';
-    return `${l.contract_number || l.id.slice(0, 8)} — ${counterparty} — ${Number(l.amount).toLocaleString('ru-RU')} ₽ (${role})`;
-  };
-
   return (
     <AppLayout>
-      <div className="max-w-3xl mx-auto px-4 sm:px-6 py-6 sm:py-8">
+      <div className="max-w-4xl mx-auto px-4 sm:px-6 py-6 sm:py-8">
         <h1 className="text-xl font-bold font-display mb-1">Документы</h1>
-        <p className="text-sm text-muted-foreground mb-5">Выберите займ для просмотра и скачивания документов</p>
+        <p className="text-sm text-muted-foreground mb-6">Выберите займ для скачивания документов</p>
 
-        {/* Loan selector */}
         {loadingLoans ? (
           <div className="text-center py-16 text-muted-foreground text-sm">Загрузка...</div>
         ) : loans.length === 0 ? (
@@ -141,114 +132,143 @@ const Documents = () => {
             <p className="text-xs text-muted-foreground">Создайте займ, чтобы здесь появились документы.</p>
           </div>
         ) : (
-          <>
-            <Select value={selectedLoanId} onValueChange={setSelectedLoanId}>
-              <SelectTrigger className="h-12 rounded-xl bg-muted/50 border-border/50 mb-6 text-sm">
-                <SelectValue placeholder="Выберите займ..." />
-              </SelectTrigger>
-              <SelectContent>
-                {loans.map(l => (
-                  <SelectItem key={l.id} value={l.id}>{loanLabel(l)}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+          <div className="space-y-2">
+            {loans.map(loan => {
+              const isLender = loan.lender_id === user.id;
+              const type = isLender ? 'issued' : 'taken';
+              const status = statusLabels[loan.status] || statusLabels.draft;
+              const isExpanded = expandedLoanId === loan.id;
+              const isFullySigned = ['fully_signed', 'active', 'repaid'].includes(loan.status);
+              const hasSchedule = ['installments_fixed', 'installments_variable'].includes(loan.repayment_schedule_type);
+              const totalDisbursed = loanTranches.reduce((s, t) => s + Number(t.amount), 0);
+              const totalRepaid = loanPayments.reduce((s, p) => s + Number(p.transfer_amount), 0);
 
-            {selectedLoanId && (
-              <>
-                {loadingDocs ? (
-                  <div className="text-center py-12 text-muted-foreground text-sm">Загрузка документов...</div>
-                ) : (
-                  <div className="space-y-6">
-                    {/* Generation actions */}
-                    {isFullySigned && (
-                      <div className="card-elevated p-5">
-                        <h2 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-3">Сформировать документы</h2>
-                        <div className="flex flex-wrap gap-2">
-                          <GenButton label="Договор" type="loan_contract" generating={generating} onGenerate={generate} />
-                          <GenButton label="Прил. 1 — Реквизиты" type="appendix_bank_details" generating={generating} onGenerate={generate} />
-                          {hasSchedule && scheduleItems.length > 0 && (
-                            <GenButton label="Прил. 2 — График" type="appendix_repayment_schedule" generating={generating} onGenerate={generate} />
-                          )}
-                          {confirmedTranches.map(t => (
-                            <GenButton
-                              key={t.id}
-                              label={`Расписка — транш №${t.tranche_number}`}
-                              type="tranche_receipt"
-                              entityId={t.id}
-                              generating={generating}
-                              onGenerate={generate}
-                            />
-                          ))}
-                          {confirmedPayments.map(p => (
-                            <GenButton
-                              key={p.id}
-                              label={`Подтверждение — ${Number(p.transfer_amount).toLocaleString('ru-RU')} ₽`}
-                              type="partial_repayment_confirmation"
-                              entityId={p.id}
-                              generating={generating}
-                              onGenerate={generate}
-                            />
-                          ))}
-                          {isLender && selectedLoan?.status === 'repaid' && totalDisbursed > 0 && totalRepaid >= totalDisbursed && (
-                            <GenButton label="Полное погашение" type="full_repayment_confirmation" generating={generating} onGenerate={generate} />
-                          )}
+              return (
+                <div key={loan.id}>
+                  {/* Loan card — same style as Dashboard */}
+                  <div
+                    onClick={() => toggleLoan(loan.id)}
+                    className={`card-elevated p-4 cursor-pointer group transition-all ${isExpanded ? 'border-primary/30' : 'hover:border-border'}`}
+                  >
+                    <div className="flex items-start gap-3">
+                      <div className={`w-10 h-10 rounded-lg flex items-center justify-center flex-shrink-0 ${
+                        type === 'issued' ? 'bg-primary/10' : 'bg-info/10'
+                      }`}>
+                        {type === 'issued'
+                          ? <ArrowUpRight className="w-5 h-5 text-primary" />
+                          : <ArrowDownLeft className="w-5 h-5 text-info" />}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center justify-between mb-1">
+                          <p className="font-semibold text-sm truncate">
+                            {type === 'issued' ? loan.borrower_name : loan.lender_name}
+                          </p>
+                          <ChevronRight className={`w-4 h-4 text-muted-foreground transition-transform flex-shrink-0 ${isExpanded ? 'rotate-90' : ''}`} />
+                        </div>
+                        <div className="flex items-center gap-2 mb-1">
+                          <span className="text-lg font-bold font-display">
+                            {Number(loan.amount).toLocaleString('ru-RU')} ₽
+                          </span>
+                          <span className={`pill-badge ${status.class}`}>{status.label}</span>
+                        </div>
+                        <div className="flex items-center gap-3 text-xs text-muted-foreground">
+                          {loan.contract_number && <span>№ {loan.contract_number}</span>}
+                          <span>до {new Date(loan.repayment_date).toLocaleDateString('ru-RU', { day: 'numeric', month: 'short' })}</span>
                         </div>
                       </div>
-                    )}
-
-                    {/* Existing documents */}
-                    {docs.length === 0 ? (
-                      <div className="card-elevated p-10 text-center">
-                        <FileText className="w-7 h-7 text-muted-foreground mx-auto mb-2" />
-                        <p className="text-sm text-muted-foreground">
-                          {isFullySigned
-                            ? 'Документы ещё не сформированы. Нажмите кнопку выше.'
-                            : 'Документы появятся после подписания договора.'}
-                        </p>
-                      </div>
-                    ) : (
-                      <div>
-                        <h2 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-3">
-                          Сформированные документы ({docs.length})
-                        </h2>
-                        <div className="space-y-2">
-                          {docs.map(doc => (
-                            <div key={doc.id} className="flex items-center gap-3 p-3 rounded-xl bg-muted/30 border border-border/30">
-                              <div className="w-9 h-9 rounded-lg bg-card flex items-center justify-center flex-shrink-0">
-                                <FileCheck className="w-4 h-4 text-primary" />
-                              </div>
-                              <div className="flex-1 min-w-0">
-                                <p className="text-sm font-medium truncate">
-                                  {DOC_TYPE_LABELS[doc.document_type] || doc.document_type}
-                                </p>
-                                <p className="text-[10px] text-muted-foreground">
-                                  v{doc.template_version} • {new Date(doc.created_at).toLocaleDateString('ru-RU', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
-                                </p>
-                              </div>
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-                    )}
+                    </div>
                   </div>
-                )}
-              </>
-            )}
-          </>
+
+                  {/* Expanded document panel */}
+                  {isExpanded && (
+                    <div className="ml-4 mr-1 mt-1 mb-3 border-l-2 border-primary/20 pl-4 space-y-3 py-3">
+                      {loadingDocs ? (
+                        <div className="text-sm text-muted-foreground py-4 text-center">Загрузка...</div>
+                      ) : (
+                        <>
+                          {/* Generation buttons */}
+                          {isFullySigned && (
+                            <div className="flex flex-wrap gap-2 mb-2">
+                              <GenBtn label="Договор" type="loan_contract" loanId={loan.id} generating={generating} onGen={generate} />
+                              <GenBtn label="Прил. 1 — Реквизиты" type="appendix_bank_details" loanId={loan.id} generating={generating} onGen={generate} />
+                              {hasSchedule && loanSchedule.length > 0 && (
+                                <GenBtn label="Прил. 2 — График" type="appendix_repayment_schedule" loanId={loan.id} generating={generating} onGen={generate} />
+                              )}
+                              {loanTranches.map(t => (
+                                <GenBtn
+                                  key={t.id}
+                                  label={`Расписка — транш №${t.tranche_number}`}
+                                  type="tranche_receipt"
+                                  loanId={loan.id}
+                                  entityId={t.id}
+                                  generating={generating}
+                                  onGen={generate}
+                                />
+                              ))}
+                              {loanPayments.map(p => (
+                                <GenBtn
+                                  key={p.id}
+                                  label={`Погашение — ${Number(p.transfer_amount).toLocaleString('ru-RU')} ₽`}
+                                  type="partial_repayment_confirmation"
+                                  loanId={loan.id}
+                                  entityId={p.id}
+                                  generating={generating}
+                                  onGen={generate}
+                                />
+                              ))}
+                              {isLender && loan.status === 'repaid' && totalDisbursed > 0 && totalRepaid >= totalDisbursed && (
+                                <GenBtn label="Полное погашение" type="full_repayment_confirmation" loanId={loan.id} generating={generating} onGen={generate} />
+                              )}
+                            </div>
+                          )}
+
+                          {!isFullySigned && (
+                            <p className="text-xs text-muted-foreground py-2">
+                              Документы будут доступны после подписания договора обеими сторонами.
+                            </p>
+                          )}
+
+                          {/* Previously generated docs */}
+                          {loanDocs.length > 0 && (
+                            <div className="space-y-1.5">
+                              {loanDocs.map(doc => (
+                                <div key={doc.id} className="flex items-center gap-3 p-2.5 rounded-lg bg-muted/20 border border-border/20 hover:bg-muted/40 transition-colors cursor-pointer">
+                                  <FileText className="w-4 h-4 text-primary flex-shrink-0" />
+                                  <div className="flex-1 min-w-0">
+                                    <p className="text-sm font-medium truncate">
+                                      {DOC_TYPE_LABELS[doc.document_type] || doc.document_type}
+                                    </p>
+                                    <p className="text-[10px] text-muted-foreground">
+                                      v{doc.template_version} • {new Date(doc.created_at).toLocaleDateString('ru-RU', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                                    </p>
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                        </>
+                      )}
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
         )}
       </div>
     </AppLayout>
   );
 };
 
-const GenButton = ({
-  label, type, entityId, generating, onGenerate,
+const GenBtn = ({
+  label, type, loanId, entityId, generating, onGen,
 }: {
   label: string;
   type: string;
+  loanId: string;
   entityId?: string;
   generating: string | null;
-  onGenerate: (type: string, entityId?: string) => void;
+  onGen: (type: string, loanId: string, entityId?: string) => void;
 }) => {
   const key = type + (entityId || '');
   const isLoading = generating === key;
@@ -256,9 +276,9 @@ const GenButton = ({
     <Button
       variant="outline"
       size="sm"
-      className="rounded-xl text-xs gap-1.5"
+      className="rounded-xl text-xs gap-1.5 h-9"
       disabled={generating !== null}
-      onClick={() => onGenerate(type, entityId)}
+      onClick={() => onGen(type, loanId, entityId)}
     >
       {isLoading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Download className="w-3.5 h-3.5" />}
       {label}
