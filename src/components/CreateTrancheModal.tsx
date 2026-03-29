@@ -8,6 +8,7 @@ import { X, Loader2, Banknote } from 'lucide-react';
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from '@/components/ui/select';
+import { ProofUpload } from '@/components/ProofUpload';
 import type { Tables } from '@/integrations/supabase/types';
 
 type BankDetail = Tables<'bank_details'>;
@@ -52,6 +53,7 @@ export const CreateTrancheModal = ({
   const [receiverDisplay, setReceiverDisplay] = useState('');
   const [referenceText, setReferenceText] = useState(defaultReference);
   const [saving, setSaving] = useState(false);
+  const [proofFiles, setProofFiles] = useState<string[]>([]);
 
   const [senderBankDetails, setSenderBankDetails] = useState<BankDetail[]>([]);
   const [receiverBankDetails, setReceiverBankDetails] = useState<BankDetail[]>([]);
@@ -132,6 +134,7 @@ export const CreateTrancheModal = ({
         sender_bank_detail_id: selectedSenderId || null,
         receiver_bank_detail_id: selectedReceiverId || null,
         reference_text: referenceText.trim() || null,
+        transfer_source: proofFiles.length > 0 ? proofFiles.join(',') : null,
         status: 'planned',
       });
       if (error) throw error;
@@ -220,6 +223,17 @@ export const CreateTrancheModal = ({
           <div className="space-y-2">
             <Label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Комментарий</Label>
             <Input value={referenceText} onChange={e => setReferenceText(e.target.value)} placeholder="Комментарий к переводу" className={inputClass} />
+          </div>
+
+          <div className="space-y-2">
+            <Label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Подтверждение перевода</Label>
+            <ProofUpload
+              entityType="tranche"
+              userId={userId}
+              pendingFiles={proofFiles}
+              onPendingChange={setProofFiles}
+              compact
+            />
           </div>
 
           <div className="flex gap-3 pt-2">
