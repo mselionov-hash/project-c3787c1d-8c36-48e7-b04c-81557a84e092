@@ -16,6 +16,7 @@ interface RepaymentListProps {
   isLender: boolean;
   isBorrower: boolean;
   loanStatus: string;
+  contractNumber: string | null;
   onRefresh: () => void;
   onGenerateConfirmation?: (paymentId: string) => void;
 }
@@ -34,6 +35,7 @@ export const RepaymentList = ({
   isLender,
   isBorrower,
   loanStatus,
+  contractNumber,
   onRefresh,
   onGenerateConfirmation,
 }: RepaymentListProps) => {
@@ -161,6 +163,7 @@ export const RepaymentList = ({
           loanId={loanId}
           payerId={userId}
           lenderId={lenderId}
+          contractNumber={contractNumber}
           onClose={() => setShowCreate(false)}
           onSuccess={onRefresh}
         />

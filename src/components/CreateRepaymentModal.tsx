@@ -16,6 +16,7 @@ interface CreateRepaymentModalProps {
   loanId: string;
   payerId: string;
   lenderId: string;
+  contractNumber: string | null;
   onClose: () => void;
   onSuccess: () => void;
 }
@@ -33,15 +34,19 @@ export const CreateRepaymentModal = ({
   loanId,
   payerId,
   lenderId,
+  contractNumber,
   onClose,
   onSuccess,
 }: CreateRepaymentModalProps) => {
+  const defaultReference = contractNumber
+    ? `Возврат по договору займа № ${contractNumber}`
+    : 'Возврат по договору займа';
   const [amount, setAmount] = useState('');
   const [transferDate, setTransferDate] = useState(new Date().toISOString().split('T')[0]);
   const [transferMethod, setTransferMethod] = useState('bank_transfer');
   const [bankName, setBankName] = useState('');
   const [transactionId, setTransactionId] = useState('');
-  const [paymentReference, setPaymentReference] = useState('');
+  const [paymentReference, setPaymentReference] = useState(defaultReference);
   const [saving, setSaving] = useState(false);
 
   const [payerBankDetails, setPayerBankDetails] = useState<BankDetail[]>([]);
@@ -198,8 +203,8 @@ export const CreateRepaymentModal = ({
             <Input value={transactionId} onChange={e => setTransactionId(e.target.value)} className={inputClass} />
           </div>
           <div className="space-y-2">
-            <Label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Назначение платежа</Label>
-            <Input value={paymentReference} onChange={e => setPaymentReference(e.target.value)} className={inputClass} />
+            <Label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Комментарий</Label>
+            <Input value={paymentReference} onChange={e => setPaymentReference(e.target.value)} placeholder="Комментарий к платежу" className={inputClass} />
           </div>
 
           <div className="flex gap-3 pt-2">

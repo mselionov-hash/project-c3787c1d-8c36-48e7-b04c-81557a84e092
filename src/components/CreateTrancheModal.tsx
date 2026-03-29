@@ -18,6 +18,7 @@ interface CreateTrancheModalProps {
   lenderId: string;
   borrowerId: string | null;
   nextTrancheNumber: number;
+  contractNumber: string | null;
   onClose: () => void;
   onSuccess: () => void;
 }
@@ -37,15 +38,19 @@ export const CreateTrancheModal = ({
   lenderId,
   borrowerId,
   nextTrancheNumber,
+  contractNumber,
   onClose,
   onSuccess,
 }: CreateTrancheModalProps) => {
+  const defaultReference = contractNumber
+    ? `Перевод по договору займа № ${contractNumber}`
+    : 'Перевод по договору займа';
   const [amount, setAmount] = useState('');
   const [plannedDate, setPlannedDate] = useState(new Date().toISOString().split('T')[0]);
   const [method, setMethod] = useState('bank_transfer');
   const [senderDisplay, setSenderDisplay] = useState('');
   const [receiverDisplay, setReceiverDisplay] = useState('');
-  const [referenceText, setReferenceText] = useState('');
+  const [referenceText, setReferenceText] = useState(defaultReference);
   const [saving, setSaving] = useState(false);
 
   const [senderBankDetails, setSenderBankDetails] = useState<BankDetail[]>([]);
@@ -213,8 +218,8 @@ export const CreateTrancheModal = ({
           </div>
 
           <div className="space-y-2">
-            <Label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Назначение платежа</Label>
-            <Input value={referenceText} onChange={e => setReferenceText(e.target.value)} placeholder="По договору займа №..." className={inputClass} />
+            <Label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Комментарий</Label>
+            <Input value={referenceText} onChange={e => setReferenceText(e.target.value)} placeholder="Комментарий к переводу" className={inputClass} />
           </div>
 
           <div className="flex gap-3 pt-2">

@@ -16,6 +16,7 @@ interface TrancheListProps {
   isLender: boolean;
   isBorrower: boolean;
   loanStatus: string;
+  contractNumber: string | null;
   onRefresh: () => void;
   onGenerateReceipt?: (trancheId: string) => void;
 }
@@ -35,6 +36,7 @@ export const TrancheList = ({
   isLender,
   isBorrower,
   loanStatus,
+  contractNumber,
   onRefresh,
   onGenerateReceipt,
 }: TrancheListProps) => {
@@ -127,6 +129,7 @@ export const TrancheList = ({
           lenderId={lenderId}
           borrowerId={borrowerId}
           nextTrancheNumber={nextNumber}
+          contractNumber={contractNumber}
           onClose={() => setShowCreate(false)}
           onSuccess={onRefresh}
         />
