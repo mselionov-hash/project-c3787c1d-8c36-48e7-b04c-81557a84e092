@@ -186,16 +186,17 @@ const Documents = () => {
                         <div className="text-sm text-muted-foreground py-4 text-center">Загрузка...</div>
                       ) : (
                         <>
-                          {/* Generation buttons */}
+                          {/* Document list */}
                           {isFullySigned && (
-                            <div className="flex flex-wrap gap-2 mb-2">
-                              <GenBtn label="Договор" type="loan_contract" loanId={loan.id} generating={generating} onGen={generate} />
-                              <GenBtn label="Прил. 1 — Реквизиты" type="appendix_bank_details" loanId={loan.id} generating={generating} onGen={generate} />
+                            <div className="space-y-1.5">
+                              {/* Static document entries */}
+                              <DocRow label="Договор займа" type="loan_contract" loanId={loan.id} generating={generating} onGen={generate} />
+                              <DocRow label="Приложение 1: Банковские реквизиты" type="appendix_bank_details" loanId={loan.id} generating={generating} onGen={generate} />
                               {hasSchedule && loanSchedule.length > 0 && (
-                                <GenBtn label="Прил. 2 — График" type="appendix_repayment_schedule" loanId={loan.id} generating={generating} onGen={generate} />
+                                <DocRow label="Приложение 2: График погашения" type="appendix_repayment_schedule" loanId={loan.id} generating={generating} onGen={generate} />
                               )}
                               {loanTranches.map(t => (
-                                <GenBtn
+                                <DocRow
                                   key={t.id}
                                   label={`Расписка — транш №${t.tranche_number}`}
                                   type="tranche_receipt"
@@ -206,7 +207,7 @@ const Documents = () => {
                                 />
                               ))}
                               {loanPayments.map(p => (
-                                <GenBtn
+                                <DocRow
                                   key={p.id}
                                   label={`Погашение — ${Number(p.transfer_amount).toLocaleString('ru-RU')} ₽`}
                                   type="partial_repayment_confirmation"
@@ -217,7 +218,7 @@ const Documents = () => {
                                 />
                               ))}
                               {isLender && loan.status === 'repaid' && totalDisbursed > 0 && totalRepaid >= totalDisbursed && (
-                                <GenBtn label="Полное погашение" type="full_repayment_confirmation" loanId={loan.id} generating={generating} onGen={generate} />
+                                <DocRow label="Полное погашение" type="full_repayment_confirmation" loanId={loan.id} generating={generating} onGen={generate} />
                               )}
                             </div>
                           )}
@@ -228,35 +229,6 @@ const Documents = () => {
                             </p>
                           )}
 
-                          {/* Previously generated docs */}
-                          {loanDocs.length > 0 && (
-                            <div className="space-y-1.5">
-                              {loanDocs.map(doc => (
-                                <div key={doc.id} className="flex items-center gap-3 p-2.5 rounded-lg bg-muted/20 border border-border/20 hover:bg-muted/40 transition-colors">
-                                  <FileText className="w-4 h-4 text-primary flex-shrink-0" />
-                                  <div className="flex-1 min-w-0">
-                                    <p className="text-sm font-medium truncate">
-                                      {DOC_TYPE_LABELS[doc.document_type] || doc.document_type}
-                                    </p>
-                                    <p className="text-[10px] text-muted-foreground">
-                                      v{doc.template_version} • {new Date(doc.created_at).toLocaleDateString('ru-RU', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
-                                    </p>
-                                  </div>
-                                  <Button
-                                    variant="ghost"
-                                    size="icon"
-                                    className="h-8 w-8 flex-shrink-0 rounded-lg text-muted-foreground hover:text-primary"
-                                    onClick={() => generate(doc.document_type, doc.loan_id, doc.source_entity_id || undefined)}
-                                    disabled={generating !== null}
-                                  >
-                                    {generating === doc.document_type + (doc.source_entity_id || '')
-                                      ? <Loader2 className="w-4 h-4 animate-spin" />
-                                      : <Download className="w-4 h-4" />}
-                                  </Button>
-                                </div>
-                              ))}
-                            </div>
-                          )}
                         </>
                       )}
                     </div>
@@ -271,7 +243,7 @@ const Documents = () => {
   );
 };
 
-const GenBtn = ({
+const DocRow = ({
   label, type, loanId, entityId, generating, onGen,
 }: {
   label: string;
@@ -284,16 +256,22 @@ const GenBtn = ({
   const key = type + (entityId || '');
   const isLoading = generating === key;
   return (
-    <Button
-      variant="outline"
-      size="sm"
-      className="rounded-xl text-xs gap-1.5 h-9"
-      disabled={generating !== null}
+    <div
+      className="flex items-center gap-3 p-2.5 rounded-lg bg-muted/20 border border-border/20 hover:bg-muted/40 transition-colors cursor-pointer"
       onClick={() => onGen(type, loanId, entityId)}
     >
-      {isLoading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Download className="w-3.5 h-3.5" />}
-      {label}
-    </Button>
+      <FileText className="w-4 h-4 text-primary flex-shrink-0" />
+      <p className="text-sm font-medium truncate flex-1">{label}</p>
+      <Button
+        variant="ghost"
+        size="icon"
+        className="h-8 w-8 flex-shrink-0 rounded-lg text-muted-foreground hover:text-primary"
+        disabled={generating !== null}
+        onClick={(e) => { e.stopPropagation(); onGen(type, loanId, entityId); }}
+      >
+        {isLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
+      </Button>
+    </div>
   );
 };
 
