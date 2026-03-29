@@ -265,7 +265,7 @@ const DocRow = ({
       <Button
         variant="ghost"
         size="icon"
-        className="h-8 w-8 flex-shrink-0 rounded-lg text-muted-foreground hover:text-primary"
+        className="h-8 w-8 flex-shrink-0 rounded-lg text-muted-foreground hover:text-primary-foreground hover:bg-primary/80"
         disabled={generating !== null}
         onClick={(e) => { e.stopPropagation(); onGen(type, loanId, entityId); }}
       >
