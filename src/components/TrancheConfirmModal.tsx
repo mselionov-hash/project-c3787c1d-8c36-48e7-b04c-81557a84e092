@@ -5,6 +5,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { toast } from 'sonner';
 import { X, Loader2, CheckCircle2 } from 'lucide-react';
+import { ProofUpload } from '@/components/ProofUpload';
 import type { Tables } from '@/integrations/supabase/types';
 
 type Tranche = Tables<'loan_tranches'>;
@@ -22,6 +23,9 @@ export const TrancheConfirmModal = ({ tranche, userId, onClose, onSuccess }: Tra
   const [bankDocId, setBankDocId] = useState(tranche.bank_document_id || '');
   const [bankDocDate, setBankDocDate] = useState(tranche.bank_document_date || '');
   const [saving, setSaving] = useState(false);
+  const [proofFiles, setProofFiles] = useState<string[]>(
+    tranche.transfer_source ? tranche.transfer_source.split(',').filter(Boolean) : []
+  );
 
   const inputClass = 'h-11 rounded-xl bg-muted/50 border-border/50 focus:bg-card';
 
@@ -38,6 +42,7 @@ export const TrancheConfirmModal = ({ tranche, userId, onClose, onSuccess }: Tra
           actual_time: actualTime || null,
           bank_document_id: bankDocId.trim() || null,
           bank_document_date: bankDocDate || null,
+          transfer_source: proofFiles.length > 0 ? proofFiles.join(',') : null,
         })
         .eq('id', tranche.id);
       if (error) throw error;
@@ -87,6 +92,18 @@ export const TrancheConfirmModal = ({ tranche, userId, onClose, onSuccess }: Tra
           <div className="space-y-2">
             <Label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Дата банковского документа</Label>
             <Input type="date" value={bankDocDate} onChange={e => setBankDocDate(e.target.value)} className={inputClass} />
+          </div>
+
+          <div className="space-y-2">
+            <Label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Подтверждение перевода</Label>
+            <ProofUpload
+              entityType="tranche"
+              entityId={tranche.id}
+              userId={userId}
+              pendingFiles={proofFiles}
+              onPendingChange={setProofFiles}
+              compact
+            />
           </div>
 
           <div className="flex gap-3 pt-2">
