@@ -17,7 +17,8 @@ import { AllowedBankDetailsSelector } from '@/components/AllowedBankDetailsSelec
 import { TrancheList } from '@/components/TrancheList';
 import { PaymentSchedule } from '@/components/PaymentSchedule';
 import { RepaymentList } from '@/components/RepaymentList';
-import { DocumentsList } from '@/components/DocumentsList';
+import { DocStatusBadges } from '@/components/DocStatusBadges';
+import { TransferEvidence } from '@/components/TransferEvidence';
 import { LoanTimeline } from '@/components/LoanTimeline';
 import { AppLayout } from '@/components/AppLayout';
 import { Button } from '@/components/ui/button';
@@ -75,7 +76,6 @@ const LoanDetails = () => {
   const [expandedSections, setExpandedSections] = useState<Record<string, boolean>>({
     terms: false,
     bank: false,
-    docs: false,
   });
 
   useEffect(() => {
@@ -203,13 +203,13 @@ const LoanDetails = () => {
     }
   };
 
-  // --- Document generators (preserved) ---
-  const handleGenerateContract = async () => { if (!loan || !user) return; try { await generateLoanContract(loan.id, user.id); toast.success('Договор скачан'); fetchAll(); } catch (err: unknown) { toast.error(err instanceof Error ? err.message : 'Ошибка'); } };
-  const handleGenerateTrancheReceipt = async (trancheId: string) => { if (!loan || !user) return; try { await generateTrancheReceipt(loan.id, trancheId, user.id); toast.success('Расписка скачана'); fetchAll(); } catch (err: unknown) { toast.error(err instanceof Error ? err.message : 'Ошибка'); } };
-  const handleGenerateAppendix1 = async () => { if (!loan || !user) return; try { await generateAppendixBankDetails(loan.id, user.id); toast.success('Приложение 1 скачано'); fetchAll(); } catch (err: unknown) { toast.error(err instanceof Error ? err.message : 'Ошибка'); } };
-  const handleGenerateAppendix2 = async () => { if (!loan || !user) return; try { await generateAppendixSchedule(loan.id, user.id); toast.success('Приложение 2 скачано'); fetchAll(); } catch (err: unknown) { toast.error(err instanceof Error ? err.message : 'Ошибка'); } };
-  const handleGeneratePartialConfirmation = async (paymentId: string) => { if (!loan || !user) return; try { await generatePartialRepaymentConfirmation(loan.id, paymentId, user.id); toast.success('Подтверждение скачано'); fetchAll(); } catch (err: unknown) { toast.error(err instanceof Error ? err.message : 'Ошибка'); } };
-  const handleGenerateFullConfirmation = async () => { if (!loan || !user) return; try { await generateFullRepaymentConfirmation(loan.id, user.id); toast.success('Подтверждение скачано'); fetchAll(); } catch (err: unknown) { toast.error(err instanceof Error ? err.message : 'Ошибка'); } };
+  // --- Document generators (preserved, run in background) ---
+  const handleGenerateContract = async () => { if (!loan || !user) return; try { await generateLoanContract(loan.id, user.id); toast.success('Договор сформирован'); fetchAll(); } catch (err: unknown) { toast.error(err instanceof Error ? err.message : 'Ошибка'); } };
+  const handleGenerateTrancheReceipt = async (trancheId: string) => { if (!loan || !user) return; try { await generateTrancheReceipt(loan.id, trancheId, user.id); toast.success('Расписка сформирована'); fetchAll(); } catch (err: unknown) { toast.error(err instanceof Error ? err.message : 'Ошибка'); } };
+  const handleGenerateAppendix1 = async () => { if (!loan || !user) return; try { await generateAppendixBankDetails(loan.id, user.id); toast.success('Приложение 1 сформировано'); fetchAll(); } catch (err: unknown) { toast.error(err instanceof Error ? err.message : 'Ошибка'); } };
+  const handleGenerateAppendix2 = async () => { if (!loan || !user) return; try { await generateAppendixSchedule(loan.id, user.id); toast.success('Приложение 2 сформировано'); fetchAll(); } catch (err: unknown) { toast.error(err instanceof Error ? err.message : 'Ошибка'); } };
+  const handleGeneratePartialConfirmation = async (paymentId: string) => { if (!loan || !user) return; try { await generatePartialRepaymentConfirmation(loan.id, paymentId, user.id); toast.success('Подтверждение сформировано'); fetchAll(); } catch (err: unknown) { toast.error(err instanceof Error ? err.message : 'Ошибка'); } };
+  const handleGenerateFullConfirmation = async () => { if (!loan || !user) return; try { await generateFullRepaymentConfirmation(loan.id, user.id); toast.success('Подтверждение сформировано'); fetchAll(); } catch (err: unknown) { toast.error(err instanceof Error ? err.message : 'Ошибка'); } };
 
   if (loading || authLoading || !loan) {
     return <AppLayout><div className="flex items-center justify-center h-64 text-muted-foreground text-sm">Загрузка...</div></AppLayout>;
@@ -431,32 +431,36 @@ const LoanDetails = () => {
           />
         </div>
 
-        {/* Collapsible: Documents */}
-        <div className="card-elevated">
-          <button onClick={() => toggle('docs')} className="w-full flex items-center justify-between p-4 text-left">
-            <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider flex items-center gap-2">
-              <FileText className="w-3.5 h-3.5" />
-              Документы ({documents.length})
-            </span>
-            {expandedSections.docs ? <ChevronUp className="w-4 h-4 text-muted-foreground" /> : <ChevronDown className="w-4 h-4 text-muted-foreground" />}
-          </button>
-          {expandedSections.docs && (
-            <div className="px-4 pb-4">
-              <DocumentsList
-                documents={documents}
-                isFullySigned={isFullySigned}
-                isLender={isLender}
-                loanStatus={loan.status}
-                hasSchedule={hasSchedule}
-                hasScheduleItems={scheduleItems.length > 0}
-                onGenerateContract={handleGenerateContract}
-                onGenerateAppendix1={handleGenerateAppendix1}
-                onGenerateAppendix2={handleGenerateAppendix2}
-                onGenerateFullConfirmation={handleGenerateFullConfirmation}
-              />
+        {/* Transfer Evidence — separate from documents */}
+        <TransferEvidence tranches={tranches} payments={payments} />
+
+        {/* Document status badges — lightweight, links to Documents page */}
+        <DocStatusBadges documents={documents} loanId={loan.id} />
+
+        {/* Document generation actions — only visible when fully signed, compact */}
+        {isFullySigned && (
+          <div className="card-elevated p-4">
+            <h2 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-3">Сформировать документы</h2>
+            <div className="flex flex-wrap gap-2">
+              <Button variant="outline" size="sm" className="rounded-xl text-xs gap-1.5" onClick={handleGenerateContract}>
+                <FileText className="w-3.5 h-3.5" /> Договор
+              </Button>
+              <Button variant="outline" size="sm" className="rounded-xl text-xs gap-1.5" onClick={handleGenerateAppendix1}>
+                <FileText className="w-3.5 h-3.5" /> Прил. 1
+              </Button>
+              {hasSchedule && scheduleItems.length > 0 && (
+                <Button variant="outline" size="sm" className="rounded-xl text-xs gap-1.5" onClick={handleGenerateAppendix2}>
+                  <FileText className="w-3.5 h-3.5" /> Прил. 2
+                </Button>
+              )}
+              {isLender && loan.status === 'repaid' && (
+                <Button variant="outline" size="sm" className="rounded-xl text-xs gap-1.5" onClick={handleGenerateFullConfirmation}>
+                  <FileText className="w-3.5 h-3.5" /> Полное погашение
+                </Button>
+              )}
             </div>
-          )}
-        </div>
+          </div>
+        )}
       </div>
 
       {showSignature && (
