@@ -35,6 +35,7 @@ export const RepaymentList = ({
   isLender,
   isBorrower,
   loanStatus,
+  contractNumber,
   onRefresh,
   onGenerateConfirmation,
 }: RepaymentListProps) => {

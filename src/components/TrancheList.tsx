@@ -36,6 +36,7 @@ export const TrancheList = ({
   isLender,
   isBorrower,
   loanStatus,
+  contractNumber,
   onRefresh,
   onGenerateReceipt,
 }: TrancheListProps) => {
