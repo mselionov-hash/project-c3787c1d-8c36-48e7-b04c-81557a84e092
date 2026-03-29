@@ -8,6 +8,7 @@ import { X, Loader2, ArrowDownLeft } from 'lucide-react';
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from '@/components/ui/select';
+import { ProofUpload } from '@/components/ProofUpload';
 import type { Tables } from '@/integrations/supabase/types';
 
 type BankDetail = Tables<'bank_details'>;
@@ -48,6 +49,7 @@ export const CreateRepaymentModal = ({
   const [transactionId, setTransactionId] = useState('');
   const [paymentReference, setPaymentReference] = useState(defaultReference);
   const [saving, setSaving] = useState(false);
+  const [proofFiles, setProofFiles] = useState<string[]>([]);
 
   const [payerBankDetails, setPayerBankDetails] = useState<BankDetail[]>([]);
   const [lenderBankDetails, setLenderBankDetails] = useState<BankDetail[]>([]);
@@ -113,6 +115,7 @@ export const CreateRepaymentModal = ({
         bank_name: bankName.trim() || null,
         transaction_id: transactionId.trim() || null,
         payment_reference: paymentReference.trim() || null,
+        screenshot_url: proofFiles.length > 0 ? proofFiles.join(',') : null,
         status: 'pending',
       });
       if (error) throw error;
@@ -205,6 +208,17 @@ export const CreateRepaymentModal = ({
           <div className="space-y-2">
             <Label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Комментарий</Label>
             <Input value={paymentReference} onChange={e => setPaymentReference(e.target.value)} placeholder="Комментарий к платежу" className={inputClass} />
+          </div>
+
+          <div className="space-y-2">
+            <Label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Подтверждение перевода</Label>
+            <ProofUpload
+              entityType="repayment"
+              userId={payerId}
+              pendingFiles={proofFiles}
+              onPendingChange={setProofFiles}
+              compact
+            />
           </div>
 
           <div className="flex gap-3 pt-2">
