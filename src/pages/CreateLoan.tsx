@@ -7,7 +7,8 @@ import { Textarea } from '@/components/ui/textarea';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 import { toast } from 'sonner';
-import { FileText, ArrowLeft, Loader2 } from 'lucide-react';
+import { AppLayout } from '@/components/AppLayout';
+import { ArrowLeft, ArrowRight, Loader2, ChevronDown, ChevronUp } from 'lucide-react';
 import {
   Select,
   SelectContent,
@@ -33,27 +34,33 @@ const REPAYMENT_SCHEDULE_TYPES = [
   { value: 'installments_variable', label: 'Переменные платежи' },
 ] as const;
 
+const STEPS = ['Заёмщик', 'Сумма и срок', 'Дополнительно', 'Проверка'];
+
 const CreateLoan = () => {
   const navigate = useNavigate();
   const { user, profile, loading } = useAuth();
+  const [step, setStep] = useState(0);
 
+  // Auto-filled from profile
   const [lenderName, setLenderName] = useState('');
-  const [borrowerName, setBorrowerName] = useState('');
   const [lenderPassport, setLenderPassport] = useState('');
-  const [borrowerPassport, setBorrowerPassport] = useState('');
   const [lenderAddress, setLenderAddress] = useState('');
-  const [borrowerAddress, setBorrowerAddress] = useState('');
+
+  // User input
+  const [borrowerName, setBorrowerName] = useState('');
+  const [borrowerEmail, setBorrowerEmail] = useState('');
   const [amount, setAmount] = useState('');
-  const [interestRate, setInterestRate] = useState('');
-  const [penaltyRate, setPenaltyRate] = useState('0.1');
   const [repaymentDate, setRepaymentDate] = useState('');
-  const [issueDate, setIssueDate] = useState(new Date().toISOString().split('T')[0]);
-  const [city, setCity] = useState('Москва');
-  const [notes, setNotes] = useState('');
   const [interestMode, setInterestMode] = useState('interest_free');
+  const [interestRate, setInterestRate] = useState('');
   const [interestPaymentSchedule, setInterestPaymentSchedule] = useState('at_maturity');
   const [repaymentScheduleType, setRepaymentScheduleType] = useState('no_schedule_single_deadline');
+  const [penaltyRate, setPenaltyRate] = useState('0.1');
   const [earlyRepaymentNoticeDays, setEarlyRepaymentNoticeDays] = useState('30');
+  const [city, setCity] = useState('Москва');
+  const [issueDate, setIssueDate] = useState(new Date().toISOString().split('T')[0]);
+  const [notes, setNotes] = useState('');
+  const [showAdvanced, setShowAdvanced] = useState(false);
   const [submitting, setSubmitting] = useState(false);
 
   useEffect(() => {
@@ -68,17 +75,19 @@ const CreateLoan = () => {
     }
   }, [profile]);
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!user) return;
-
-    if (!lenderName.trim() || !borrowerName.trim() || !amount || !repaymentDate) {
-      toast.error('Заполните все обязательные поля');
-      return;
+  // Default repayment date to 1 year from now
+  useEffect(() => {
+    if (!repaymentDate) {
+      const d = new Date();
+      d.setFullYear(d.getFullYear() + 1);
+      setRepaymentDate(d.toISOString().split('T')[0]);
     }
+  }, []);
 
-    if (interestMode === 'fixed_rate' && !interestRate) {
-      toast.error('Укажите процентную ставку');
+  const handleSubmit = async () => {
+    if (!user) return;
+    if (!borrowerName.trim() || !amount || !repaymentDate) {
+      toast.error('Заполните обязательные поля');
       return;
     }
 
@@ -89,9 +98,9 @@ const CreateLoan = () => {
         lender_name: lenderName.trim(),
         borrower_name: borrowerName.trim(),
         lender_passport: lenderPassport.trim(),
-        borrower_passport: borrowerPassport.trim(),
+        borrower_passport: '',
         lender_address: lenderAddress.trim(),
-        borrower_address: borrowerAddress.trim(),
+        borrower_address: '',
         amount: parseFloat(amount),
         interest_rate: interestMode === 'fixed_rate' ? parseFloat(interestRate) : 0,
         penalty_rate: parseFloat(penaltyRate),
@@ -107,11 +116,10 @@ const CreateLoan = () => {
       }).select().single();
 
       if (error) throw error;
-      toast.success('Договор создан!');
+      toast.success('Займ создан');
       navigate(`/loans/${data.id}`);
     } catch (err: unknown) {
-      const message = err instanceof Error ? err.message : 'Ошибка создания договора';
-      toast.error(message);
+      toast.error(err instanceof Error ? err.message : 'Ошибка');
     } finally {
       setSubmitting(false);
     }
@@ -119,158 +127,198 @@ const CreateLoan = () => {
 
   if (loading) return null;
 
-  const inputClass = "h-11 rounded-xl bg-muted/50 border-border/50 focus:bg-card";
+  const inputClass = "h-10 rounded-lg bg-secondary border-border/50 text-sm";
 
   return (
-    <div className="min-h-screen bg-background">
-      <header className="border-b border-border/60 bg-card/60 backdrop-blur-xl sticky top-0 z-40">
-        <div className="max-w-3xl mx-auto px-6 h-16 flex items-center gap-4">
-          <button onClick={() => navigate('/dashboard')} className="p-2 rounded-xl hover:bg-muted transition-colors text-muted-foreground hover:text-foreground">
-            <ArrowLeft className="w-5 h-5" />
+    <AppLayout>
+      <div className="max-w-lg mx-auto px-4 sm:px-6 py-6 sm:py-8">
+        {/* Header */}
+        <div className="flex items-center gap-3 mb-6">
+          <button onClick={() => step > 0 ? setStep(step - 1) : navigate(-1)} className="p-2 rounded-lg hover:bg-secondary transition-colors text-muted-foreground">
+            <ArrowLeft className="w-4 h-4" />
           </button>
-          <div className="flex items-center gap-3">
-            <div className="w-9 h-9 rounded-xl bg-primary/10 flex items-center justify-center">
-              <FileText className="w-4 h-4 text-primary" />
-            </div>
-            <div>
-              <h1 className="font-bold font-display">Новый договор займа</h1>
-              <p className="text-xs text-muted-foreground">Заполните данные сторон и условия</p>
-            </div>
+          <div className="flex-1">
+            <h1 className="text-lg font-bold font-display">Новый займ</h1>
+            <p className="text-xs text-muted-foreground">Шаг {step + 1} из {STEPS.length}: {STEPS[step]}</p>
           </div>
         </div>
-      </header>
 
-      <main className="max-w-3xl mx-auto px-6 py-8">
-        <form onSubmit={handleSubmit} className="space-y-8">
-          {/* Lender section */}
-          <section className="card-elevated p-7">
-            <h2 className="text-lg font-bold font-display mb-5">Займодавец</h2>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">ФИО *</Label>
-                <Input value={lenderName} onChange={e => setLenderName(e.target.value)} placeholder="Иванов Иван Иванович" className={inputClass} />
-              </div>
-              <div className="space-y-2">
-                <Label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Паспорт</Label>
-                <Input value={lenderPassport} onChange={e => setLenderPassport(e.target.value)} placeholder="Серия и номер" className={inputClass} />
-              </div>
-              <div className="space-y-2 sm:col-span-2">
-                <Label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Адрес</Label>
-                <Input value={lenderAddress} onChange={e => setLenderAddress(e.target.value)} placeholder="Адрес регистрации" className={inputClass} />
-              </div>
+        {/* Progress */}
+        <div className="flex gap-1 mb-6">
+          {STEPS.map((_, i) => (
+            <div key={i} className={`flex-1 h-1 rounded-full ${i <= step ? 'bg-primary' : 'bg-secondary'}`} />
+          ))}
+        </div>
+
+        {/* Step 1: Borrower */}
+        {step === 0 && (
+          <div className="space-y-4">
+            <div className="card-elevated p-5">
+              <p className="text-xs text-muted-foreground mb-3">Займодавец (вы)</p>
+              <p className="text-sm font-medium">{lenderName || 'Заполните профиль'}</p>
+              {lenderPassport && <p className="text-xs text-muted-foreground mt-0.5">Паспорт: {lenderPassport}</p>}
             </div>
-          </section>
-
-          {/* Borrower section */}
-          <section className="card-elevated p-7">
-            <h2 className="text-lg font-bold font-display mb-5">Заёмщик</h2>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">ФИО *</Label>
+            <div className="space-y-3">
+              <div className="space-y-1.5">
+                <Label className="text-xs text-muted-foreground">ФИО заёмщика *</Label>
                 <Input value={borrowerName} onChange={e => setBorrowerName(e.target.value)} placeholder="Петров Пётр Петрович" className={inputClass} />
               </div>
-              <div className="space-y-2">
-                <Label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Паспорт</Label>
-                <Input value={borrowerPassport} onChange={e => setBorrowerPassport(e.target.value)} placeholder="Серия и номер" className={inputClass} />
-              </div>
-              <div className="space-y-2 sm:col-span-2">
-                <Label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Адрес</Label>
-                <Input value={borrowerAddress} onChange={e => setBorrowerAddress(e.target.value)} placeholder="Адрес регистрации" className={inputClass} />
+              <div className="space-y-1.5">
+                <Label className="text-xs text-muted-foreground">Email заёмщика (необязательно)</Label>
+                <Input value={borrowerEmail} onChange={e => setBorrowerEmail(e.target.value)} placeholder="borrower@email.com" className={inputClass} />
+                <p className="text-[10px] text-muted-foreground">Для отправки приглашения подписать договор</p>
               </div>
             </div>
-          </section>
+            <Button onClick={() => setStep(1)} disabled={!borrowerName.trim()} className="w-full gap-2 rounded-lg h-10 text-sm mt-4">
+              Далее <ArrowRight className="w-4 h-4" />
+            </Button>
+          </div>
+        )}
 
-          {/* Loan terms */}
-          <section className="card-elevated p-7">
-            <h2 className="text-lg font-bold font-display mb-5">Условия займа</h2>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Сумма (₽) *</Label>
-                <Input type="number" min="0" step="0.01" value={amount} onChange={e => setAmount(e.target.value)} placeholder="100 000" className={inputClass} />
-              </div>
-              <div className="space-y-2">
-                <Label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Тип процентов</Label>
-                <Select value={interestMode} onValueChange={setInterestMode}>
-                  <SelectTrigger className={inputClass}>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {INTEREST_MODES.map(m => (
-                      <SelectItem key={m.value} value={m.value}>{m.label}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
+        {/* Step 2: Amount & Terms */}
+        {step === 1 && (
+          <div className="space-y-4">
+            <div className="space-y-1.5">
+              <Label className="text-xs text-muted-foreground">Сумма займа (₽) *</Label>
+              <Input type="number" min="1" value={amount} onChange={e => setAmount(e.target.value)} placeholder="100 000" className={`${inputClass} text-lg font-bold`} />
+            </div>
+            <div className="space-y-1.5">
+              <Label className="text-xs text-muted-foreground">Дата возврата *</Label>
+              <Input type="date" value={repaymentDate} onChange={e => setRepaymentDate(e.target.value)} className={inputClass} />
+            </div>
+            <div className="space-y-1.5">
+              <Label className="text-xs text-muted-foreground">Тип процентов</Label>
+              <Select value={interestMode} onValueChange={setInterestMode}>
+                <SelectTrigger className={inputClass}><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  {INTEREST_MODES.map(m => <SelectItem key={m.value} value={m.value}>{m.label}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </div>
+            {interestMode === 'fixed_rate' && (
+              <>
+                <div className="space-y-1.5">
+                  <Label className="text-xs text-muted-foreground">Ставка (% годовых) *</Label>
+                  <Input type="number" min="0" step="0.1" value={interestRate} onChange={e => setInterestRate(e.target.value)} placeholder="12" className={inputClass} />
+                </div>
+                <div className="space-y-1.5">
+                  <Label className="text-xs text-muted-foreground">Выплата процентов</Label>
+                  <Select value={interestPaymentSchedule} onValueChange={setInterestPaymentSchedule}>
+                    <SelectTrigger className={inputClass}><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      {INTEREST_PAYMENT_SCHEDULES.map(s => <SelectItem key={s.value} value={s.value}>{s.label}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </>
+            )}
+            <Button onClick={() => setStep(2)} disabled={!amount || !repaymentDate} className="w-full gap-2 rounded-lg h-10 text-sm mt-4">
+              Далее <ArrowRight className="w-4 h-4" />
+            </Button>
+          </div>
+        )}
 
-              {interestMode === 'fixed_rate' && (
-                <>
-                  <div className="space-y-2">
-                    <Label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Ставка (% годовых) *</Label>
-                    <Input type="number" min="0" step="0.1" value={interestRate} onChange={e => setInterestRate(e.target.value)} placeholder="12" className={inputClass} />
-                  </div>
-                  <div className="space-y-2">
-                    <Label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Выплата процентов</Label>
-                    <Select value={interestPaymentSchedule} onValueChange={setInterestPaymentSchedule}>
-                      <SelectTrigger className={inputClass}>
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {INTEREST_PAYMENT_SCHEDULES.map(s => (
-                          <SelectItem key={s.value} value={s.value}>{s.label}</SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                </>
-              )}
+        {/* Step 3: Advanced */}
+        {step === 2 && (
+          <div className="space-y-4">
+            <div className="space-y-1.5">
+              <Label className="text-xs text-muted-foreground">График погашения</Label>
+              <Select value={repaymentScheduleType} onValueChange={setRepaymentScheduleType}>
+                <SelectTrigger className={inputClass}><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  {REPAYMENT_SCHEDULE_TYPES.map(t => <SelectItem key={t.value} value={t.value}>{t.label}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </div>
 
-              <div className="space-y-2">
-                <Label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Неустойка (%/день)</Label>
-                <Input type="number" min="0" step="0.01" value={penaltyRate} onChange={e => setPenaltyRate(e.target.value)} placeholder="0.1" className={inputClass} />
+            <button
+              onClick={() => setShowAdvanced(!showAdvanced)}
+              className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors"
+            >
+              {showAdvanced ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
+              Дополнительные условия
+            </button>
+
+            {showAdvanced && (
+              <div className="space-y-3 border-l-2 border-border pl-4">
+                <div className="space-y-1.5">
+                  <Label className="text-xs text-muted-foreground">Неустойка (%/день)</Label>
+                  <Input type="number" min="0" step="0.01" value={penaltyRate} onChange={e => setPenaltyRate(e.target.value)} className={inputClass} />
+                </div>
+                <div className="space-y-1.5">
+                  <Label className="text-xs text-muted-foreground">Досрочное погашение (дней уведомления)</Label>
+                  <Input type="number" min="0" value={earlyRepaymentNoticeDays} onChange={e => setEarlyRepaymentNoticeDays(e.target.value)} className={inputClass} />
+                </div>
+                <div className="space-y-1.5">
+                  <Label className="text-xs text-muted-foreground">Город</Label>
+                  <Input value={city} onChange={e => setCity(e.target.value)} className={inputClass} />
+                </div>
+                <div className="space-y-1.5">
+                  <Label className="text-xs text-muted-foreground">Дата выдачи</Label>
+                  <Input type="date" value={issueDate} onChange={e => setIssueDate(e.target.value)} className={inputClass} />
+                </div>
+                <div className="space-y-1.5">
+                  <Label className="text-xs text-muted-foreground">Примечания</Label>
+                  <Textarea value={notes} onChange={e => setNotes(e.target.value)} rows={2} className="rounded-lg bg-secondary border-border/50 text-sm" />
+                </div>
               </div>
-              <div className="space-y-2">
-                <Label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">График погашения</Label>
-                <Select value={repaymentScheduleType} onValueChange={setRepaymentScheduleType}>
-                  <SelectTrigger className={inputClass}>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {REPAYMENT_SCHEDULE_TYPES.map(t => (
-                      <SelectItem key={t.value} value={t.value}>{t.label}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+            )}
+
+            <Button onClick={() => setStep(3)} className="w-full gap-2 rounded-lg h-10 text-sm mt-4">
+              Проверить <ArrowRight className="w-4 h-4" />
+            </Button>
+          </div>
+        )}
+
+        {/* Step 4: Review */}
+        {step === 3 && (
+          <div className="space-y-4">
+            <div className="card-elevated p-5 space-y-3">
+              <div className="flex justify-between text-sm">
+                <span className="text-muted-foreground">Займодавец</span>
+                <span className="font-medium">{lenderName}</span>
               </div>
-              <div className="space-y-2">
-                <Label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Город</Label>
-                <Input value={city} onChange={e => setCity(e.target.value)} placeholder="Москва" className={inputClass} />
+              <div className="flex justify-between text-sm">
+                <span className="text-muted-foreground">Заёмщик</span>
+                <span className="font-medium">{borrowerName}</span>
               </div>
-              <div className="space-y-2">
-                <Label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Дата выдачи</Label>
-                <Input type="date" value={issueDate} onChange={e => setIssueDate(e.target.value)} className={inputClass} />
+              <div className="border-t border-border/50 pt-3" />
+              <div className="flex justify-between text-sm">
+                <span className="text-muted-foreground">Сумма</span>
+                <span className="font-bold text-lg">{Number(amount).toLocaleString('ru-RU')} ₽</span>
               </div>
-              <div className="space-y-2">
-                <Label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Дата возврата *</Label>
-                <Input type="date" value={repaymentDate} onChange={e => setRepaymentDate(e.target.value)} className={inputClass} />
+              <div className="flex justify-between text-sm">
+                <span className="text-muted-foreground">Возврат до</span>
+                <span className="font-medium">{new Date(repaymentDate).toLocaleDateString('ru-RU')}</span>
               </div>
-              <div className="space-y-2">
-                <Label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Досрочное погашение (дней уведомления)</Label>
-                <Input type="number" min="0" value={earlyRepaymentNoticeDays} onChange={e => setEarlyRepaymentNoticeDays(e.target.value)} placeholder="30" className={inputClass} />
+              <div className="flex justify-between text-sm">
+                <span className="text-muted-foreground">Проценты</span>
+                <span className="font-medium">
+                  {interestMode === 'fixed_rate' ? `${interestRate}% годовых` : 'Без процентов'}
+                </span>
               </div>
-              <div className="space-y-2 sm:col-span-2">
-                <Label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Примечания</Label>
-                <Textarea value={notes} onChange={e => setNotes(e.target.value)} placeholder="Дополнительные условия..." rows={3} className="rounded-xl bg-muted/50 border-border/50 focus:bg-card" />
+              <div className="flex justify-between text-sm">
+                <span className="text-muted-foreground">Неустойка</span>
+                <span className="font-medium">{penaltyRate}%/день</span>
+              </div>
+              <div className="flex justify-between text-sm">
+                <span className="text-muted-foreground">Город</span>
+                <span className="font-medium">{city}</span>
               </div>
             </div>
-          </section>
 
-          <Button type="submit" disabled={submitting} className="w-full h-12 rounded-xl gap-2 text-sm font-semibold">
-            {submitting ? <Loader2 className="w-4 h-4 animate-spin" /> : <FileText className="w-4 h-4" />}
-            Создать договор
-          </Button>
-        </form>
-      </main>
-    </div>
+            <p className="text-[10px] text-muted-foreground text-center">
+              После создания вы сможете добавить банковские реквизиты и отправить договор заёмщику
+            </p>
+
+            <Button onClick={handleSubmit} disabled={submitting} className="w-full gap-2 rounded-lg h-11 text-sm font-semibold">
+              {submitting ? <Loader2 className="w-4 h-4 animate-spin" /> : null}
+              Создать займ
+            </Button>
+          </div>
+        )}
+      </div>
+    </AppLayout>
   );
 };
 
