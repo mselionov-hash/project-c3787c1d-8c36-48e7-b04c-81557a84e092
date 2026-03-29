@@ -11,6 +11,8 @@ interface TrancheListProps {
   tranches: Tranche[];
   loanId: string;
   userId: string;
+  lenderId: string;
+  borrowerId: string | null;
   isLender: boolean;
   isBorrower: boolean;
   loanStatus: string;
@@ -28,6 +30,8 @@ export const TrancheList = ({
   tranches,
   loanId,
   userId,
+  lenderId,
+  borrowerId,
   isLender,
   isBorrower,
   loanStatus,
@@ -120,6 +124,8 @@ export const TrancheList = ({
         <CreateTrancheModal
           loanId={loanId}
           userId={userId}
+          lenderId={lenderId}
+          borrowerId={borrowerId}
           nextTrancheNumber={nextNumber}
           onClose={() => setShowCreate(false)}
           onSuccess={onRefresh}

@@ -12,6 +12,7 @@ interface RepaymentListProps {
   payments: Payment[];
   loanId: string;
   userId: string;
+  lenderId: string;
   isLender: boolean;
   isBorrower: boolean;
   loanStatus: string;
@@ -29,6 +30,7 @@ export const RepaymentList = ({
   payments,
   loanId,
   userId,
+  lenderId,
   isLender,
   isBorrower,
   loanStatus,
@@ -158,6 +160,7 @@ export const RepaymentList = ({
         <CreateRepaymentModal
           loanId={loanId}
           payerId={userId}
+          lenderId={lenderId}
           onClose={() => setShowCreate(false)}
           onSuccess={onRefresh}
         />

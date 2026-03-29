@@ -390,6 +390,8 @@ const LoanDetails = () => {
             tranches={tranches}
             loanId={loan.id}
             userId={user!.id}
+            lenderId={loan.lender_id}
+            borrowerId={loan.borrower_id}
             isLender={isLender}
             isBorrower={isBorrower}
             loanStatus={loan.status}
@@ -418,6 +420,7 @@ const LoanDetails = () => {
             payments={payments}
             loanId={loan.id}
             userId={user!.id}
+            lenderId={loan.lender_id}
             isLender={isLender}
             isBorrower={isBorrower}
             loanStatus={loan.status}
