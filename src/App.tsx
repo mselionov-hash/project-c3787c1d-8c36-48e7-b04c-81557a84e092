@@ -7,10 +7,12 @@ import { AuthProvider } from "@/hooks/useAuth";
 import Index from "./pages/Index";
 import Auth from "./pages/Auth";
 import Dashboard from "./pages/Dashboard";
+import Loans from "./pages/Loans";
 import CreateLoan from "./pages/CreateLoan";
 import LoanDetails from "./pages/LoanDetails";
-import NotFound from "./pages/NotFound";
+import Documents from "./pages/Documents";
 import Profile from "./pages/Profile";
+import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
 
@@ -25,9 +27,11 @@ const App = () => (
             <Route path="/" element={<Index />} />
             <Route path="/auth" element={<Auth />} />
             <Route path="/dashboard" element={<Dashboard />} />
-            <Route path="/profile" element={<Profile />} />
+            <Route path="/loans" element={<Loans />} />
             <Route path="/loans/create" element={<CreateLoan />} />
             <Route path="/loans/:id" element={<LoanDetails />} />
+            <Route path="/documents" element={<Documents />} />
+            <Route path="/profile" element={<Profile />} />
             <Route path="*" element={<NotFound />} />
           </Routes>
         </BrowserRouter>

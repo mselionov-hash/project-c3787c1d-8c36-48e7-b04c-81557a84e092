@@ -6,10 +6,9 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { toast } from 'sonner';
+import { AppLayout } from '@/components/AppLayout';
 import { BankDetailsManager } from '@/components/BankDetailsManager';
-import {
-  ArrowLeft, User, CreditCard, Save, Loader2
-} from 'lucide-react';
+import { Save, Loader2 } from 'lucide-react';
 
 const Profile = () => {
   const navigate = useNavigate();
@@ -66,8 +65,7 @@ const Profile = () => {
       await refreshProfile();
       toast.success('Профиль обновлён');
     } catch (err: unknown) {
-      const message = err instanceof Error ? err.message : 'Ошибка сохранения';
-      toast.error(message);
+      toast.error(err instanceof Error ? err.message : 'Ошибка');
     } finally {
       setSaving(false);
     }
@@ -75,97 +73,71 @@ const Profile = () => {
 
   if (authLoading || !user) return null;
 
-  const inputClass = "h-11 rounded-xl bg-muted/50 border-border/50 focus:bg-card";
+  const inputClass = "h-10 rounded-lg bg-secondary border-border/50 text-sm";
 
   return (
-    <div className="min-h-screen bg-background">
-      <header className="border-b border-border/60 bg-card/60 backdrop-blur-xl sticky top-0 z-40">
-        <div className="max-w-3xl mx-auto px-4 sm:px-6 h-14 sm:h-16 flex items-center gap-3 sm:gap-4">
-          <button onClick={() => navigate('/dashboard')} className="p-2 rounded-xl hover:bg-muted transition-colors text-muted-foreground hover:text-foreground">
-            <ArrowLeft className="w-5 h-5" />
-          </button>
-          <h1 className="font-bold font-display text-base sm:text-lg">Мой профиль</h1>
-        </div>
-      </header>
+    <AppLayout>
+      <div className="max-w-2xl mx-auto px-4 sm:px-6 py-6 sm:py-8">
+        <h1 className="text-xl font-bold font-display mb-6">Профиль и реквизиты</h1>
 
-      <main className="max-w-3xl mx-auto px-4 sm:px-6 py-6 sm:py-8 space-y-6 sm:space-y-8">
         {/* Personal info */}
-        <div className="card-elevated p-5 sm:p-7">
-          <div className="flex items-center gap-3 mb-5 sm:mb-6">
-            <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center">
-              <User className="w-5 h-5 text-primary" />
-            </div>
-            <div>
-              <h3 className="text-sm font-semibold uppercase tracking-wider">Личные данные</h3>
-              <p className="text-xs text-muted-foreground">Основная информация</p>
-            </div>
-          </div>
-
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <div className="space-y-2 sm:col-span-2">
-              <Label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">ФИО</Label>
+        <section className="card-elevated p-5 mb-6">
+          <h2 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-4">Личные данные</h2>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div className="space-y-1.5 sm:col-span-2">
+              <Label className="text-xs text-muted-foreground">ФИО</Label>
               <Input value={fullName} onChange={e => setFullName(e.target.value)} className={inputClass} />
             </div>
-            <div className="space-y-2">
-              <Label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Дата рождения</Label>
+            <div className="space-y-1.5">
+              <Label className="text-xs text-muted-foreground">Дата рождения</Label>
               <Input type="date" value={dateOfBirth} onChange={e => setDateOfBirth(e.target.value)} className={inputClass} />
             </div>
-            <div className="space-y-2">
-              <Label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Телефон</Label>
+            <div className="space-y-1.5">
+              <Label className="text-xs text-muted-foreground">Телефон</Label>
               <Input value={phone} onChange={e => setPhone(e.target.value)} placeholder="+7 (999) 123-45-67" className={inputClass} />
             </div>
-            <div className="space-y-2">
-              <Label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Email</Label>
-              <Input value={user.email || ''} disabled className={`${inputClass} opacity-60`} />
+            <div className="space-y-1.5">
+              <Label className="text-xs text-muted-foreground">Email</Label>
+              <Input value={user.email || ''} disabled className={`${inputClass} opacity-50`} />
             </div>
-            <div className="space-y-2">
-              <Label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Серия паспорта</Label>
+            <div className="space-y-1.5">
+              <Label className="text-xs text-muted-foreground">Серия паспорта</Label>
               <Input value={passportSeries} onChange={e => setPassportSeries(e.target.value)} placeholder="1234" className={inputClass} />
             </div>
-            <div className="space-y-2">
-              <Label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Номер паспорта</Label>
+            <div className="space-y-1.5">
+              <Label className="text-xs text-muted-foreground">Номер паспорта</Label>
               <Input value={passportNumber} onChange={e => setPassportNumber(e.target.value)} placeholder="567890" className={inputClass} />
             </div>
-            <div className="space-y-2 sm:col-span-2">
-              <Label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Кем выдан</Label>
-              <Input value={passportIssuedBy} onChange={e => setPassportIssuedBy(e.target.value)} placeholder="ОВД района..." className={inputClass} />
+            <div className="space-y-1.5 sm:col-span-2">
+              <Label className="text-xs text-muted-foreground">Кем выдан</Label>
+              <Input value={passportIssuedBy} onChange={e => setPassportIssuedBy(e.target.value)} className={inputClass} />
             </div>
-            <div className="space-y-2">
-              <Label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Дата выдачи паспорта</Label>
+            <div className="space-y-1.5">
+              <Label className="text-xs text-muted-foreground">Дата выдачи</Label>
               <Input type="date" value={passportIssueDate} onChange={e => setPassportIssueDate(e.target.value)} className={inputClass} />
             </div>
-            <div className="space-y-2">
-              <Label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Код подразделения</Label>
+            <div className="space-y-1.5">
+              <Label className="text-xs text-muted-foreground">Код подразделения</Label>
               <Input value={passportDivisionCode} onChange={e => setPassportDivisionCode(e.target.value)} placeholder="123-456" className={inputClass} />
             </div>
-            <div className="space-y-2 sm:col-span-2">
-              <Label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Адрес регистрации</Label>
+            <div className="space-y-1.5 sm:col-span-2">
+              <Label className="text-xs text-muted-foreground">Адрес регистрации</Label>
               <Input value={address} onChange={e => setAddress(e.target.value)} className={inputClass} />
             </div>
           </div>
-
-          <Button onClick={handleSave} disabled={saving} className="mt-6 gap-2 rounded-xl h-11 w-full sm:w-auto">
-            {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
+          <Button onClick={handleSave} disabled={saving} className="mt-4 gap-2 rounded-lg h-9 text-xs" size="sm">
+            {saving ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Save className="w-3.5 h-3.5" />}
             Сохранить
           </Button>
-        </div>
+        </section>
 
         {/* Bank details */}
-        <div className="card-elevated p-5 sm:p-7">
-          <div className="flex items-center gap-3 mb-5 sm:mb-6">
-            <div className="w-10 h-10 rounded-xl bg-accent/10 flex items-center justify-center">
-              <CreditCard className="w-5 h-5 text-accent" />
-            </div>
-            <div>
-              <h3 className="text-sm font-semibold uppercase tracking-wider">Банковские реквизиты</h3>
-              <p className="text-xs text-muted-foreground">Реквизиты для выдачи и получения переводов</p>
-            </div>
-          </div>
-
+        <section className="card-elevated p-5">
+          <h2 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-4">Банковские реквизиты</h2>
           <BankDetailsManager />
-        </div>
-      </main>
-    </div>
+        </section>
+      </div>
+    </AppLayout>
   );
 };
 

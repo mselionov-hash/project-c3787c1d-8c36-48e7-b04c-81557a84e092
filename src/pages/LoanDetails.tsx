@@ -18,12 +18,14 @@ import { TrancheList } from '@/components/TrancheList';
 import { PaymentSchedule } from '@/components/PaymentSchedule';
 import { RepaymentList } from '@/components/RepaymentList';
 import { DocumentsList } from '@/components/DocumentsList';
+import { LoanTimeline } from '@/components/LoanTimeline';
+import { AppLayout } from '@/components/AppLayout';
 import { Button } from '@/components/ui/button';
 import { toast } from 'sonner';
 import {
   ArrowLeft, PenTool, CheckCircle2, Clock, FileText,
-  User, Calendar, Percent, MapPin, AlertTriangle, Shield, Send,
-  CreditCard,
+  Calendar, Percent, AlertTriangle, Shield, Send,
+  CreditCard, ChevronDown, ChevronUp,
 } from 'lucide-react';
 import type { Tables } from '@/integrations/supabase/types';
 
@@ -36,13 +38,13 @@ type GeneratedDocument = Tables<'generated_documents'>;
 
 const statusConfig: Record<string, { label: string; icon: React.ElementType; class: string }> = {
   draft: { label: 'Черновик', icon: Clock, class: 'bg-muted text-muted-foreground' },
-  awaiting_signatures: { label: 'Ожидает подписей', icon: PenTool, class: 'bg-warning/10 text-warning' },
-  signed_by_lender: { label: 'Подписан займодавцем', icon: PenTool, class: 'bg-primary/10 text-primary' },
-  signed_by_borrower: { label: 'Подписан заёмщиком', icon: PenTool, class: 'bg-primary/10 text-primary' },
-  fully_signed: { label: 'Полностью подписан', icon: CheckCircle2, class: 'bg-accent/10 text-accent' },
-  active: { label: 'Активный', icon: CheckCircle2, class: 'bg-accent/10 text-accent' },
+  awaiting_signatures: { label: 'Ожидает подписей', icon: PenTool, class: 'bg-warning/15 text-warning' },
+  signed_by_lender: { label: 'Подписан займодавцем', icon: PenTool, class: 'bg-info/15 text-info' },
+  signed_by_borrower: { label: 'Подписан заёмщиком', icon: PenTool, class: 'bg-info/15 text-info' },
+  fully_signed: { label: 'Полностью подписан', icon: CheckCircle2, class: 'bg-primary/15 text-primary' },
+  active: { label: 'Активный', icon: CheckCircle2, class: 'bg-primary/15 text-primary' },
   repaid: { label: 'Погашён', icon: CheckCircle2, class: 'bg-muted text-muted-foreground' },
-  overdue: { label: 'Просрочен', icon: AlertTriangle, class: 'bg-destructive/10 text-destructive' },
+  overdue: { label: 'Просрочен', icon: AlertTriangle, class: 'bg-destructive/15 text-destructive' },
 };
 
 const INTEREST_MODE_LABELS: Record<string, string> = {
@@ -70,6 +72,11 @@ const LoanDetails = () => {
   const [loading, setLoading] = useState(true);
   const [showSignature, setShowSignature] = useState(false);
   const [showSend, setShowSend] = useState(false);
+  const [expandedSections, setExpandedSections] = useState<Record<string, boolean>>({
+    terms: false,
+    bank: false,
+    docs: false,
+  });
 
   useEffect(() => {
     if (!authLoading && !user) navigate('/auth');
@@ -78,6 +85,9 @@ const LoanDetails = () => {
   useEffect(() => {
     if (id && user) fetchAll();
   }, [id, user]);
+
+  const toggle = (key: string) =>
+    setExpandedSections(prev => ({ ...prev, [key]: !prev[key] }));
 
   const fetchAll = async () => {
     const [loanRes, sigRes, trancheRes, schedRes, payRes, docRes] = await Promise.all([
@@ -96,7 +106,6 @@ const LoanDetails = () => {
     setDocuments(docRes.data || []);
     setLoading(false);
 
-    // Auto-activate loan when first tranche is confirmed
     if (loanRes.data && loanRes.data.status === 'fully_signed') {
       const hasConfirmedTranche = (trancheRes.data || []).some(t => t.status === 'confirmed');
       if (hasConfirmedTranche) {
@@ -105,7 +114,6 @@ const LoanDetails = () => {
       }
     }
 
-    // Auto-detect full repayment
     if (loanRes.data && loanRes.data.status === 'active') {
       const confirmedTranches = (trancheRes.data || []).filter(t => t.status === 'confirmed');
       const totalDisbursed = confirmedTranches.reduce((s, t) => s + Number(t.amount), 0);
@@ -118,238 +126,93 @@ const LoanDetails = () => {
     }
   };
 
+  // --- Signing logic (preserved) ---
   const createSigningSnapshots = async (loanData: Loan, role: string) => {
     if (!user || !profile) return;
-
     try {
       const email = user.email || null;
-      await createSnapshot(
-        loanData.id,
-        SNAPSHOT_TYPES.PARTY_PROFILE,
-        user.id,
-        role,
-        {
-          user_id: user.id,
-          full_name: profile.full_name,
-          date_of_birth: profile.date_of_birth,
-          passport_series: profile.passport_series,
-          passport_number: profile.passport_number,
-          passport_issued_by: profile.passport_issued_by,
-          passport_issue_date: profile.passport_issue_date,
-          passport_division_code: profile.passport_division_code,
-          address: profile.address,
-          phone: profile.phone,
-          email,
-        }
-      );
+      await createSnapshot(loanData.id, SNAPSHOT_TYPES.PARTY_PROFILE, user.id, role, {
+        user_id: user.id, full_name: profile.full_name, date_of_birth: profile.date_of_birth,
+        passport_series: profile.passport_series, passport_number: profile.passport_number,
+        passport_issued_by: profile.passport_issued_by, passport_issue_date: profile.passport_issue_date,
+        passport_division_code: profile.passport_division_code, address: profile.address,
+        phone: profile.phone, email,
+      });
 
-      const existingSnapshots = await supabase
-        .from('signing_snapshots')
-        .select('id')
-        .eq('loan_id', loanData.id)
-        .eq('snapshot_type', SNAPSHOT_TYPES.CONTRACT_TERMS)
-        .limit(1);
-
+      const existingSnapshots = await supabase.from('signing_snapshots').select('id').eq('loan_id', loanData.id).eq('snapshot_type', SNAPSHOT_TYPES.CONTRACT_TERMS).limit(1);
       if (!existingSnapshots.data || existingSnapshots.data.length === 0) {
-        await createSnapshot(
-          loanData.id,
-          SNAPSHOT_TYPES.CONTRACT_TERMS,
-          user.id,
-          role,
-          {
-            loan_id: loanData.id,
-            contract_number: loanData.contract_number,
-            amount: Number(loanData.amount),
-            interest_rate: Number(loanData.interest_rate),
-            interest_mode: loanData.interest_mode,
-            interest_payment_schedule: loanData.interest_payment_schedule,
-            penalty_rate: Number(loanData.penalty_rate),
-            repayment_date: loanData.repayment_date,
-            repayment_schedule_type: loanData.repayment_schedule_type,
-            issue_date: loanData.issue_date,
-            city: loanData.city,
-            early_repayment_notice_days: loanData.early_repayment_notice_days,
-            lender_name: loanData.lender_name,
-            borrower_name: loanData.borrower_name,
-            lender_passport: loanData.lender_passport,
-            borrower_passport: loanData.borrower_passport,
-            lender_address: loanData.lender_address,
-            borrower_address: loanData.borrower_address,
-          }
-        );
+        await createSnapshot(loanData.id, SNAPSHOT_TYPES.CONTRACT_TERMS, user.id, role, {
+          loan_id: loanData.id, contract_number: loanData.contract_number, amount: Number(loanData.amount),
+          interest_rate: Number(loanData.interest_rate), interest_mode: loanData.interest_mode,
+          interest_payment_schedule: loanData.interest_payment_schedule, penalty_rate: Number(loanData.penalty_rate),
+          repayment_date: loanData.repayment_date, repayment_schedule_type: loanData.repayment_schedule_type,
+          issue_date: loanData.issue_date, city: loanData.city,
+          early_repayment_notice_days: loanData.early_repayment_notice_days,
+          lender_name: loanData.lender_name, borrower_name: loanData.borrower_name,
+          lender_passport: loanData.lender_passport, borrower_passport: loanData.borrower_passport,
+          lender_address: loanData.lender_address, borrower_address: loanData.borrower_address,
+        });
       }
 
-      const existingBankSnapshot = await supabase
-        .from('signing_snapshots')
-        .select('id')
-        .eq('loan_id', loanData.id)
-        .eq('snapshot_type', SNAPSHOT_TYPES.ALLOWED_BANK_DETAILS)
-        .limit(1);
-
+      const existingBankSnapshot = await supabase.from('signing_snapshots').select('id').eq('loan_id', loanData.id).eq('snapshot_type', SNAPSHOT_TYPES.ALLOWED_BANK_DETAILS).limit(1);
       if (!existingBankSnapshot.data || existingBankSnapshot.data.length === 0) {
-        const { data: allowedDetails } = await supabase
-          .from('loan_allowed_bank_details')
-          .select('*')
-          .eq('loan_id', loanData.id);
-
+        const { data: allowedDetails } = await supabase.from('loan_allowed_bank_details').select('*').eq('loan_id', loanData.id);
         if (allowedDetails && allowedDetails.length > 0) {
           const bankIds = [...new Set(allowedDetails.map(a => a.bank_detail_id))];
-          const { data: bankData } = await supabase
-            .from('bank_details')
-            .select('*')
-            .in('id', bankIds);
-
+          const { data: bankData } = await supabase.from('bank_details').select('*').in('id', bankIds);
           const bankMap = new Map((bankData || []).map(b => [b.id, b]));
           const details = allowedDetails.map(a => {
             const bank = bankMap.get(a.bank_detail_id);
             return {
-              bank_detail_id: a.bank_detail_id,
-              bank_name: bank?.bank_name || '',
-              card_number: bank?.card_number || null,
-              phone: bank?.phone || null,
-              account_number: bank?.account_number || null,
-              bik: bank?.bik || null,
-              transfer_link: bank?.transfer_link || null,
-              recipient_display_name: bank?.recipient_display_name || null,
-              purpose: a.purpose,
-              party_role: a.party_role,
+              bank_detail_id: a.bank_detail_id, bank_name: bank?.bank_name || '',
+              card_number: bank?.card_number || null, phone: bank?.phone || null,
+              account_number: bank?.account_number || null, bik: bank?.bik || null,
+              transfer_link: bank?.transfer_link || null, recipient_display_name: bank?.recipient_display_name || null,
+              purpose: a.purpose, party_role: a.party_role,
             };
           });
-
-          await createSnapshot(
-            loanData.id,
-            SNAPSHOT_TYPES.ALLOWED_BANK_DETAILS,
-            user.id,
-            role,
-            { loan_id: loanData.id, details }
-          );
+          await createSnapshot(loanData.id, SNAPSHOT_TYPES.ALLOWED_BANK_DETAILS, user.id, role, { loan_id: loanData.id, details });
         }
       }
     } catch (err: unknown) {
-      const message = err instanceof Error ? err.message : 'Snapshot error';
-      toast.error(`Ошибка создания снимка: ${message}`);
+      toast.error(`Ошибка снимка: ${err instanceof Error ? err.message : 'Unknown'}`);
     }
   };
 
   const handleSign = async (signatureDataUrl: string) => {
     if (!user || !loan) return;
-
     const role = loan.lender_id === user.id ? 'lender' : 'borrower';
-
     try {
       let ip = '';
-      try {
-        const res = await fetch('https://api.ipify.org?format=json');
-        const data = await res.json();
-        ip = data.ip;
-      } catch { /* IP detection is best-effort */ }
-
+      try { const res = await fetch('https://api.ipify.org?format=json'); ip = (await res.json()).ip; } catch {}
       await createSigningSnapshots(loan, role);
-
-      const { error } = await supabase.from('loan_signatures').insert({
-        loan_id: loan.id,
-        signer_id: user.id,
-        role,
-        signature_data: signatureDataUrl,
-        signer_ip: ip,
-      });
+      const { error } = await supabase.from('loan_signatures').insert({ loan_id: loan.id, signer_id: user.id, role, signature_data: signatureDataUrl, signer_ip: ip });
       if (error) throw error;
-
       const lenderSigned = role === 'lender' || signatures.some(s => s.role === 'lender');
       const borrowerSigned = role === 'borrower' || signatures.some(s => s.role === 'borrower');
-
       let newStatus = loan.status;
-      if (lenderSigned && borrowerSigned) {
-        newStatus = 'fully_signed';
-      } else if (lenderSigned) {
-        newStatus = 'signed_by_lender';
-      } else if (borrowerSigned) {
-        newStatus = 'signed_by_borrower';
-      }
-
+      if (lenderSigned && borrowerSigned) newStatus = 'fully_signed';
+      else if (lenderSigned) newStatus = 'signed_by_lender';
+      else if (borrowerSigned) newStatus = 'signed_by_borrower';
       await supabase.from('loans').update({ status: newStatus }).eq('id', loan.id);
-
-      toast.success('Договор подписан!');
+      toast.success('Договор подписан');
       setShowSignature(false);
       fetchAll();
     } catch (err: unknown) {
-      const message = err instanceof Error ? err.message : 'Ошибка подписи';
-      toast.error(message);
+      toast.error(err instanceof Error ? err.message : 'Ошибка');
     }
   };
 
-  const handleGenerateContract = async () => {
-    if (!loan || !user) return;
-    try {
-      await generateLoanContract(loan.id, user.id);
-      toast.success('Договор сформирован и скачан');
-      fetchAll();
-    } catch (err: unknown) {
-      toast.error(err instanceof Error ? err.message : 'Ошибка генерации');
-    }
-  };
-
-  const handleGenerateTrancheReceipt = async (trancheId: string) => {
-    if (!loan || !user) return;
-    try {
-      await generateTrancheReceipt(loan.id, trancheId, user.id);
-      toast.success('Расписка сформирована и скачана');
-      fetchAll();
-    } catch (err: unknown) {
-      toast.error(err instanceof Error ? err.message : 'Ошибка генерации');
-    }
-  };
-
-  const handleGenerateAppendix1 = async () => {
-    if (!loan || !user) return;
-    try {
-      await generateAppendixBankDetails(loan.id, user.id);
-      toast.success('Приложение 1 сформировано и скачано');
-      fetchAll();
-    } catch (err: unknown) {
-      toast.error(err instanceof Error ? err.message : 'Ошибка генерации');
-    }
-  };
-
-  const handleGenerateAppendix2 = async () => {
-    if (!loan || !user) return;
-    try {
-      await generateAppendixSchedule(loan.id, user.id);
-      toast.success('Приложение 2 сформировано и скачано');
-      fetchAll();
-    } catch (err: unknown) {
-      toast.error(err instanceof Error ? err.message : 'Ошибка генерации');
-    }
-  };
-
-  const handleGeneratePartialConfirmation = async (paymentId: string) => {
-    if (!loan || !user) return;
-    try {
-      await generatePartialRepaymentConfirmation(loan.id, paymentId, user.id);
-      toast.success('Подтверждение частичного погашения сформировано');
-      fetchAll();
-    } catch (err: unknown) {
-      toast.error(err instanceof Error ? err.message : 'Ошибка генерации');
-    }
-  };
-
-  const handleGenerateFullConfirmation = async () => {
-    if (!loan || !user) return;
-    try {
-      await generateFullRepaymentConfirmation(loan.id, user.id);
-      toast.success('Подтверждение полного погашения сформировано');
-      fetchAll();
-    } catch (err: unknown) {
-      toast.error(err instanceof Error ? err.message : 'Ошибка генерации');
-    }
-  };
+  // --- Document generators (preserved) ---
+  const handleGenerateContract = async () => { if (!loan || !user) return; try { await generateLoanContract(loan.id, user.id); toast.success('Договор скачан'); fetchAll(); } catch (err: unknown) { toast.error(err instanceof Error ? err.message : 'Ошибка'); } };
+  const handleGenerateTrancheReceipt = async (trancheId: string) => { if (!loan || !user) return; try { await generateTrancheReceipt(loan.id, trancheId, user.id); toast.success('Расписка скачана'); fetchAll(); } catch (err: unknown) { toast.error(err instanceof Error ? err.message : 'Ошибка'); } };
+  const handleGenerateAppendix1 = async () => { if (!loan || !user) return; try { await generateAppendixBankDetails(loan.id, user.id); toast.success('Приложение 1 скачано'); fetchAll(); } catch (err: unknown) { toast.error(err instanceof Error ? err.message : 'Ошибка'); } };
+  const handleGenerateAppendix2 = async () => { if (!loan || !user) return; try { await generateAppendixSchedule(loan.id, user.id); toast.success('Приложение 2 скачано'); fetchAll(); } catch (err: unknown) { toast.error(err instanceof Error ? err.message : 'Ошибка'); } };
+  const handleGeneratePartialConfirmation = async (paymentId: string) => { if (!loan || !user) return; try { await generatePartialRepaymentConfirmation(loan.id, paymentId, user.id); toast.success('Подтверждение скачано'); fetchAll(); } catch (err: unknown) { toast.error(err instanceof Error ? err.message : 'Ошибка'); } };
+  const handleGenerateFullConfirmation = async () => { if (!loan || !user) return; try { await generateFullRepaymentConfirmation(loan.id, user.id); toast.success('Подтверждение скачано'); fetchAll(); } catch (err: unknown) { toast.error(err instanceof Error ? err.message : 'Ошибка'); } };
 
   if (loading || authLoading || !loan) {
-    return (
-      <div className="min-h-screen bg-background flex items-center justify-center">
-        <p className="text-muted-foreground">Загрузка...</p>
-      </div>
-    );
+    return <AppLayout><div className="flex items-center justify-center h-64 text-muted-foreground text-sm">Загрузка...</div></AppLayout>;
   }
 
   const status = statusConfig[loan.status] || statusConfig.draft;
@@ -360,222 +223,169 @@ const LoanDetails = () => {
   const isBorrower = user?.id === loan.borrower_id;
   const canSign = (isLender && !lenderSig) || (isBorrower && !borrowerSig);
   const canSend = isLender && !loan.borrower_id;
-  const isFullySigned = Boolean(lenderSig && borrowerSig) ||
-    ['fully_signed', 'active', 'repaid'].includes(loan.status);
+  const isFullySigned = Boolean(lenderSig && borrowerSig) || ['fully_signed', 'active', 'repaid'].includes(loan.status);
   const hasSchedule = ['installments_fixed', 'installments_variable'].includes(loan.repayment_schedule_type);
 
+  // Calculate outstanding
+  const confirmedTranches = tranches.filter(t => t.status === 'confirmed');
+  const totalDisbursed = confirmedTranches.reduce((s, t) => s + Number(t.amount), 0);
+  const confirmedPayments = payments.filter(p => p.status === 'confirmed');
+  const totalRepaid = confirmedPayments.reduce((s, p) => s + Number(p.transfer_amount), 0);
+  const outstanding = Math.max(0, totalDisbursed - totalRepaid);
+
   return (
-    <div className="min-h-screen bg-background">
-      <header className="border-b border-border/60 bg-card/60 backdrop-blur-xl sticky top-0 z-40">
-        <div className="max-w-4xl mx-auto px-4 sm:px-6 h-14 sm:h-16 flex items-center justify-between">
-          <div className="flex items-center gap-3 sm:gap-4 min-w-0">
-            <button onClick={() => navigate('/dashboard')} className="p-2 rounded-xl hover:bg-muted transition-colors text-muted-foreground hover:text-foreground flex-shrink-0">
-              <ArrowLeft className="w-5 h-5" />
-            </button>
-            <div className="min-w-0">
-              <h1 className="font-bold font-display text-sm sm:text-base truncate">Договор займа</h1>
-              <p className="text-xs text-muted-foreground">
-                {loan.contract_number ? `№ ${loan.contract_number}` : `ID: ${loan.id.slice(0, 8).toUpperCase()}`}
-              </p>
+    <AppLayout>
+      <div className="max-w-3xl mx-auto px-4 sm:px-6 py-6 sm:py-8 space-y-4">
+        {/* Header */}
+        <div className="flex items-center gap-3">
+          <button onClick={() => navigate(-1)} className="p-2 rounded-lg hover:bg-secondary transition-colors text-muted-foreground">
+            <ArrowLeft className="w-4 h-4" />
+          </button>
+          <div className="flex-1 min-w-0">
+            <div className="flex items-center gap-2">
+              <h1 className="text-lg font-bold font-display truncate">
+                {isLender ? loan.borrower_name : loan.lender_name}
+              </h1>
+              <span className={`pill-badge ${status.class}`}>{status.label}</span>
             </div>
-          </div>
-          <div className="flex items-center gap-2 sm:gap-3 flex-shrink-0">
-            {canSend && (
-              <Button onClick={() => setShowSend(true)} variant="outline" size="sm" className="gap-1.5 sm:gap-2 rounded-xl text-xs sm:text-sm">
-                <Send className="w-4 h-4" />
-                <span className="hidden sm:inline">Отправить</span>
-              </Button>
-            )}
-            {isFullySigned && (
-              <Button variant="outline" onClick={handleGenerateContract} size="sm" className="gap-1.5 sm:gap-2 rounded-xl text-xs sm:text-sm">
-                <FileText className="w-4 h-4" />
-                <span className="hidden sm:inline">Договор PDF</span>
-              </Button>
-            )}
-          </div>
-        </div>
-      </header>
-
-      <main className="max-w-4xl mx-auto px-4 sm:px-6 py-6 sm:py-8 space-y-5 sm:space-y-6">
-        {/* Send notification banner */}
-        {canSend && (
-          <div className="card-elevated p-5 flex items-center gap-4 bg-primary/5 border-primary/20">
-            <Send className="w-5 h-5 text-primary" />
-            <div className="flex-1">
-              <p className="font-semibold text-sm font-display">Договор ещё не отправлен заёмщику</p>
-              <p className="text-xs text-muted-foreground">Отправьте договор, чтобы заёмщик мог его подписать</p>
-            </div>
-            <Button onClick={() => setShowSend(true)} size="sm" className="rounded-xl gap-2">
-              <Send className="w-4 h-4" />
-              Отправить
-            </Button>
-          </div>
-        )}
-
-        {/* Status banner */}
-        <div className={`card-elevated p-5 flex items-center gap-4 ${status.class} border-0`}>
-          <StatusIcon className="w-6 h-6" />
-          <div>
-            <p className="font-semibold font-display">{status.label}</p>
-            <p className="text-xs opacity-70">
-              Создан {new Date(loan.created_at).toLocaleDateString('ru-RU', { day: 'numeric', month: 'long', year: 'numeric' })}
+            <p className="text-xs text-muted-foreground">
+              {loan.contract_number ? `№ ${loan.contract_number}` : `ID: ${loan.id.slice(0, 8)}`}
             </p>
           </div>
         </div>
 
-        {/* Main info */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          <div className="card-elevated p-7">
-            <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider mb-5">Сумма и условия</h3>
-            <div className="stat-value text-3xl mb-4">{Number(loan.amount).toLocaleString('ru-RU')} ₽</div>
-            <div className="space-y-3 text-sm">
-              <div className="flex items-center justify-between">
-                <span className="text-muted-foreground flex items-center gap-2"><Percent className="w-4 h-4" />Тип</span>
-                <span className="font-medium">{INTEREST_MODE_LABELS[loan.interest_mode] || loan.interest_mode}</span>
-              </div>
-              {loan.interest_mode === 'fixed_rate' && (
-                <div className="flex items-center justify-between">
-                  <span className="text-muted-foreground">Ставка</span>
-                  <span className="font-medium">{Number(loan.interest_rate)}% годовых</span>
-                </div>
-              )}
-              <div className="flex items-center justify-between">
-                <span className="text-muted-foreground flex items-center gap-2"><AlertTriangle className="w-4 h-4" />Неустойка</span>
-                <span className="font-medium">{Number(loan.penalty_rate)}%/день</span>
-              </div>
-              <div className="flex items-center justify-between">
-                <span className="text-muted-foreground">График</span>
-                <span className="font-medium">{SCHEDULE_TYPE_LABELS[loan.repayment_schedule_type] || loan.repayment_schedule_type}</span>
-              </div>
-              <div className="flex items-center justify-between">
-                <span className="text-muted-foreground flex items-center gap-2"><Calendar className="w-4 h-4" />Дата выдачи</span>
-                <span className="font-medium">{new Date(loan.issue_date).toLocaleDateString('ru-RU')}</span>
-              </div>
-              <div className="flex items-center justify-between">
-                <span className="text-muted-foreground flex items-center gap-2"><Calendar className="w-4 h-4" />Срок возврата</span>
-                <span className="font-medium">{new Date(loan.repayment_date).toLocaleDateString('ru-RU')}</span>
-              </div>
-              <div className="flex items-center justify-between">
-                <span className="text-muted-foreground flex items-center gap-2"><MapPin className="w-4 h-4" />Город</span>
-                <span className="font-medium">{loan.city}</span>
-              </div>
+        {/* Summary card */}
+        <div className="card-elevated p-5">
+          <div className="flex items-center justify-between mb-3">
+            <div>
+              <p className="text-3xl font-bold font-display">{Number(loan.amount).toLocaleString('ru-RU')} ₽</p>
+              <p className="text-xs text-muted-foreground mt-0.5">
+                {loan.interest_mode === 'fixed_rate' ? `${Number(loan.interest_rate)}% годовых` : 'Без процентов'}
+                {' • до '}
+                {new Date(loan.repayment_date).toLocaleDateString('ru-RU')}
+              </p>
             </div>
           </div>
 
-          <div className="space-y-6">
-            <div className="card-elevated p-7">
-              <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider mb-4">Займодавец</h3>
-              <div className="flex items-center gap-3 mb-3">
-                <div className="w-10 h-10 rounded-xl bg-accent/10 flex items-center justify-center">
-                  <User className="w-5 h-5 text-accent" />
-                </div>
-                <div>
-                  <p className="font-semibold text-sm">{loan.lender_name}</p>
-                  {loan.lender_passport && <p className="text-xs text-muted-foreground">Паспорт: {loan.lender_passport}</p>}
-                </div>
+          {/* Outstanding principal */}
+          {totalDisbursed > 0 && (
+            <div className="flex gap-4 pt-3 border-t border-border/50">
+              <div>
+                <p className="stat-label">Выдано</p>
+                <p className="text-sm font-bold text-primary">{totalDisbursed.toLocaleString('ru-RU')} ₽</p>
               </div>
-              {loan.lender_address && <p className="text-xs text-muted-foreground">{loan.lender_address}</p>}
-            </div>
-
-            <div className="card-elevated p-7">
-              <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider mb-4">Заёмщик</h3>
-              <div className="flex items-center gap-3 mb-3">
-                <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center">
-                  <User className="w-5 h-5 text-primary" />
-                </div>
-                <div>
-                  <p className="font-semibold text-sm">{loan.borrower_name}</p>
-                  {loan.borrower_passport && <p className="text-xs text-muted-foreground">Паспорт: {loan.borrower_passport}</p>}
-                </div>
+              <div>
+                <p className="stat-label">Погашено</p>
+                <p className="text-sm font-bold">{totalRepaid.toLocaleString('ru-RU')} ₽</p>
               </div>
-              {loan.borrower_address && <p className="text-xs text-muted-foreground">{loan.borrower_address}</p>}
-              {!loan.borrower_id && (
-                <p className="text-xs text-warning mt-2 flex items-center gap-1">
-                  <AlertTriangle className="w-3 h-3" />
-                  Заёмщик ещё не привязан к аккаунту
+              <div>
+                <p className="stat-label">Остаток</p>
+                <p className={`text-sm font-bold ${outstanding > 0 ? 'text-warning' : 'text-primary'}`}>
+                  {outstanding.toLocaleString('ru-RU')} ₽
                 </p>
-              )}
+              </div>
             </div>
-          </div>
+          )}
+        </div>
+
+        {/* Primary action */}
+        {canSend && (
+          <Button onClick={() => setShowSend(true)} className="w-full gap-2 rounded-lg h-10 text-sm">
+            <Send className="w-4 h-4" />
+            Отправить заёмщику
+          </Button>
+        )}
+        {canSign && (
+          <Button onClick={() => setShowSignature(true)} className="w-full gap-2 rounded-lg h-10 text-sm">
+            <PenTool className="w-4 h-4" />
+            Подписать как {isLender ? 'займодавец' : 'заёмщик'}
+          </Button>
+        )}
+
+        {/* Timeline */}
+        <div className="card-elevated p-5">
+          <h2 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-4">Хронология</h2>
+          <LoanTimeline loan={loan} signatures={signatures} tranches={tranches} payments={payments} />
         </div>
 
         {/* Signatures */}
-        <div className="card-elevated p-7">
-          <div className="flex items-center justify-between mb-5">
-            <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider flex items-center gap-2">
-              <Shield className="w-4 h-4" />
-              Электронные подписи
-            </h3>
-            {canSign && (
-              <Button onClick={() => setShowSignature(true)} className="gap-2 rounded-xl" size="sm">
-                <PenTool className="w-4 h-4" />
-                Подписать
-              </Button>
-            )}
-          </div>
-          <p className="text-xs text-muted-foreground mb-4 italic">
-            Простая электронная подпись на Платформе (не является УКЭП)
-          </p>
-
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <div className={`rounded-xl border-2 p-4 ${lenderSig ? 'border-accent/30 bg-accent/5' : 'border-dashed border-border'}`}>
-              <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">Займодавец</p>
+        <div className="card-elevated p-5">
+          <h2 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-3 flex items-center gap-2">
+            <Shield className="w-3.5 h-3.5" />
+            Подписи
+          </h2>
+          <p className="text-[10px] text-muted-foreground mb-3">Простая электронная подпись (не является УКЭП)</p>
+          <div className="grid grid-cols-2 gap-3">
+            <div className={`rounded-lg border p-3 ${lenderSig ? 'border-primary/30 bg-primary/5' : 'border-dashed border-border'}`}>
+              <p className="text-[10px] text-muted-foreground uppercase mb-1">Займодавец</p>
               {lenderSig ? (
-                <div>
-                  <img src={lenderSig.signature_data} alt="Подпись" className="h-16 mb-2" />
-                  <p className="text-xs text-muted-foreground">
-                    {new Date(lenderSig.signed_at).toLocaleString('ru-RU')}
-                    {lenderSig.signer_ip && ` • IP: ${lenderSig.signer_ip}`}
-                  </p>
-                </div>
+                <>
+                  <img src={lenderSig.signature_data} alt="" className="h-10 mb-1" />
+                  <p className="text-[10px] text-muted-foreground">{new Date(lenderSig.signed_at).toLocaleDateString('ru-RU')}</p>
+                </>
               ) : (
-                <div className="h-16 flex items-center justify-center">
-                  <p className="text-sm text-muted-foreground">Не подписан</p>
-                </div>
+                <p className="text-xs text-muted-foreground py-3 text-center">—</p>
               )}
             </div>
-
-            <div className={`rounded-xl border-2 p-4 ${borrowerSig ? 'border-accent/30 bg-accent/5' : 'border-dashed border-border'}`}>
-              <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">Заёмщик</p>
+            <div className={`rounded-lg border p-3 ${borrowerSig ? 'border-primary/30 bg-primary/5' : 'border-dashed border-border'}`}>
+              <p className="text-[10px] text-muted-foreground uppercase mb-1">Заёмщик</p>
               {borrowerSig ? (
-                <div>
-                  <img src={borrowerSig.signature_data} alt="Подпись" className="h-16 mb-2" />
-                  <p className="text-xs text-muted-foreground">
-                    {new Date(borrowerSig.signed_at).toLocaleString('ru-RU')}
-                    {borrowerSig.signer_ip && ` • IP: ${borrowerSig.signer_ip}`}
-                  </p>
-                </div>
+                <>
+                  <img src={borrowerSig.signature_data} alt="" className="h-10 mb-1" />
+                  <p className="text-[10px] text-muted-foreground">{new Date(borrowerSig.signed_at).toLocaleDateString('ru-RU')}</p>
+                </>
               ) : (
-                <div className="h-16 flex items-center justify-center">
-                  <p className="text-sm text-muted-foreground">Не подписан</p>
-                </div>
+                <p className="text-xs text-muted-foreground py-3 text-center">—</p>
               )}
             </div>
           </div>
         </div>
 
-        {/* Allowed Bank Details */}
-        <div className="card-elevated p-7">
-          <div className="flex items-center gap-3 mb-4">
-            <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center">
-              <CreditCard className="w-5 h-5 text-primary" />
+        {/* Collapsible: Terms */}
+        <div className="card-elevated">
+          <button onClick={() => toggle('terms')} className="w-full flex items-center justify-between p-4 text-left">
+            <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Условия</span>
+            {expandedSections.terms ? <ChevronUp className="w-4 h-4 text-muted-foreground" /> : <ChevronDown className="w-4 h-4 text-muted-foreground" />}
+          </button>
+          {expandedSections.terms && (
+            <div className="px-4 pb-4 space-y-2 text-sm">
+              <Row label="Тип" value={INTEREST_MODE_LABELS[loan.interest_mode] || loan.interest_mode} />
+              {loan.interest_mode === 'fixed_rate' && <Row label="Ставка" value={`${Number(loan.interest_rate)}% годовых`} />}
+              <Row label="Неустойка" value={`${Number(loan.penalty_rate)}%/день`} />
+              <Row label="График" value={SCHEDULE_TYPE_LABELS[loan.repayment_schedule_type] || loan.repayment_schedule_type} />
+              <Row label="Дата выдачи" value={new Date(loan.issue_date).toLocaleDateString('ru-RU')} />
+              <Row label="Срок возврата" value={new Date(loan.repayment_date).toLocaleDateString('ru-RU')} />
+              <Row label="Город" value={loan.city} />
+              <Row label="Займодавец" value={loan.lender_name} />
+              <Row label="Заёмщик" value={loan.borrower_name} />
             </div>
-            <div>
-              <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">Допустимые реквизиты</h3>
-              <p className="text-xs text-muted-foreground">Приложение 1 к договору</p>
+          )}
+        </div>
+
+        {/* Collapsible: Bank details */}
+        <div className="card-elevated">
+          <button onClick={() => toggle('bank')} className="w-full flex items-center justify-between p-4 text-left">
+            <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider flex items-center gap-2">
+              <CreditCard className="w-3.5 h-3.5" />
+              Реквизиты
+            </span>
+            {expandedSections.bank ? <ChevronUp className="w-4 h-4 text-muted-foreground" /> : <ChevronDown className="w-4 h-4 text-muted-foreground" />}
+          </button>
+          {expandedSections.bank && (
+            <div className="px-4 pb-4">
+              <AllowedBankDetailsSelector
+                loanId={loan.id}
+                lenderId={loan.lender_id}
+                borrowerId={loan.borrower_id}
+                loanStatus={loan.status}
+                onUpdate={fetchAll}
+              />
             </div>
-          </div>
-          <AllowedBankDetailsSelector
-            loanId={loan.id}
-            lenderId={loan.lender_id}
-            borrowerId={loan.borrower_id}
-            loanStatus={loan.status}
-            onUpdate={fetchAll}
-          />
+          )}
         </div>
 
         {/* Tranches */}
-        <div className="card-elevated p-7">
+        <div className="card-elevated p-5">
           <TrancheList
             tranches={tranches}
             loanId={loan.id}
@@ -588,20 +398,22 @@ const LoanDetails = () => {
           />
         </div>
 
-        {/* Payment Schedule */}
-        <div className="card-elevated p-7">
-          <PaymentSchedule
-            items={scheduleItems}
-            loanId={loan.id}
-            isLender={isLender}
-            loanStatus={loan.status}
-            repaymentScheduleType={loan.repayment_schedule_type}
-            onRefresh={fetchAll}
-          />
-        </div>
+        {/* Schedule */}
+        {hasSchedule && (
+          <div className="card-elevated p-5">
+            <PaymentSchedule
+              items={scheduleItems}
+              loanId={loan.id}
+              isLender={isLender}
+              loanStatus={loan.status}
+              repaymentScheduleType={loan.repayment_schedule_type}
+              onRefresh={fetchAll}
+            />
+          </div>
+        )}
 
         {/* Repayments */}
-        <div className="card-elevated p-7">
+        <div className="card-elevated p-5">
           <RepaymentList
             payments={payments}
             loanId={loan.id}
@@ -614,22 +426,33 @@ const LoanDetails = () => {
           />
         </div>
 
-        {/* Generated Documents */}
-        <div className="card-elevated p-7">
-          <DocumentsList
-            documents={documents}
-            isFullySigned={isFullySigned}
-            isLender={isLender}
-            loanStatus={loan.status}
-            hasSchedule={hasSchedule}
-            hasScheduleItems={scheduleItems.length > 0}
-            onGenerateContract={handleGenerateContract}
-            onGenerateAppendix1={handleGenerateAppendix1}
-            onGenerateAppendix2={handleGenerateAppendix2}
-            onGenerateFullConfirmation={handleGenerateFullConfirmation}
-          />
+        {/* Collapsible: Documents */}
+        <div className="card-elevated">
+          <button onClick={() => toggle('docs')} className="w-full flex items-center justify-between p-4 text-left">
+            <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider flex items-center gap-2">
+              <FileText className="w-3.5 h-3.5" />
+              Документы ({documents.length})
+            </span>
+            {expandedSections.docs ? <ChevronUp className="w-4 h-4 text-muted-foreground" /> : <ChevronDown className="w-4 h-4 text-muted-foreground" />}
+          </button>
+          {expandedSections.docs && (
+            <div className="px-4 pb-4">
+              <DocumentsList
+                documents={documents}
+                isFullySigned={isFullySigned}
+                isLender={isLender}
+                loanStatus={loan.status}
+                hasSchedule={hasSchedule}
+                hasScheduleItems={scheduleItems.length > 0}
+                onGenerateContract={handleGenerateContract}
+                onGenerateAppendix1={handleGenerateAppendix1}
+                onGenerateAppendix2={handleGenerateAppendix2}
+                onGenerateFullConfirmation={handleGenerateFullConfirmation}
+              />
+            </div>
+          )}
         </div>
-      </main>
+      </div>
 
       {showSignature && (
         <SignaturePad
@@ -638,7 +461,6 @@ const LoanDetails = () => {
           onCancel={() => setShowSignature(false)}
         />
       )}
-
       {showSend && (
         <SendLoanModal
           loanId={loan.id}
@@ -647,8 +469,15 @@ const LoanDetails = () => {
           onSuccess={fetchAll}
         />
       )}
-    </div>
+    </AppLayout>
   );
 };
+
+const Row = ({ label, value }: { label: string; value: string }) => (
+  <div className="flex justify-between">
+    <span className="text-muted-foreground">{label}</span>
+    <span className="font-medium">{value}</span>
+  </div>
+);
 
 export default LoanDetails;

@@ -104,8 +104,8 @@ const Auth = () => {
             </p>
           </div>
 
-          <div className="card-elevated p-7">
-            <div className="flex gap-1 p-1 rounded-xl bg-muted mb-7">
+          <div className="card-elevated p-6">
+            <div className="flex gap-1 p-1 rounded-lg bg-secondary mb-6">
               <button
                 onClick={() => setIsLogin(true)}
                 className={`flex-1 py-2.5 text-sm font-semibold rounded-lg transition-all ${
