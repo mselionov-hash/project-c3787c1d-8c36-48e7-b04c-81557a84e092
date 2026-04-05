@@ -19,6 +19,10 @@ export const VARIABLE_ALIASES: Record<string, string> = {
 
   // TZ v2.2 renames: SIGNATURE_MODE → split into two fields
   'SIGNATURE_MODE': 'SIGNATURE_SCHEME_REQUESTED',
+
+  // Debt tracking aliases (template may use either form)
+  'OUTSTANDING_LOAN_INTEREST': 'OUTSTANDING_INTEREST',
+  'OUTSTANDING_CREDITOR_COSTS': 'OUTSTANDING_COSTS',
 };
 
 /**

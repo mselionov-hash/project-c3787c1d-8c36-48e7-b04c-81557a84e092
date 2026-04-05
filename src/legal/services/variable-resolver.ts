@@ -121,6 +121,38 @@ function safeJsonCast<T>(json: Json): T {
 }
 
 /**
+ * Format a tranche's sender or receiver requisite into a human-readable printable string.
+ */
+function formatRequisitePrintable(tranche: Tranche, side: 'sender' | 'receiver'): string {
+  const display = side === 'sender'
+    ? tranche.sender_account_display
+    : tranche.receiver_account_display;
+  if (!display) return '[не указано]';
+  return display;
+}
+
+/**
+ * Calculate debt summary for a loan.
+ * Returns: totalDisbursed, totalRepaid, activeDebt, outstandingPrincipal.
+ * Interest/costs/395 are placeholder zeros for MVP (no interest accrual engine yet).
+ */
+async function calculateDebtSummary(loanId: string) {
+  const [tranchesRes, paymentsRes] = await Promise.all([
+    supabase.from('loan_tranches').select('amount').eq('loan_id', loanId).eq('status', 'confirmed'),
+    supabase.from('loan_payments').select('transfer_amount').eq('loan_id', loanId).eq('status', 'confirmed'),
+  ]);
+  const totalDisbursed = (tranchesRes.data || []).reduce((s, t) => s + Number(t.amount), 0);
+  const totalRepaid = (paymentsRes.data || []).reduce((s, p) => s + Number(p.transfer_amount), 0);
+  const outstandingPrincipal = Math.max(0, totalDisbursed - totalRepaid);
+  // MVP: interest/costs/395 computed as 0 — will be replaced by accrual engine
+  const outstandingInterest = 0;
+  const outstanding395Interest = 0;
+  const outstandingCosts = 0;
+  const activeDebt = outstandingPrincipal + outstandingInterest + outstanding395Interest + outstandingCosts;
+  return { totalDisbursed, totalRepaid, outstandingPrincipal, outstandingInterest, outstanding395Interest, outstandingCosts, activeDebt };
+}
+
+/**
  * Resolve all variables for a loan contract document.
  */
 export async function resolveContractVariables(loanId: string): Promise<VariableRecord> {
@@ -226,6 +258,8 @@ export async function resolveContractVariables(loanId: string): Promise<Variable
     LENDER_REPAYMENT_RECEIPT_POLICY: (loan as any).lender_repayment_receipt_policy ?? 'BANK_TRANSFER_ONLY',
 
     // TZ v2.2: derived deal/scheme variables
+    DEAL_ID: loan.id,
+    DEAL_CREATED_AT: formatDateTimeRu(loan.created_at),
     OFFEROR_ROLE: getOfferorRole((loan as any).initiator_role ?? 'lender', (loan as any).deal_version ?? 1),
     OFFEREE_ROLE: getOffereeRole(getOfferorRole((loan as any).initiator_role ?? 'lender', (loan as any).deal_version ?? 1)),
     SIGNATURE_SCHEME_LABEL: getSignatureSchemeLabel((loan as any).signature_scheme_requested ?? 'UKEP_ONLY'),
@@ -349,12 +383,20 @@ export async function resolveTrancheReceiptVariables(
     TRANCHE_TIME: tranche.actual_time || '—',
     TRANCHE_TIMEZONE: tranche.timezone || 'Europe/Moscow',
     TRANCHE_METHOD: methodKey,
+    TRANCHE_METHOD_LABEL: methodKey === 'SBP' ? 'Перевод через СБП' : 'Банковский перевод',
     TRANCHE_SENDER_ACCOUNT_DISPLAY: tranche.sender_account_display || '[не указано]',
     TRANCHE_RECEIVER_ACCOUNT_DISPLAY: tranche.receiver_account_display || '[не указано]',
     TRANCHE_REFERENCE_TEXT: tranche.reference_text || `По договору займа № ${loan.contract_number || loan.id.slice(0, 8).toUpperCase()}`,
     TRANCHE_BANK_DOCUMENT_ID: tranche.bank_document_id || '[не указано]',
     TRANCHE_BANK_DOCUMENT_DATE: formatDateRu(tranche.bank_document_date),
     TRANCHE_TRANSFER_SOURCE: tranche.transfer_source || 'MANUAL',
+
+    // TZ v2.2 printable requisite fields
+    TRANCHE_SENDER_REQUISITE_PRINTABLE: formatRequisitePrintable(tranche, 'sender'),
+    TRANCHE_RECEIVER_REQUISITE_PRINTABLE: formatRequisitePrintable(tranche, 'receiver'),
+    TRANCHE_RECEIVER_SBP_ROUTE_PRINTABLE: methodKey === 'SBP'
+      ? (tranche.receiver_account_display || '[не указано]')
+      : '',
 
     // Conditional flags
     LENDER_CO_SIGNATURE_ENABLED: PLATFORM_CONFIG.LENDER_CO_SIGNATURE_ENABLED,
@@ -498,6 +540,12 @@ export async function resolvePartialRepaymentVariables(
     TOTAL_DISBURSED: totalDisbursed.toLocaleString('ru-RU'),
     TOTAL_REPAID: totalRepaid.toLocaleString('ru-RU'),
     REMAINING_BALANCE: remaining.toLocaleString('ru-RU'),
+    // Debt tracking vars
+    ACTIVE_DEBT_AMOUNT: remaining.toLocaleString('ru-RU'),
+    OUTSTANDING_PRINCIPAL: remaining.toLocaleString('ru-RU'),
+    OUTSTANDING_INTEREST: '0',
+    OUTSTANDING_395_INTEREST: '0',
+    OUTSTANDING_COSTS: '0',
     LENDER_CONFIRMATION_BLOCK: `Подтверждено на Платформе ${formatDateTimeRu(payment.confirmed_at)}\n(простая электронная подпись на Платформе; не является УКЭП)`,
   });
 }
@@ -550,6 +598,12 @@ export async function resolveFullRepaymentVariables(loanId: string): Promise<Var
     TOTAL_REPAID_IN_WORDS: amountToWordsRu(totalRepaid),
     LOAN_CURRENCY: PLATFORM_CONFIG.LOAN_CURRENCY,
     LAST_REPAYMENT_DATE: lastPayment ? formatDateRu(lastPayment.transfer_date) : '___________',
+    // Debt tracking vars — all zero at full repayment
+    ACTIVE_DEBT_AMOUNT: '0',
+    OUTSTANDING_PRINCIPAL: '0',
+    OUTSTANDING_INTEREST: '0',
+    OUTSTANDING_395_INTEREST: '0',
+    OUTSTANDING_COSTS: '0',
     LENDER_CONFIRMATION_BLOCK: `Подтверждено на Платформе ${formatDateTimeRu(new Date().toISOString())}\n(простая электронная подпись на Платформе; не является УКЭП)`,
   });
 }
@@ -582,10 +636,12 @@ export async function resolveEdoRegulationVariables(): Promise<VariableRecord> {
  * Resolve variables for APP6 (UNEP Agreement).
  */
 export async function resolveApp6Variables(loanId: string): Promise<VariableRecord> {
-  const [loanRes, regulation, snapshotsRes] = await Promise.all([
+  const [loanRes, regulation, snapshotsRes, unepRes, sigRes] = await Promise.all([
     supabase.from('loans').select('*').eq('id', loanId).single(),
     getCurrentRegulation(),
     supabase.from('signing_snapshots').select('*').eq('loan_id', loanId),
+    supabase.from('unep_agreements').select('*').eq('loan_id', loanId).single(),
+    supabase.from('loan_signatures').select('*').eq('loan_id', loanId),
   ]);
 
   const loan = loanRes.data;
@@ -599,16 +655,55 @@ export async function resolveApp6Variables(loanId: string): Promise<VariableReco
   const lenderProfile = safeJsonCast<ProfileSnapshot>(lenderSnap.snapshot_data);
   const borrowerProfile = safeJsonCast<ProfileSnapshot>(borrowerSnap.snapshot_data);
 
+  const signatures = sigRes.data || [];
+  const lenderSig = signatures.find(s => s.role === 'lender');
+  const borrowerSig = signatures.find(s => s.role === 'borrower');
+  const lastSignatureAt = signatures.length > 0
+    ? signatures.reduce((latest, s) => s.signed_at > latest ? s.signed_at : latest, signatures[0].signed_at)
+    : null;
+
+  const unep = unepRes.data;
+  const schemeRequested = (loan as any).signature_scheme_requested ?? 'UKEP_ONLY';
+
   return applyAliases({
+    // Contract / deal references
     CONTRACT_NUMBER: loan.contract_number || loan.id.slice(0, 8).toUpperCase(),
+    CONTRACT_DATE: formatDateRu(loan.issue_date || loan.created_at),
+    DEAL_ID: loan.id,
+    LAST_SIGNATURE_AT: lastSignatureAt ? formatDateTimeRu(lastSignatureAt) : '[ожидается подписание]',
+
+    // Party data
     LENDER_FULL_NAME: lenderProfile.full_name,
+    LENDER_APP_ACCOUNT_ID: lenderProfile.user_id,
     BORROWER_FULL_NAME: borrowerProfile.full_name,
+    BORROWER_APP_ACCOUNT_ID: borrowerProfile.user_id,
+
+    // Platform
     PLATFORM_NAME: PLATFORM_CONFIG.PLATFORM_NAME,
     PLATFORM_BRAND_NAME: PLATFORM_CONFIG.PLATFORM_BRAND_NAME,
     PLATFORM_URL: PLATFORM_CONFIG.PLATFORM_URL,
     PLATFORM_OPERATOR_NAME: PLATFORM_CONFIG.PLATFORM_OPERATOR_NAME,
+
+    // EDO regulation
+    EDO_REGULATION_NAME: regulation?.title ?? '[не опубликован]',
     EDO_REGULATION_VERSION: regulation?.version ?? '[не опубликован]',
-    APPENDIX_6_REQUIRED: isAppendix6Required((loan as any).signature_scheme_requested ?? 'UKEP_ONLY') ? 'YES' : 'NO',
-    APPENDIX_6_STATUS: '[определяется при подписании]',
+    EDO_REGULATION_EFFECTIVE_FROM: regulation ? formatDateRu(regulation.effective_from) : '[не опубликован]',
+
+    // Signature scheme
+    SIGNATURE_SCHEME_REQUESTED: schemeRequested,
+    SIGNATURE_SCHEME_LABEL: getSignatureSchemeLabel(schemeRequested),
+    APPENDIX_6_REQUIRED: isAppendix6Required(schemeRequested) ? 'YES' : 'NO',
+    APPENDIX_6_STATUS: unep?.status ?? 'pending',
+
+    // APP6-specific fields
+    APP6_CREATED_AT: unep ? formatDateTimeRu(unep.created_at) : formatDateTimeRu(new Date().toISOString()),
+    APP6_SCOPE_TEXT: 'Настоящее Соглашение распространяется на все электронные документы, формируемые и подписываемые Сторонами в рамках Договора денежного займа, указанного в заголовке настоящего Соглашения, посредством Платформы.',
+    APP6_COVERED_DOCUMENTS_TEXT: 'Договор денежного займа, Приложения к Договору, Расписки о получении траншей, Подтверждения частичного и полного погашения, а также иные документы, предусмотренные Договором.',
+    APP6_SIGNED_BY_LENDER_AT: unep?.lender_signed_at ? formatDateTimeRu(unep.lender_signed_at) : '[ожидается подписание]',
+    APP6_SIGNED_BY_BORROWER_AT: unep?.borrower_signed_at ? formatDateTimeRu(unep.borrower_signed_at) : '[ожидается подписание]',
+
+    // Signature blocks
+    LENDER_SIGNATURE_BLOCK: renderSignatureBlock(lenderSig, 'lender'),
+    BORROWER_SIGNATURE_BLOCK: renderSignatureBlock(borrowerSig, 'borrower'),
   });
 }
