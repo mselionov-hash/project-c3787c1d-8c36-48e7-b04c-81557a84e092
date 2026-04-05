@@ -458,7 +458,7 @@ function renderApp1BankRows(details: BankDetailSnapshotItem[], purpose: string, 
  * Resolve variables for Appendix 1 — allowed bank details.
  * Source-aligned with Shablon_APP1_dopustimye_platezhnye_rekvizity_v1_0.docx
  */
-export async function resolveAppendixBankDetailsVariables(loanId: string): Promise<VariableRecord> {
+export async function resolveAppendixBankDetailsVariables(loanId: string): Promise<ResolverResult> {
   const [loanRes, snapshotsRes, sigRes, sigPkgRes] = await Promise.all([
     supabase.from('loans').select('*').eq('id', loanId).single(),
     supabase.from('signing_snapshots').select('*').eq('loan_id', loanId),
@@ -500,45 +500,70 @@ export async function resolveAppendixBankDetailsVariables(loanId: string): Promi
   const borrowerDisbursementBankRows = renderApp1BankRows(bankDetails, 'disbursement', 'borrower');
   const lenderRepaymentBankRows = renderApp1BankRows(bankDetails, 'repayment', 'lender');
 
-  return applyAliases({
-    // Header metadata
-    CONTRACT_NUMBER: loan.contract_number || loan.id.slice(0, 8).toUpperCase(),
-    CONTRACT_DATE: formatDateRu(loan.issue_date || loan.created_at),
-    APP1_VERSION_NO: '1',
-    APP1_DOCUMENT_DATE: formatDateRu(nowIso),
-    SIGNATURE_SCHEME_LABEL: schemeLabel,
-    SIGNATURE_SCHEME_EFFECTIVE: schemeEffective,
-    APP1_PREVIOUS_VERSION_REF: '',
-    APP1_EFFECTIVE_AT: formatDateTimeRu(nowIso),
+  // Build structured repeat sections for APP1
+  const buildBankRows = (purpose: string, partyRole: string): VariableRecord[] => {
+    const filtered = bankDetails.filter(d => d.purpose === purpose && d.party_role === partyRole);
+    return filtered.map((d, i) => ({
+      ROW_NO: String(i + 1),
+      RECIPIENT_NAME_LABEL: d.recipient_display_name || d.bank_name,
+      BANK_NAME: d.bank_name,
+      BIC: d.bik || '—',
+      ACCOUNT_NO_PRINTABLE: d.account_number || d.card_number || '—',
+      CORRESPONDENT_ACCOUNT: '—',
+    }));
+  };
 
-    // Parties
-    LENDER_FULL_NAME: lenderProfile.full_name,
-    BORROWER_FULL_NAME: borrowerProfile.full_name,
+  const buildSbpRows = (purpose: string, partyRole: string): VariableRecord[] => {
+    const filtered = bankDetails.filter(d => d.purpose === purpose && d.party_role === partyRole && d.phone);
+    return filtered.map((d, i) => ({
+      ROW_NO: String(i + 1),
+      RECIPIENT_NAME_LABEL: d.recipient_display_name || d.bank_name,
+      SBP_PHONE_OR_IDENTIFIER: d.phone || '—',
+      SBP_BANK: d.bank_name,
+      SBP_INSTRUCTION: '—',
+    }));
+  };
 
-    // Policies
-    BORROWER_DISBURSEMENT_RECEIPT_POLICY_LABEL: RECEIPT_POLICY_LABELS[loan.borrower_disbursement_receipt_policy] || loan.borrower_disbursement_receipt_policy,
-    LENDER_REPAYMENT_RECEIPT_POLICY_LABEL: RECEIPT_POLICY_LABELS[loan.lender_repayment_receipt_policy] || loan.lender_repayment_receipt_policy,
-    BORROWER_DISBURSEMENT_RECEIPT_POLICY: loan.borrower_disbursement_receipt_policy,
-    LENDER_REPAYMENT_RECEIPT_POLICY: loan.lender_repayment_receipt_policy,
+  const repeatSections: RepeatData = {
+    LENDER_DISBURSEMENT_BANK_SOURCE: buildBankRows('disbursement', 'lender'),
+    BORROWER_DISBURSEMENT_BANK_RECEIPT: buildBankRows('disbursement', 'borrower'),
+    BORROWER_DISBURSEMENT_SBP_RECEIPT_ROUTE: buildSbpRows('disbursement', 'borrower'),
+    LENDER_REPAYMENT_BANK_RECEIPT: buildBankRows('repayment', 'lender'),
+    LENDER_REPAYMENT_SBP_RECEIPT_ROUTE: buildSbpRows('repayment', 'lender'),
+    APP1_CHANGES_SUMMARY: [], // Empty for initial version
+  };
 
-    // Row-level bank fields (pre-rendered for REPEAT blocks)
-    // These become render_block content that replaces [[REPEAT:...]]...[[END_REPEAT]]
-    LENDER_DISBURSEMENT_BANK_SOURCE_ROWS: lenderDisbursementBankRows,
-    BORROWER_DISBURSEMENT_BANK_RECEIPT_ROWS: borrowerDisbursementBankRows,
-    BORROWER_DISBURSEMENT_SBP_RECEIPT_ROUTE_ROWS: '[СБП-маршруты не указаны]',
-    LENDER_REPAYMENT_BANK_RECEIPT_ROWS: lenderRepaymentBankRows,
-    LENDER_REPAYMENT_SBP_RECEIPT_ROUTE_ROWS: '[СБП-маршруты не указаны]',
+  return {
+    variables: applyAliases({
+      // Header metadata
+      CONTRACT_NUMBER: loan.contract_number || loan.id.slice(0, 8).toUpperCase(),
+      CONTRACT_DATE: formatDateRu(loan.issue_date || loan.created_at),
+      APP1_VERSION_NO: '1',
+      APP1_DOCUMENT_DATE: formatDateRu(nowIso),
+      SIGNATURE_SCHEME_LABEL: schemeLabel,
+      SIGNATURE_SCHEME_EFFECTIVE: schemeEffective,
+      APP1_PREVIOUS_VERSION_REF: '',
+      APP1_EFFECTIVE_AT: formatDateTimeRu(nowIso),
 
-    // Changes summary (empty for initial version)
-    APP1_CHANGES_SUMMARY_ROWS: '',
+      // Parties
+      LENDER_FULL_NAME: lenderProfile.full_name,
+      BORROWER_FULL_NAME: borrowerProfile.full_name,
 
-    // Signature
-    APPENDIX_6_REFERENCE: isAppendix6Required(loan.signature_scheme_requested ?? 'UKEP_ONLY')
-      ? 'Приложение № 6 (Соглашение об использовании УНЭП)'
-      : '',
-    APP1_SIGNED_BY_LENDER_AT: lenderSig ? formatDateTimeRu(lenderSig.signed_at) : '[ожидается подписание]',
-    APP1_SIGNED_BY_BORROWER_AT: borrowerSig ? formatDateTimeRu(borrowerSig.signed_at) : '[ожидается подписание]',
-  });
+      // Policies
+      BORROWER_DISBURSEMENT_RECEIPT_POLICY_LABEL: RECEIPT_POLICY_LABELS[loan.borrower_disbursement_receipt_policy] || loan.borrower_disbursement_receipt_policy,
+      LENDER_REPAYMENT_RECEIPT_POLICY_LABEL: RECEIPT_POLICY_LABELS[loan.lender_repayment_receipt_policy] || loan.lender_repayment_receipt_policy,
+      BORROWER_DISBURSEMENT_RECEIPT_POLICY: loan.borrower_disbursement_receipt_policy,
+      LENDER_REPAYMENT_RECEIPT_POLICY: loan.lender_repayment_receipt_policy,
+
+      // Signature
+      APPENDIX_6_REFERENCE: isAppendix6Required(loan.signature_scheme_requested ?? 'UKEP_ONLY')
+        ? 'Приложение № 6 (Соглашение об использовании УНЭП)'
+        : '',
+      APP1_SIGNED_BY_LENDER_AT: lenderSig ? formatDateTimeRu(lenderSig.signed_at) : '[ожидается подписание]',
+      APP1_SIGNED_BY_BORROWER_AT: borrowerSig ? formatDateTimeRu(borrowerSig.signed_at) : '[ожидается подписание]',
+    }),
+    repeatSections,
+  };
 }
 
 /**
