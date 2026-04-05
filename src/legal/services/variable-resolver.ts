@@ -421,19 +421,26 @@ const REPAYMENT_METHOD_LABELS: Record<string, string> = {
   sbp: 'Перевод через СБП',
 };
 
+const RECEIPT_POLICY_LABELS: Record<string, string> = {
+  BANK_TRANSFER_ONLY: 'Только банковский перевод',
+  ANY: 'Любой допустимый способ',
+};
+
 /**
  * Resolve variables for Appendix 1 — allowed bank details.
  */
 export async function resolveAppendixBankDetailsVariables(loanId: string): Promise<VariableRecord> {
-  const [loanRes, snapshotsRes] = await Promise.all([
+  const [loanRes, snapshotsRes, sigRes] = await Promise.all([
     supabase.from('loans').select('*').eq('id', loanId).single(),
     supabase.from('signing_snapshots').select('*').eq('loan_id', loanId),
+    supabase.from('loan_signatures').select('*').eq('loan_id', loanId),
   ]);
 
   const loan = loanRes.data;
   if (!loan) throw new Error('Loan not found');
 
   const snapshots = snapshotsRes.data || [];
+  const signatures = sigRes.data || [];
   const lenderProfileSnap = snapshots.find(s => s.snapshot_type === 'party_profile' && s.role === 'lender');
   const borrowerProfileSnap = snapshots.find(s => s.snapshot_type === 'party_profile' && s.role === 'borrower');
   const bankDetailsSnap = snapshots.find(s => s.snapshot_type === 'allowed_bank_details');
@@ -448,14 +455,35 @@ export async function resolveAppendixBankDetailsVariables(loanId: string): Promi
     ? safeJsonCast<AllowedBankDetailsSnapshotData>(bankDetailsSnap.snapshot_data).details
     : [];
 
+  const lenderSig = signatures.find(s => s.role === 'lender');
+  const borrowerSig = signatures.find(s => s.role === 'borrower');
+
   return applyAliases({
     CONTRACT_NUMBER: loan.contract_number || loan.id.slice(0, 8).toUpperCase(),
     APPENDIX_DATE: formatDateTimeRu(new Date().toISOString()),
+    APP1_VERSION: '1',
+    APP1_EDITION_KIND: 'INITIAL',
+    APP1_PREVIOUS_VERSION_DATE: '',
+    APP1_AMENDMENT_REASON: '',
+    LENDER_FULL_NAME: lenderProfile.full_name,
+    LENDER_PASSPORT_SERIES: lenderProfile.passport_series || '____',
+    LENDER_PASSPORT_NUMBER: lenderProfile.passport_number || '______',
+    LENDER_REG_ADDRESS: lenderProfile.address || '___________',
+    LENDER_APP_ACCOUNT_ID: lenderProfile.user_id,
+    BORROWER_FULL_NAME: borrowerProfile.full_name,
+    BORROWER_PASSPORT_SERIES: borrowerProfile.passport_series || '____',
+    BORROWER_PASSPORT_NUMBER: borrowerProfile.passport_number || '______',
+    BORROWER_REG_ADDRESS: borrowerProfile.address || '___________',
+    BORROWER_APP_ACCOUNT_ID: borrowerProfile.user_id,
+    BORROWER_DISBURSEMENT_RECEIPT_POLICY_LABEL: RECEIPT_POLICY_LABELS[loan.borrower_disbursement_receipt_policy] || loan.borrower_disbursement_receipt_policy,
+    LENDER_REPAYMENT_RECEIPT_POLICY_LABEL: RECEIPT_POLICY_LABELS[loan.lender_repayment_receipt_policy] || loan.lender_repayment_receipt_policy,
     LENDER_DISBURSEMENT_ACCOUNTS: renderBankDetailsTable(bankDetails, 'disbursement', 'lender'),
     BORROWER_DISBURSEMENT_ACCOUNTS: renderBankDetailsTable(bankDetails, 'disbursement', 'borrower'),
     LENDER_REPAYMENT_ACCOUNTS: renderBankDetailsTable(bankDetails, 'repayment', 'lender'),
     BORROWER_REPAYMENT_ACCOUNTS: renderBankDetailsTable(bankDetails, 'repayment', 'borrower'),
     NOTICE_SNAPSHOT_TABLE: renderNoticeTable(lenderProfile, borrowerProfile),
+    LENDER_SIGNATURE_BLOCK: renderSignatureBlock(lenderSig, 'lender'),
+    BORROWER_SIGNATURE_BLOCK: renderSignatureBlock(borrowerSig, 'borrower'),
   });
 }
 
