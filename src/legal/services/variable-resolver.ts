@@ -491,9 +491,11 @@ export async function resolveAppendixBankDetailsVariables(loanId: string): Promi
  * Resolve variables for Appendix 2 — repayment schedule.
  */
 export async function resolveAppendixScheduleVariables(loanId: string): Promise<VariableRecord> {
-  const [loanRes, scheduleRes] = await Promise.all([
+  const [loanRes, scheduleRes, snapshotsRes, sigRes] = await Promise.all([
     supabase.from('loans').select('*').eq('id', loanId).single(),
     supabase.from('payment_schedule_items').select('*').eq('loan_id', loanId).order('item_number'),
+    supabase.from('signing_snapshots').select('*').eq('loan_id', loanId),
+    supabase.from('loan_signatures').select('*').eq('loan_id', loanId),
   ]);
 
   const loan = loanRes.data;
