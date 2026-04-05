@@ -540,6 +540,12 @@ export async function resolvePartialRepaymentVariables(
     TOTAL_DISBURSED: totalDisbursed.toLocaleString('ru-RU'),
     TOTAL_REPAID: totalRepaid.toLocaleString('ru-RU'),
     REMAINING_BALANCE: remaining.toLocaleString('ru-RU'),
+    // Debt tracking vars
+    ACTIVE_DEBT_AMOUNT: remaining.toLocaleString('ru-RU'),
+    OUTSTANDING_PRINCIPAL: remaining.toLocaleString('ru-RU'),
+    OUTSTANDING_INTEREST: '0',
+    OUTSTANDING_395_INTEREST: '0',
+    OUTSTANDING_COSTS: '0',
     LENDER_CONFIRMATION_BLOCK: `Подтверждено на Платформе ${formatDateTimeRu(payment.confirmed_at)}\n(простая электронная подпись на Платформе; не является УКЭП)`,
   });
 }
