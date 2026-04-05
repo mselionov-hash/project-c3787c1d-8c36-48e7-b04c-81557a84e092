@@ -23,6 +23,8 @@ const C = 'loan_contract';
 const T = 'tranche_receipt';
 const A1 = 'appendix_bank_details';
 const A2 = 'appendix_repayment_schedule';
+const A4 = 'partial_repayment_confirmation';
+const A5 = 'full_repayment_confirmation';
 const A6 = 'unep_agreement';
 const P = 'partial_repayment_confirmation';
 const F = 'full_repayment_confirmation';
@@ -31,7 +33,7 @@ const EDO = 'edo_regulation';
 // ── Party profile variables (lender) ────────────────────────────────
 
 const LENDER_PROFILE_VARS: VariableDefinition[] = [
-  v('LENDER_FULL_NAME', 'scalar_printed', 'profile', 'profiles.full_name', true, [C, T, A1, P, F]),
+  v('LENDER_FULL_NAME', 'scalar_printed', 'profile', 'profiles.full_name', true, [C, T, A1, P, F, A6]),
   v('LENDER_DOB', 'scalar_printed', 'profile', 'profiles.date_of_birth', true, [C, T]),
   v('LENDER_PASSPORT_SERIES', 'scalar_printed', 'profile', 'profiles.passport_series', true, [C, T, F]),
   v('LENDER_PASSPORT_NUMBER', 'scalar_printed', 'profile', 'profiles.passport_number', true, [C, T, F]),
@@ -41,13 +43,13 @@ const LENDER_PROFILE_VARS: VariableDefinition[] = [
   v('LENDER_REG_ADDRESS', 'scalar_printed', 'profile', 'profiles.address', true, [C, T, F]),
   v('LENDER_CONTACT_PHONE', 'scalar_printed', 'profile', 'profiles.phone', true, [C, T]),
   v('LENDER_EMAIL', 'scalar_printed', 'profile', 'auth.users.email', true, [C, T]),
-  v('LENDER_APP_ACCOUNT_ID', 'scalar_printed', 'profile', 'profiles.user_id', true, [C, T]),
+  v('LENDER_APP_ACCOUNT_ID', 'scalar_printed', 'profile', 'profiles.user_id', true, [C, T, A6]),
 ];
 
 // ── Party profile variables (borrower) ──────────────────────────────
 
 const BORROWER_PROFILE_VARS: VariableDefinition[] = [
-  v('BORROWER_FULL_NAME', 'scalar_printed', 'profile', 'profiles.full_name', true, [C, T, A1, P, F]),
+  v('BORROWER_FULL_NAME', 'scalar_printed', 'profile', 'profiles.full_name', true, [C, T, A1, P, F, A6]),
   v('BORROWER_DOB', 'scalar_printed', 'profile', 'profiles.date_of_birth', true, [C, T]),
   v('BORROWER_PASSPORT_SERIES', 'scalar_printed', 'profile', 'profiles.passport_series', true, [C, T, F]),
   v('BORROWER_PASSPORT_NUMBER', 'scalar_printed', 'profile', 'profiles.passport_number', true, [C, T, F]),
@@ -57,15 +59,15 @@ const BORROWER_PROFILE_VARS: VariableDefinition[] = [
   v('BORROWER_REG_ADDRESS', 'scalar_printed', 'profile', 'profiles.address', true, [C, T, F]),
   v('BORROWER_CONTACT_PHONE', 'scalar_printed', 'profile', 'profiles.phone', true, [C, T]),
   v('BORROWER_EMAIL', 'scalar_printed', 'profile', 'auth.users.email', true, [C, T]),
-  v('BORROWER_APP_ACCOUNT_ID', 'scalar_printed', 'profile', 'profiles.user_id', true, [C, T]),
+  v('BORROWER_APP_ACCOUNT_ID', 'scalar_printed', 'profile', 'profiles.user_id', true, [C, T, A6]),
 ];
 
 // ── Contract/loan fields ────────────────────────────────────────────
 
 const CONTRACT_VARS: VariableDefinition[] = [
-  v('CONTRACT_NUMBER', 'scalar_printed', 'loan', 'loans.contract_number', true, [C, T, A1, A2, P, F]),
+  v('CONTRACT_NUMBER', 'scalar_printed', 'loan', 'loans.contract_number', true, [C, T, A1, A2, P, F, A6]),
   v('CONTRACT_PLACE', 'scalar_printed', 'loan', 'loans.city', true, [C]),
-  v('CONTRACT_DATE', 'document_metadata', 'loan', 'loans.issue_date', true, [C, T]),
+  v('CONTRACT_DATE', 'document_metadata', 'loan', 'loans.issue_date', true, [C, T, A6]),
   v('LOAN_AMOUNT', 'scalar_printed', 'loan', 'loans.amount', true, [C, A2]),
   v('LOAN_AMOUNT_IN_WORDS', 'derived_printed', 'derived', 'loans.amount → number-to-words', false, [C, A2]),
   v('LOAN_CURRENCY', 'scalar_printed', 'platform_config', 'hardcoded RUB', false, [C, A2, P, F]),
@@ -138,6 +140,19 @@ const TRANCHE_VARS: VariableDefinition[] = [
   v('TRANCHE_METHOD_LABEL', 'derived_printed', 'derived', 'method → Russian label', false, [T]),
 ];
 
+// ── TZ v2.2 tranche printable sub-fields (now implemented) ─────────
+
+const TRANCHE_V22_VARS: VariableDefinition[] = [
+  v('TRANCHE_RECEIVER_REQUISITE_PRINTABLE', 'scalar_printed', 'tranche', 'formatted receiver requisite', false, [T]),
+  v('TRANCHE_SENDER_REQUISITE_PRINTABLE', 'scalar_printed', 'tranche', 'formatted sender requisite', false, [T]),
+  v('TRANCHE_RECEIVER_SBP_ROUTE_PRINTABLE', 'scalar_printed', 'tranche', 'SBP route display', false, [T]),
+  // System-only tranche fields — still deferred (not printed in templates)
+  v('TRANCHE_SENDER_REQUISITE_ID', 'system_only', 'tranche', 'sender bank_detail_id', false, [T], 'deferred'),
+  v('TRANCHE_RECEIPT_ID', 'system_only', 'tranche', 'generated_document id', false, [T], 'deferred'),
+  v('TRANCHE_RECEIPT_STATUS', 'system_only', 'tranche', 'receipt signing status', false, [T], 'deferred'),
+  v('TRANCHE_STATUS', 'system_only', 'tranche', 'loan_tranches.status', false, [T], 'deferred'),
+];
+
 // ── Render blocks ───────────────────────────────────────────────────
 
 const RENDER_BLOCK_VARS: VariableDefinition[] = [
@@ -151,8 +166,8 @@ const RENDER_BLOCK_VARS: VariableDefinition[] = [
   v('NOTICE_SNAPSHOT_TABLE', 'render_block', 'snapshot', 'party snapshot', true, [C, A1]),
   v('SCHEDULE_TABLE', 'render_block', 'schedule', 'payment_schedule_items', false, [C, A2]),
   v('SCHEDULE_TYPE_LABEL', 'derived_printed', 'derived', 'repayment_schedule_type → label', false, [A2]),
-  v('LENDER_SIGNATURE_BLOCK', 'render_block', 'signature', 'loan_signatures', false, [C]),
-  v('BORROWER_SIGNATURE_BLOCK', 'render_block', 'signature', 'loan_signatures', false, [C, T]),
+  v('LENDER_SIGNATURE_BLOCK', 'render_block', 'signature', 'loan_signatures', false, [C, A6]),
+  v('BORROWER_SIGNATURE_BLOCK', 'render_block', 'signature', 'loan_signatures', false, [C, T, A6]),
   v('LENDER_SIGNATURE_BLOCK_OPTIONAL', 'render_block', 'signature', 'loan_signatures optional', false, [T]),
   v('LENDER_CONFIRMATION_BLOCK', 'render_block', 'signature', 'confirmation block', false, [P, F]),
 ];
@@ -176,14 +191,16 @@ const REPAYMENT_VARS: VariableDefinition[] = [
   v('LAST_REPAYMENT_DATE', 'scalar_printed', 'derived', 'last confirmed payment date', false, [F]),
 ];
 
-// ── Deal / version / signing flow variables (TZ v2.2 new) ──────────
+// ── Deal / version / signing flow variables (TZ v2.2) ───────────────
 
 const DEAL_VARS: VariableDefinition[] = [
   v('DEAL_VERSION', 'scalar_printed', 'deal', 'loans.deal_version', false, [C]),
+  v('DEAL_ID', 'scalar_printed', 'deal', 'loans.id', false, [C, A6]),
+  v('DEAL_CREATED_AT', 'scalar_printed', 'deal', 'loans.created_at', false, [C]),
   v('INITIATOR_ROLE', 'system_only', 'deal', 'loans.initiator_role', false, [C]),
   v('OFFEROR_ROLE', 'system_only', 'deal', 'derived from deal flow', false, [C]),
   v('OFFEREE_ROLE', 'system_only', 'deal', 'derived from deal flow', false, [C]),
-  v('SIGNATURE_SCHEME_LABEL', 'derived_printed', 'derived', 'scheme → Russian label', false, [C]),
+  v('SIGNATURE_SCHEME_LABEL', 'derived_printed', 'derived', 'scheme → Russian label', false, [C, A6]),
   v('APPENDIX_6_REFERENCE', 'derived_printed', 'derived', 'APP6 ref text if applicable', false, [C]),
   v('SNAPSHOT_VERSION_LABEL', 'derived_printed', 'derived', 'snapshot version display', false, [C]),
 ];
@@ -191,10 +208,10 @@ const DEAL_VARS: VariableDefinition[] = [
 // ── EDO Regulation variables ────────────────────────────────────────
 
 const EDO_REGULATION_VARS: VariableDefinition[] = [
-  v('EDO_REGULATION_NAME', 'scalar_printed', 'regulation', 'edo_regulations.title', false, [EDO]),
+  v('EDO_REGULATION_NAME', 'scalar_printed', 'regulation', 'edo_regulations.title', false, [EDO, A6]),
   v('EDO_REGULATION_VERSION', 'scalar_printed', 'regulation', 'edo_regulations.version', false, [EDO, A6]),
   v('EDO_REGULATION_ID', 'scalar_printed', 'regulation', 'edo_regulations.id', false, [EDO]),
-  v('EDO_REGULATION_EFFECTIVE_FROM', 'scalar_printed', 'regulation', 'edo_regulations.effective_from', false, [EDO]),
+  v('EDO_REGULATION_EFFECTIVE_FROM', 'scalar_printed', 'regulation', 'edo_regulations.effective_from', false, [EDO, A6]),
 ];
 
 // ── APP6 (UNEP Agreement) variables ─────────────────────────────────
@@ -202,21 +219,31 @@ const EDO_REGULATION_VARS: VariableDefinition[] = [
 const APP6_VARS: VariableDefinition[] = [
   v('APPENDIX_6_REQUIRED', 'conditional_flag', 'app6', 'derived from signature_scheme', false, [A6]),
   v('APPENDIX_6_STATUS', 'system_only', 'app6', 'unep_agreements.status', false, [A6]),
+  v('APP6_CREATED_AT', 'document_metadata', 'app6', 'unep_agreements.created_at', false, [A6]),
+  v('APP6_SCOPE_TEXT', 'derived_printed', 'derived', 'scope description for APP6', false, [A6]),
+  v('APP6_COVERED_DOCUMENTS_TEXT', 'derived_printed', 'derived', 'list of covered doc types', false, [A6]),
+  v('APP6_SIGNED_BY_LENDER_AT', 'document_metadata', 'app6', 'unep_agreements.lender_signed_at', false, [A6]),
+  v('APP6_SIGNED_BY_BORROWER_AT', 'document_metadata', 'app6', 'unep_agreements.borrower_signed_at', false, [A6]),
 ];
 
-// ── Package / debt tracking variables ───────────────────────────────
+// ── Debt tracking / balance variables (now implemented) ─────────────
+
+const DEBT_VARS: VariableDefinition[] = [
+  v('ACTIVE_DEBT_AMOUNT', 'scalar_printed', 'derived', 'sum of confirmed tranches - repaid', false, [P, F]),
+  v('OUTSTANDING_PRINCIPAL', 'scalar_printed', 'derived', 'principal remaining', false, [P, F]),
+  v('OUTSTANDING_INTEREST', 'scalar_printed', 'derived', 'interest remaining', false, [P, F]),
+  v('OUTSTANDING_395_INTEREST', 'scalar_printed', 'derived', 'art. 395 interest', false, [P, F]),
+  v('OUTSTANDING_COSTS', 'scalar_printed', 'derived', 'creditor costs', false, [P, F]),
+];
+
+// ── Package variables ───────────────────────────────────────────────
 
 const PACKAGE_VARS: VariableDefinition[] = [
   v('PACKAGE_STATUS', 'system_only', 'package', 'signature_packages.package_status', false, []),
-  v('ACTIVE_DEBT_AMOUNT', 'system_only', 'derived', 'sum of confirmed tranches - repaid', false, [], 'deferred'),
-  v('OUTSTANDING_PRINCIPAL', 'system_only', 'derived', 'principal remaining', false, [], 'deferred'),
-  v('OUTSTANDING_INTEREST', 'system_only', 'derived', 'interest remaining', false, [], 'deferred'),
-  v('OUTSTANDING_395_INTEREST', 'system_only', 'derived', 'art. 395 interest', false, [], 'deferred'),
-  v('OUTSTANDING_COSTS', 'system_only', 'derived', 'creditor costs', false, [], 'deferred'),
   v('DOCUMENT_STATUS', 'system_only', 'generated_document', 'document instance status', false, [], 'deferred'),
 ];
 
-// ── System / evidence fields (deferred) ─────────────────────────────
+// ── System / evidence fields (deferred — not printed in templates) ──
 
 const SYSTEM_EVIDENCE_VARS: VariableDefinition[] = [
   v('TEMPLATE_VERSION', 'system_only', 'generated_document', 'template version', false, [], 'deferred'),
@@ -229,20 +256,6 @@ const SYSTEM_EVIDENCE_VARS: VariableDefinition[] = [
   v('EVENT_LOG_ID', 'system_only', 'generated_document', 'event log id', false, [], 'deferred'),
   v('SNAPSHOT_ID', 'system_only', 'snapshot', 'signing_snapshots.id', false, [], 'deferred'),
   v('SNAPSHOT_HASH', 'system_only', 'snapshot', 'computed hash', false, [], 'deferred'),
-  v('DEAL_ID', 'system_only', 'deal', 'loans.id alias', false, [], 'deferred'),
-  v('DEAL_CREATED_AT', 'system_only', 'deal', 'loans.created_at', false, [], 'deferred'),
-];
-
-// ── TZ v2.2 new tranche sub-fields ─────────────────────────────────
-
-const TRANCHE_V22_VARS: VariableDefinition[] = [
-  v('TRANCHE_RECEIVER_REQUISITE_PRINTABLE', 'scalar_printed', 'tranche', 'formatted receiver requisite', false, [T], 'deferred'),
-  v('TRANCHE_SENDER_REQUISITE_PRINTABLE', 'scalar_printed', 'tranche', 'formatted sender requisite', false, [T], 'deferred'),
-  v('TRANCHE_RECEIVER_SBP_ROUTE_PRINTABLE', 'scalar_printed', 'tranche', 'SBP route display', false, [T], 'deferred'),
-  v('TRANCHE_SENDER_REQUISITE_ID', 'system_only', 'tranche', 'sender bank_detail_id', false, [T], 'deferred'),
-  v('TRANCHE_RECEIPT_ID', 'system_only', 'tranche', 'generated_document id', false, [T], 'deferred'),
-  v('TRANCHE_RECEIPT_STATUS', 'system_only', 'tranche', 'receipt signing status', false, [T], 'deferred'),
-  v('TRANCHE_STATUS', 'system_only', 'tranche', 'loan_tranches.status', false, [T], 'deferred'),
 ];
 
 // ── Allowed bank details aliases (new naming from TZ v2.2) ──────────
@@ -265,14 +278,15 @@ const ALL_VARS: VariableDefinition[] = [
   ...PLATFORM_CONFIG_VARS,
   ...DOCUMENT_METADATA_VARS,
   ...TRANCHE_VARS,
+  ...TRANCHE_V22_VARS,
   ...RENDER_BLOCK_VARS,
   ...REPAYMENT_VARS,
   ...DEAL_VARS,
   ...EDO_REGULATION_VARS,
   ...APP6_VARS,
+  ...DEBT_VARS,
   ...PACKAGE_VARS,
   ...SYSTEM_EVIDENCE_VARS,
-  ...TRANCHE_V22_VARS,
   ...BANK_DETAIL_ALIAS_VARS,
 ];
 
