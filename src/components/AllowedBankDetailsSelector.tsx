@@ -191,7 +191,11 @@ export const AllowedBankDetailsSelector = ({
             ))}
           </div>
         ) : (
-          <p className="text-sm text-muted-foreground">Реквизиты не выбраны</p>
+          <p className="text-sm text-muted-foreground">
+            {myDetails.length === 0
+              ? 'Добавьте реквизит в профиле, чтобы привязать его к договору'
+              : 'Выберите реквизиты ниже'}
+          </p>
         )}
       </div>
 
