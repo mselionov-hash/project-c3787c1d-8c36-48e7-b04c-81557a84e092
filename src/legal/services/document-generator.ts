@@ -6,6 +6,7 @@
 import { supabase } from '@/integrations/supabase/client';
 import { getTemplate } from '@/legal/document-registry';
 import { renderTemplate, validateRenderedOutput } from './template-engine';
+import type { ResolverResult } from './template-engine';
 import {
   resolveContractVariables,
   resolveTrancheReceiptVariables,
@@ -31,15 +32,15 @@ async function generateDocument(
   loanId: string,
   userId: string,
   documentType: DocumentType,
-  resolverFn: () => Promise<Record<string, string>>,
+  resolverFn: () => Promise<ResolverResult>,
   pdfOptions: { title: string; fileNamePrefix: string },
   sourceEntityId?: string
 ): Promise<GenerateResult> {
   const template = getTemplate(documentType);
   if (!template) throw new Error(`Template not found: ${documentType}`);
 
-  const variables = await resolverFn();
-  const resolvedText = renderTemplate(template.template, variables);
+  const { variables, repeatSections } = await resolverFn();
+  const resolvedText = renderTemplate(template.template, variables, repeatSections);
 
   const renderIssues = validateRenderedOutput(resolvedText);
   if (renderIssues.length > 0) {
