@@ -336,63 +336,6 @@ const LoanDetails = () => {
           />
         </Section>
 
-        {/* Compact documents link */}
-        <button
-          onClick={() => navigate(`/documents?loan=${loan.id}`)}
-          className="w-full card-elevated p-3 flex items-center gap-2 text-left hover:border-border transition-colors group"
-        >
-          <FileText className="w-4 h-4 text-muted-foreground" />
-          <span className="text-xs font-medium flex-1">Документы</span>
-          <span className="text-[10px] text-muted-foreground group-hover:text-foreground transition-colors">Открыть →</span>
-        </button>
-
-        {/* Collapsible sections */}
-        <CollapsibleCard
-          title="Подписи"
-          icon={<Shield className="w-3.5 h-3.5" />}
-          open={expanded.signatures}
-          onToggle={() => toggle('signatures')}
-        >
-          <p className="text-[10px] text-muted-foreground mb-3">Электронная подпись (в MVP — визуальная ПЭП-заглушка)</p>
-          <div className="grid grid-cols-2 gap-2">
-            <SigBox label="Займодавец" sig={lenderSig} />
-            <SigBox label="Заёмщик" sig={borrowerSig} />
-          </div>
-        </CollapsibleCard>
-
-        <CollapsibleCard
-          title="Условия"
-          open={expanded.terms}
-          onToggle={() => toggle('terms')}
-        >
-          <div className="space-y-1.5 text-xs">
-            <Row label="Тип" value={INTEREST_MODE_LABELS[loan.interest_mode] || loan.interest_mode} />
-            {loan.interest_mode === 'fixed_rate' && <Row label="Ставка" value={`${Number(loan.interest_rate)}% годовых`} />}
-            <Row label="Неустойка" value={`${Number(loan.penalty_rate)}%/день`} />
-            <Row label="График" value={SCHEDULE_TYPE_LABELS[loan.repayment_schedule_type] || loan.repayment_schedule_type} />
-            <Row label="Дата выдачи" value={new Date(loan.issue_date).toLocaleDateString('ru-RU')} />
-            <Row label="Срок возврата" value={new Date(loan.repayment_date).toLocaleDateString('ru-RU')} />
-            <Row label="Город" value={loan.city} />
-            <Row label="Займодавец" value={loan.lender_name} />
-            <Row label="Заёмщик" value={loan.borrower_name} />
-          </div>
-        </CollapsibleCard>
-
-        <CollapsibleCard
-          title="Реквизиты"
-          icon={<CreditCard className="w-3.5 h-3.5" />}
-          open={expanded.bank}
-          onToggle={() => toggle('bank')}
-        >
-          <AllowedBankDetailsSelector
-            loanId={loan.id}
-            lenderId={loan.lender_id}
-            borrowerId={loan.borrower_id}
-            loanStatus={loan.status}
-            onUpdate={fetchAll}
-          />
-        </CollapsibleCard>
-
         {/* Tranches — always visible when relevant */}
         <div className="card-elevated p-4">
           <TrancheList
@@ -444,6 +387,65 @@ const LoanDetails = () => {
 
         {/* Transfer Evidence */}
         <TransferEvidence tranches={tranches} payments={payments} />
+
+        {/* Bank Details — lower priority */}
+        <CollapsibleCard
+          title="Реквизиты"
+          icon={<CreditCard className="w-3.5 h-3.5" />}
+          open={expanded.bank}
+          onToggle={() => toggle('bank')}
+        >
+          <AllowedBankDetailsSelector
+            loanId={loan.id}
+            lenderId={loan.lender_id}
+            borrowerId={loan.borrower_id}
+            loanStatus={loan.status}
+            onUpdate={fetchAll}
+          />
+        </CollapsibleCard>
+
+        {/* Signatures */}
+        <CollapsibleCard
+          title="Подписи"
+          icon={<Shield className="w-3.5 h-3.5" />}
+          open={expanded.signatures}
+          onToggle={() => toggle('signatures')}
+        >
+          <p className="text-[10px] text-muted-foreground mb-3">Электронная подпись (в MVP — визуальная ПЭП-заглушка)</p>
+          <div className="grid grid-cols-2 gap-2">
+            <SigBox label="Займодавец" sig={lenderSig} />
+            <SigBox label="Заёмщик" sig={borrowerSig} />
+          </div>
+        </CollapsibleCard>
+
+        {/* Terms — low priority */}
+        <CollapsibleCard
+          title="Условия"
+          open={expanded.terms}
+          onToggle={() => toggle('terms')}
+        >
+          <div className="space-y-1.5 text-xs">
+            <Row label="Тип" value={INTEREST_MODE_LABELS[loan.interest_mode] || loan.interest_mode} />
+            {loan.interest_mode === 'fixed_rate' && <Row label="Ставка" value={`${Number(loan.interest_rate)}% годовых`} />}
+            <Row label="Неустойка" value={`${Number(loan.penalty_rate)}%/день`} />
+            <Row label="График" value={SCHEDULE_TYPE_LABELS[loan.repayment_schedule_type] || loan.repayment_schedule_type} />
+            <Row label="Дата выдачи" value={new Date(loan.issue_date).toLocaleDateString('ru-RU')} />
+            <Row label="Срок возврата" value={new Date(loan.repayment_date).toLocaleDateString('ru-RU')} />
+            <Row label="Город" value={loan.city} />
+            <Row label="Займодавец" value={loan.lender_name} />
+            <Row label="Заёмщик" value={loan.borrower_name} />
+          </div>
+        </CollapsibleCard>
+
+        {/* Documents link — lowest priority */}
+        <button
+          onClick={() => navigate(`/documents?loan=${loan.id}`)}
+          className="w-full card-elevated p-3 flex items-center gap-2 text-left hover:border-border transition-colors group"
+        >
+          <FileText className="w-4 h-4 text-muted-foreground" />
+          <span className="text-xs font-medium flex-1">Документы</span>
+          <span className="text-[10px] text-muted-foreground group-hover:text-foreground transition-colors">Открыть →</span>
+        </button>
       </div>
 
       {showSignature && (
