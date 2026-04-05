@@ -499,14 +499,36 @@ export async function resolveAppendixScheduleVariables(loanId: string): Promise<
   const loan = loanRes.data;
   if (!loan) throw new Error('Loan not found');
 
+  const snapshots = snapshotsRes.data || [];
+  const signatures = sigRes.data || [];
   const scheduleItems = scheduleRes.data || [];
   if (scheduleItems.length === 0) {
     throw new Error('График платежей не сформирован. Создайте записи графика перед генерацией Приложения 2.');
   }
 
+  const lenderProfileSnap = snapshots.find(s => s.snapshot_type === 'party_profile' && s.role === 'lender');
+  const borrowerProfileSnap = snapshots.find(s => s.snapshot_type === 'party_profile' && s.role === 'borrower');
+  if (!lenderProfileSnap || !borrowerProfileSnap) {
+    throw new Error('Снимки профилей сторон не найдены.');
+  }
+  const lenderProfile = safeJsonCast<ProfileSnapshot>(lenderProfileSnap.snapshot_data);
+  const borrowerProfile = safeJsonCast<ProfileSnapshot>(borrowerProfileSnap.snapshot_data);
+
+  const lenderSig = signatures.find(s => s.role === 'lender');
+  const borrowerSig = signatures.find(s => s.role === 'borrower');
+
+  const totalPrincipal = scheduleItems.reduce((s, i) => s + Number(i.principal_amount), 0);
+  const totalInterest = scheduleItems.reduce((s, i) => s + Number(i.interest_amount), 0);
+  const totalAmount = scheduleItems.reduce((s, i) => s + Number(i.total_amount), 0);
+
   return applyAliases({
     CONTRACT_NUMBER: loan.contract_number || loan.id.slice(0, 8).toUpperCase(),
     APPENDIX_DATE: formatDateTimeRu(new Date().toISOString()),
+    APP2_EDITION_NUMBER: '1',
+    APP2_EDITION_KIND: 'DERIVED',
+    APP2_GENERATION_SOURCE: 'Автоматически из условий Договора',
+    APP2_RECALCULATION_REASON: '',
+    APP2_PREVIOUS_EDITION_DATE: '',
     SCHEDULE_TYPE_LABEL: SCHEDULE_TYPE_LABELS[loan.repayment_schedule_type] || loan.repayment_schedule_type,
     LOAN_AMOUNT: Number(loan.amount).toLocaleString('ru-RU'),
     LOAN_AMOUNT_IN_WORDS: amountToWordsRu(Number(loan.amount)),
@@ -515,6 +537,15 @@ export async function resolveAppendixScheduleVariables(loanId: string): Promise<
     INTEREST_RATE_ANNUAL: String(Number(loan.interest_rate)),
     FINAL_REPAYMENT_DEADLINE: formatDateRu(loan.repayment_date),
     SCHEDULE_TABLE: renderScheduleTable(scheduleItems),
+    SCHEDULE_TOTAL_PRINCIPAL: totalPrincipal.toLocaleString('ru-RU'),
+    SCHEDULE_TOTAL_INTEREST: totalInterest.toLocaleString('ru-RU'),
+    SCHEDULE_TOTAL_AMOUNT: totalAmount.toLocaleString('ru-RU'),
+    LENDER_FULL_NAME: lenderProfile.full_name,
+    LENDER_APP_ACCOUNT_ID: lenderProfile.user_id,
+    BORROWER_FULL_NAME: borrowerProfile.full_name,
+    BORROWER_APP_ACCOUNT_ID: borrowerProfile.user_id,
+    LENDER_SIGNATURE_BLOCK: renderSignatureBlock(lenderSig, 'lender'),
+    BORROWER_SIGNATURE_BLOCK: renderSignatureBlock(borrowerSig, 'borrower'),
   });
 }
 
@@ -525,12 +556,13 @@ export async function resolvePartialRepaymentVariables(
   loanId: string,
   paymentId: string
 ): Promise<VariableRecord> {
-  const [loanRes, paymentRes, tranchesRes, allPaymentsRes, snapshotsRes] = await Promise.all([
+  const [loanRes, paymentRes, tranchesRes, allPaymentsRes, snapshotsRes, scheduleRes] = await Promise.all([
     supabase.from('loans').select('*').eq('id', loanId).single(),
     supabase.from('loan_payments').select('*').eq('id', paymentId).single(),
     supabase.from('loan_tranches').select('*').eq('loan_id', loanId).eq('status', 'confirmed'),
     supabase.from('loan_payments').select('*').eq('loan_id', loanId).eq('status', 'confirmed'),
     supabase.from('signing_snapshots').select('*').eq('loan_id', loanId),
+    supabase.from('payment_schedule_items').select('*').eq('loan_id', loanId).order('item_number'),
   ]);
 
   const loan = loanRes.data;
@@ -550,30 +582,63 @@ export async function resolvePartialRepaymentVariables(
   const totalDisbursed = (tranchesRes.data || []).reduce((s, t) => s + Number(t.amount), 0);
   const totalRepaid = (allPaymentsRes.data || []).reduce((s, p) => s + Number(p.transfer_amount), 0);
   const remaining = Math.max(0, totalDisbursed - totalRepaid);
+  const paymentAmount = Number(payment.transfer_amount);
+
+  const scheduleItems = scheduleRes.data || [];
+  const hasSchedule = scheduleItems.length > 0;
+  const hasScheduleItemId = !!payment.schedule_item_id;
+  const linkedItem = hasScheduleItemId
+    ? scheduleItems.find(i => i.id === payment.schedule_item_id)
+    : undefined;
+
+  const methodKey = payment.transfer_method === 'sbp' ? 'SBP' : 'BANK_TRANSFER';
 
   return applyAliases({
     CONTRACT_NUMBER: loan.contract_number || loan.id.slice(0, 8).toUpperCase(),
     CONFIRMATION_DATE: formatDateTimeRu(new Date().toISOString()),
+    REPAYMENT_PAYMENT_ID: payment.id,
+    HAS_REPAYMENT_REQUEST_ID: 'NO',
+    REPAYMENT_REQUEST_ID: '',
     LENDER_FULL_NAME: lenderProfile.full_name,
+    LENDER_PASSPORT_SERIES: lenderProfile.passport_series || '____',
+    LENDER_PASSPORT_NUMBER: lenderProfile.passport_number || '______',
+    LENDER_REG_ADDRESS: lenderProfile.address || '___________',
+    LENDER_APP_ACCOUNT_ID: lenderProfile.user_id,
     BORROWER_FULL_NAME: borrowerProfile.full_name,
-    REPAYMENT_AMOUNT: Number(payment.transfer_amount).toLocaleString('ru-RU'),
-    REPAYMENT_AMOUNT_IN_WORDS: amountToWordsRu(Number(payment.transfer_amount)),
+    BORROWER_PASSPORT_SERIES: borrowerProfile.passport_series || '____',
+    BORROWER_PASSPORT_NUMBER: borrowerProfile.passport_number || '______',
+    BORROWER_REG_ADDRESS: borrowerProfile.address || '___________',
+    BORROWER_APP_ACCOUNT_ID: borrowerProfile.user_id,
+    REPAYMENT_AMOUNT: paymentAmount.toLocaleString('ru-RU'),
+    REPAYMENT_AMOUNT_IN_WORDS: amountToWordsRu(paymentAmount),
     LOAN_CURRENCY: PLATFORM_CONFIG.LOAN_CURRENCY,
     REPAYMENT_DATE: formatDateRu(payment.transfer_date),
-    REPAYMENT_METHOD: REPAYMENT_METHOD_LABELS[payment.transfer_method] || payment.transfer_method,
+    REPAYMENT_METHOD: methodKey,
+    REPAYMENT_SENDER_ACCOUNT_DISPLAY: '[реквизит Заёмщика]',
+    REPAYMENT_RECEIVER_ACCOUNT_DISPLAY: '[реквизит Займодавца]',
     HAS_BANK_NAME: payment.bank_name?.trim() ? 'YES' : 'NO',
     REPAYMENT_BANK_NAME: payment.bank_name?.trim() || '',
     HAS_TRANSACTION_ID: payment.transaction_id?.trim() ? 'YES' : 'NO',
     REPAYMENT_TRANSACTION_ID: payment.transaction_id?.trim() || '',
+    REPAYMENT_REFERENCE_TEXT: payment.payment_reference?.trim() || `Возврат по договору займа № ${loan.contract_number || loan.id.slice(0, 8).toUpperCase()}`,
+    // MVP: full payment allocated to principal (no interest accrual engine yet)
+    REPAYMENT_ALLOCATED_PRINCIPAL: paymentAmount.toLocaleString('ru-RU'),
+    REPAYMENT_ALLOCATED_INTEREST: '0',
+    REPAYMENT_ALLOCATED_395: '0',
+    REPAYMENT_ALLOCATED_COSTS: '0',
     TOTAL_DISBURSED: totalDisbursed.toLocaleString('ru-RU'),
     TOTAL_REPAID: totalRepaid.toLocaleString('ru-RU'),
     REMAINING_BALANCE: remaining.toLocaleString('ru-RU'),
-    // Debt tracking vars
     ACTIVE_DEBT_AMOUNT: remaining.toLocaleString('ru-RU'),
     OUTSTANDING_PRINCIPAL: remaining.toLocaleString('ru-RU'),
     OUTSTANDING_INTEREST: '0',
     OUTSTANDING_395_INTEREST: '0',
     OUTSTANDING_COSTS: '0',
+    HAS_SCHEDULE: hasSchedule ? 'YES' : 'NO',
+    HAS_SCHEDULE_ITEM_ID: hasScheduleItemId ? 'YES' : 'NO',
+    REPAYMENT_SCHEDULE_ITEM_NUMBER: linkedItem ? String(linkedItem.item_number) : '',
+    REPAYMENT_SCHEDULE_ITEM_DUE_DATE: linkedItem ? formatDateRu(linkedItem.due_date) : '',
+    SIGNATURE_SCHEME_REQUESTED: (loan as any).signature_scheme_requested ?? 'UKEP_ONLY',
     LENDER_CONFIRMATION_BLOCK: `Подтверждено на Платформе ${formatDateTimeRu(payment.confirmed_at)}\n(простая электронная подпись на Платформе; не является УКЭП)`,
   });
 }
@@ -582,11 +647,12 @@ export async function resolvePartialRepaymentVariables(
  * Resolve variables for full repayment confirmation.
  */
 export async function resolveFullRepaymentVariables(loanId: string): Promise<VariableRecord> {
-  const [loanRes, tranchesRes, paymentsRes, snapshotsRes] = await Promise.all([
+  const [loanRes, tranchesRes, paymentsRes, snapshotsRes, scheduleRes] = await Promise.all([
     supabase.from('loans').select('*').eq('id', loanId).single(),
     supabase.from('loan_tranches').select('*').eq('loan_id', loanId).eq('status', 'confirmed'),
     supabase.from('loan_payments').select('*').eq('loan_id', loanId).eq('status', 'confirmed').order('transfer_date', { ascending: false }),
     supabase.from('signing_snapshots').select('*').eq('loan_id', loanId),
+    supabase.from('payment_schedule_items').select('*').eq('loan_id', loanId).order('item_number'),
   ]);
 
   const loan = loanRes.data;
@@ -608,25 +674,50 @@ export async function resolveFullRepaymentVariables(loanId: string): Promise<Var
   if (totalRepaid < totalDisbursed) throw new Error('Основной долг ещё не погашен полностью.');
 
   const lastPayment = confirmedPayments[0];
+  const scheduleItems = scheduleRes.data || [];
+  const hasSchedule = scheduleItems.length > 0;
+  const closingAmount = lastPayment ? Number(lastPayment.transfer_amount) : 0;
+  const closingMethodKey = lastPayment?.transfer_method === 'sbp' ? 'SBP' : 'BANK_TRANSFER';
 
   return applyAliases({
     CONTRACT_NUMBER: loan.contract_number || loan.id.slice(0, 8).toUpperCase(),
     CONFIRMATION_DATE: formatDateTimeRu(new Date().toISOString()),
+    HAS_CLOSING_PAYMENT_ID: lastPayment ? 'YES' : 'NO',
+    CLOSING_PAYMENT_ID: lastPayment?.id || '',
+    HAS_SUPERSEDES_DOCUMENT_ID: 'NO',
+    SUPERSEDES_DOCUMENT_ID: '',
     LENDER_FULL_NAME: lenderProfile.full_name,
     LENDER_PASSPORT_SERIES: lenderProfile.passport_series || '____',
     LENDER_PASSPORT_NUMBER: lenderProfile.passport_number || '______',
     LENDER_REG_ADDRESS: lenderProfile.address || '___________',
+    LENDER_APP_ACCOUNT_ID: lenderProfile.user_id,
     BORROWER_FULL_NAME: borrowerProfile.full_name,
     BORROWER_PASSPORT_SERIES: borrowerProfile.passport_series || '____',
     BORROWER_PASSPORT_NUMBER: borrowerProfile.passport_number || '______',
     BORROWER_REG_ADDRESS: borrowerProfile.address || '___________',
+    BORROWER_APP_ACCOUNT_ID: borrowerProfile.user_id,
+    CLOSING_PAYMENT_AMOUNT: closingAmount.toLocaleString('ru-RU'),
+    CLOSING_PAYMENT_AMOUNT_IN_WORDS: amountToWordsRu(closingAmount),
+    LOAN_CURRENCY: PLATFORM_CONFIG.LOAN_CURRENCY,
+    CLOSING_PAYMENT_DATE: lastPayment ? formatDateRu(lastPayment.transfer_date) : '___________',
+    CLOSING_PAYMENT_METHOD: closingMethodKey,
+    CLOSING_SENDER_ACCOUNT_DISPLAY: '[реквизит Заёмщика]',
+    CLOSING_RECEIVER_ACCOUNT_DISPLAY: '[реквизит Займодавца]',
+    HAS_CLOSING_TRANSACTION_ID: lastPayment?.transaction_id?.trim() ? 'YES' : 'NO',
+    CLOSING_TRANSACTION_ID: lastPayment?.transaction_id?.trim() || '',
+    // MVP: full closing payment allocated to principal
+    CLOSING_ALLOCATED_PRINCIPAL: closingAmount.toLocaleString('ru-RU'),
+    CLOSING_ALLOCATED_INTEREST: '0',
+    CLOSING_ALLOCATED_395: '0',
+    CLOSING_ALLOCATED_COSTS: '0',
     TOTAL_DISBURSED: totalDisbursed.toLocaleString('ru-RU'),
     TOTAL_DISBURSED_IN_WORDS: amountToWordsRu(totalDisbursed),
     TOTAL_REPAID: totalRepaid.toLocaleString('ru-RU'),
     TOTAL_REPAID_IN_WORDS: amountToWordsRu(totalRepaid),
-    LOAN_CURRENCY: PLATFORM_CONFIG.LOAN_CURRENCY,
     LAST_REPAYMENT_DATE: lastPayment ? formatDateRu(lastPayment.transfer_date) : '___________',
-    // Debt tracking vars — all zero at full repayment
+    INTEREST_MODE: loan.interest_mode.toUpperCase(),
+    HAS_SCHEDULE: hasSchedule ? 'YES' : 'NO',
+    SIGNATURE_SCHEME_REQUESTED: (loan as any).signature_scheme_requested ?? 'UKEP_ONLY',
     ACTIVE_DEBT_AMOUNT: '0',
     OUTSTANDING_PRINCIPAL: '0',
     OUTSTANDING_INTEREST: '0',
