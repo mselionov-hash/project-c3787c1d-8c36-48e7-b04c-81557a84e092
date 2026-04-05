@@ -1,110 +1,127 @@
 /**
- * Runtime text template: Приложение 2 — График погашения
- * Source-aligned with TZ v2.2 legal source pack.
- * Generated only when repayment_schedule_type is INSTALLMENTS_FIXED or INSTALLMENTS_VARIABLE.
+ * Runtime text template: Приложение № 2 — График платежей
+ * Source-aligned with authoritative DOCX: Shablon_APP2_grafik_platezhey_v1_1_rus_clean.docx
  *
  * Placeholders use {VARIABLE_NAME} syntax.
- * Conditional blocks use [[IF {VAR} == VALUE]] ... [[ENDIF]] syntax.
+ * Single-line prefix conditionals use [При {VAR}=VALUE] syntax.
+ * Row repeaters use [[REPEAT:SECTION]] syntax.
+ * Assembly-time condition notes are not rendered.
  *
  * DO NOT simplify or alter the legal wording.
  */
 
-export const APPENDIX_REPAYMENT_SCHEDULE_TEMPLATE_VERSION = '1.0';
+export const APPENDIX_REPAYMENT_SCHEDULE_TEMPLATE_VERSION = '2.0';
 
-export const APPENDIX_REPAYMENT_SCHEDULE_TEMPLATE = `# Приложение № 2
-# к Договору денежного займа № {CONTRACT_NUMBER}
+export const APPENDIX_REPAYMENT_SCHEDULE_TEMPLATE = `# Приложение № 2 к договору займа № {CONTRACT_NUMBER} от {CONTRACT_DATE}
 
-## График погашения займа
+# График платежей — редакция № {APP2_VERSION_NO} от {APP2_DOCUMENT_DATE}
 
-Дата формирования: {APPENDIX_DATE}
+| **Номер договора** | {CONTRACT_NUMBER} |
+|---|---|
+| **Дата договора** | {CONTRACT_DATE} |
+| **Номер редакции Приложения 2** | {APP2_VERSION_NO} |
+| **Дата документа** | {APP2_DOCUMENT_DATE} |
+| **Вид редакции** | {APP2_EDITION_KIND_LABEL} |
+| **Источник формирования** | {APP2_GENERATION_SOURCE_LABEL} |
+| **Схема подписи** | {SIGNATURE_SCHEME_LABEL} |
+| **Режим графика** | {REPAYMENT_SCHEDULE_TYPE_LABEL} |
+| **Расчетная дата/время** | {APP2_CALCULATED_AT} |
+| **Результат актуализации** | {APP2_RECALC_RESULT_LABEL} |
+| **Текущий статус редакции APP2** | {APP2_CURRENT_STATUS_LABEL} |
+| **Уровень предупреждения** | {APP2_WARNING_LEVEL_LABEL} |
+| **Базовое договорное основание графика** | {APP2_BASE_CONTRACT_VIEW_REF} |
+| **Контрольный идентификатор набора исходных данных** | {APP2_SOURCE_SET_HASH} |
+| **Связанное основание актуализации** | {APP2_TRIGGER_REFERENCE} |
+| **Ссылки на Приложение 1 и иные контекстные документы** | {APP2_CONTEXT_APP1_REFS} |
 
-Редакция №: {APP2_EDITION_NUMBER}
-Вид редакции: {APP2_EDITION_KIND}
-Источник формирования: {APP2_GENERATION_SOURCE}
+Важно. Настоящее Приложение отображает согласованный либо актуализированный расчетный график исполнения денежного обязательства по Договору займа и само по себе не подтверждает факт выдачи или возврата денежных средств. Доказательственная база конкретных траншей и возвратов определяется соответствующими банковскими документами и, когда применимо, связанными Приложениями № 3, № 4 и № 5.
 
-[[IF {APP2_EDITION_KIND} == RECALCULATED]]
-Причина пересчёта: {APP2_RECALCULATION_REASON}
-Предыдущая редакция от: {APP2_PREVIOUS_EDITION_DATE}
-[[ENDIF]]
+Расчетная дата предполагаемого полного погашения носит справочный характер и не изменяет договорную дату окончательного возврата. Если для актуализации графика требуется изменить лимит займа, процентную ставку, дату окончательного возврата, тип графика либо иную материальную договорную базу, соответствующее изменение оформляется только через Приложение № 7.
 
----
+## 1. Краткая сводка по текущей редакции графика
 
-## 1. Параметры графика
+| **Сумма подтвержденных выдач по Договору** | {CONFIRMED_TRANCHE_TOTAL} |
+|---|---|
+| **Сумма подтвержденных возвратов по Договору** | {CONFIRMED_REPAYMENT_TOTAL} |
+| Непогашенный основной долг | {OUTSTANDING_PRINCIPAL} |
+| Непогашенные проценты по займу | {OUTSTANDING_LOAN_INTEREST} |
+| Непогашенные суммы по ст. 395 ГК РФ | {OUTSTANDING_395_INTEREST} |
+| Непогашенные издержки кредитора | {OUTSTANDING_CREDITOR_COSTS} |
+| Договорная дата окончательного возврата | {CONTRACTUAL_FINAL_DEADLINE} |
+| Расчетная дата предполагаемого полного погашения | {PROJECTED_PAYOFF_DATE} |
+| Краткая сводка по ближайшему платежу | {NEXT_DUE_ROW_SUMMARY} |
 
-Тип графика: **{SCHEDULE_TYPE_LABEL}**
+## 2. Пределы действия настоящего Приложения
 
-Предельная сумма займа: **{LOAN_AMOUNT} ({LOAN_AMOUNT_IN_WORDS}) {LOAN_CURRENCY}**
+2.1. Настоящее Приложение № 2 применяется только в тех случаях, когда по Договору предусмотрен график платежей и он является обязательной частью документного пакета.
 
-[[IF {INTEREST_MODE} == FIXED_RATE]]
-Процентная ставка: **{INTEREST_RATE_ANNUAL}% годовых**
-[[ENDIF]]
+2.2. Настоящее Приложение не печатает и не изменяет платежные реквизиты Сторон; единственным источником таких реквизитов и параметров получения переводов остается релевантная подписанная версия Приложения № 1.
 
-[[IF {INTEREST_MODE} == INTEREST_FREE]]
-Заём является беспроцентным.
-[[ENDIF]]
+2.3. Настоящее Приложение не может использоваться как скрытый канал изменения материальных условий Договора и не легализует спорные или неподтвержденные денежные события задним числом.
 
-Дата окончательного возврата: **{FINAL_REPAYMENT_DEADLINE}**
+## 3. Основная таблица графика платежей
 
-## 2. Таблица платежей
+[[REPEAT:APP2_SCHEDULE_ROWS]]
+| **№** | **Вид строки** | **Дата / период** | **Основание / ID события** | **Издержки** | **Проценты по займу** | **Основной долг** | **Ст. 395 ГК РФ** | **Итого строки** | **Остаток основного долга** | **Комментарий / статус** |
+|---|---|---|---|---|---|---|---|---|---|---|
+| {APP2_ROW_NO} | {APP2_ROW_KIND_LABEL} | {APP2_ROW_DATE_OR_PERIOD} | {APP2_ROW_EVENT_REF} | {APP2_ROW_TO_COSTS} | {APP2_ROW_TO_LOAN_INTEREST} | {APP2_ROW_TO_PRINCIPAL} | {APP2_ROW_TO_395} | {APP2_ROW_TOTAL} | {APP2_ROW_OUTSTANDING_PRINCIPAL_AFTER} | {APP2_ROW_NOTE} |
+[[END_REPEAT]]
 
-{SCHEDULE_TABLE}
+## 4. Служебные пояснения к виду редакции
 
-## 3. Итоговые суммы по графику
+[При {APP2_EDITION_KIND}=INITIAL_SIGNED] 4.1. Настоящая редакция является первоначальной согласованной редакцией графика платежей и входит в обязательный первоначальный пакет документов по Договору займа.
 
-Итого основной долг по графику: **{SCHEDULE_TOTAL_PRINCIPAL} {LOAN_CURRENCY}**
-Итого проценты по графику: **{SCHEDULE_TOTAL_INTEREST} {LOAN_CURRENCY}**
-Итого по графику: **{SCHEDULE_TOTAL_AMOUNT} {LOAN_CURRENCY}**
+[При {APP2_EDITION_KIND}=AMENDMENT_SIGNED] 4.2. Настоящая редакция является согласованной двусторонней редакцией графика платежей после изменения договорной базы по подписанной цепочке Приложения № 7.
 
-## 4. Примечания
+[При {APP2_EDITION_KIND}=CURRENT_DERIVED] 4.3. Настоящая текущая расчетная редакция сформирована системой на основании уже подписанной договорной базы и подтвержденных денежных событий. Она не является самостоятельным двусторонним документом об изменении условий и не изменяет условия Договора.
 
-4.1. Суммы указаны исходя из Предельной суммы займа. Если фактически предоставленная сумма займа окажется меньше, обязательства Заёмщика определяются исходя из фактически предоставленной и непогашенной суммы.
+[При {APP2_EDITION_KIND}=CLOSEOUT_DERIVED] 4.4. Настоящая итоговая расчетная редакция сформирована системой после полного учета подтвержденных денежных событий и отражает исчерпание графика при нулевом остатке обязательства. Такая редакция не заменяет Приложение № 5 и не подменяет банковские доказательства исполнения.
 
-4.2. При частичном досрочном погашении оставшиеся платежи подлежат пересчёту. Платформа формирует новую редакцию настоящего Приложения с актуализированными суммами.
+## 5. Подпись либо публикация текущей редакции
 
-4.3. В случае расхождения между данными настоящего Графика и условиями Договора приоритет имеют условия Договора.
+[При {APP2_EDITION_KIND}=INITIAL_SIGNED] 5.1. Для подписанных редакций графика печатается двусторонний блок подписания Сторон. Документ подписывается в схеме подписи, действующей по Договору займа.
 
-[[IF {APP2_EDITION_KIND} == SIGNED]]
-4.4. Настоящая редакция Графика подписана обеими Сторонами и является обязательной.
-[[ENDIF]]
+[При {APP2_EDITION_KIND}=AMENDMENT_SIGNED] 5.1. Для подписанных редакций графика печатается двусторонний блок подписания Сторон. Документ подписывается в схеме подписи, действующей по Договору займа.
 
-[[IF {APP2_EDITION_KIND} == DERIVED]]
-4.4. Настоящая редакция Графика сформирована автоматически на основании условий Договора. Она носит информационный характер до момента подписания обеими Сторонами.
-[[ENDIF]]
+| **ЗАЙМОДАВЕЦ** | **ЗАЕМЩИК** |
+|---|---|
+| {LENDER_FULL_NAME} | {BORROWER_FULL_NAME} |
+| Подписано электронной подписью в платформе в соответствии со схемой {SIGNATURE_SCHEME_LABEL}. | Подписано электронной подписью в платформе в соответствии со схемой {SIGNATURE_SCHEME_LABEL}. |
+| Дата/время подписи: {APP2_LENDER_SIGNED_AT} | Дата/время подписи: {APP2_BORROWER_SIGNED_AT} |
 
-## 5. Заключительные положения
+[При {APP2_EDITION_KIND}=CURRENT_DERIVED] 5.2. Настоящая редакция сформирована системой на основании уже подписанной договорной базы и подтвержденных денежных событий; повторное двустороннее подписание для данной редакции не требуется.
 
-Настоящее Приложение является неотъемлемой частью Договора денежного займа № {CONTRACT_NUMBER}.
-
----
-
-## Подписи Сторон
-
-**Займодавец:**
-ФИО: {LENDER_FULL_NAME}
-ID учетной записи на Платформе: {LENDER_APP_ACCOUNT_ID}
-Подпись: {LENDER_SIGNATURE_BLOCK}
-
-**Заёмщик:**
-ФИО: {BORROWER_FULL_NAME}
-ID учетной записи на Платформе: {BORROWER_APP_ACCOUNT_ID}
-Подпись: {BORROWER_SIGNATURE_BLOCK}
+[При {APP2_EDITION_KIND}=CLOSEOUT_DERIVED] 5.2. Настоящая редакция сформирована системой на основании уже подписанной договорной базы и подтвержденных денежных событий; повторное двустороннее подписание для данной редакции не требуется.
 `;
 
 export const APPENDIX_REPAYMENT_SCHEDULE_VARIABLES = [
-  'CONTRACT_NUMBER',
-  'APPENDIX_DATE',
-  'APP2_EDITION_NUMBER',
-  'APP2_EDITION_KIND',
-  'APP2_GENERATION_SOURCE',
-  'APP2_RECALCULATION_REASON',
-  'APP2_PREVIOUS_EDITION_DATE',
-  'SCHEDULE_TYPE_LABEL',
-  'LOAN_AMOUNT', 'LOAN_AMOUNT_IN_WORDS', 'LOAN_CURRENCY',
-  'INTEREST_MODE', 'INTEREST_RATE_ANNUAL',
-  'FINAL_REPAYMENT_DEADLINE',
-  'SCHEDULE_TABLE',
-  'SCHEDULE_TOTAL_PRINCIPAL', 'SCHEDULE_TOTAL_INTEREST', 'SCHEDULE_TOTAL_AMOUNT',
-  'LENDER_FULL_NAME', 'LENDER_APP_ACCOUNT_ID',
-  'BORROWER_FULL_NAME', 'BORROWER_APP_ACCOUNT_ID',
-  'LENDER_SIGNATURE_BLOCK', 'BORROWER_SIGNATURE_BLOCK',
+  // Header metadata
+  'CONTRACT_NUMBER', 'CONTRACT_DATE',
+  'APP2_VERSION_NO', 'APP2_DOCUMENT_DATE',
+  'APP2_EDITION_KIND', 'APP2_EDITION_KIND_LABEL',
+  'APP2_GENERATION_SOURCE_LABEL',
+  'SIGNATURE_SCHEME_LABEL',
+  'REPAYMENT_SCHEDULE_TYPE_LABEL',
+  'APP2_CALCULATED_AT',
+  'APP2_RECALC_RESULT_LABEL',
+  'APP2_CURRENT_STATUS_LABEL',
+  'APP2_WARNING_LEVEL_LABEL',
+  'APP2_BASE_CONTRACT_VIEW_REF',
+  'APP2_SOURCE_SET_HASH',
+  'APP2_TRIGGER_REFERENCE',
+  'APP2_CONTEXT_APP1_REFS',
+  // Summary section 1
+  'CONFIRMED_TRANCHE_TOTAL', 'CONFIRMED_REPAYMENT_TOTAL',
+  'OUTSTANDING_PRINCIPAL', 'OUTSTANDING_LOAN_INTEREST',
+  'OUTSTANDING_395_INTEREST', 'OUTSTANDING_CREDITOR_COSTS',
+  'CONTRACTUAL_FINAL_DEADLINE', 'PROJECTED_PAYOFF_DATE',
+  'NEXT_DUE_ROW_SUMMARY',
+  // Row-level repeater fields
+  'APP2_ROW_NO', 'APP2_ROW_KIND_LABEL', 'APP2_ROW_DATE_OR_PERIOD',
+  'APP2_ROW_EVENT_REF', 'APP2_ROW_TO_COSTS', 'APP2_ROW_TO_LOAN_INTEREST',
+  'APP2_ROW_TO_PRINCIPAL', 'APP2_ROW_TO_395', 'APP2_ROW_TOTAL',
+  'APP2_ROW_OUTSTANDING_PRINCIPAL_AFTER', 'APP2_ROW_NOTE',
+  // Signature
+  'LENDER_FULL_NAME', 'BORROWER_FULL_NAME',
+  'APP2_LENDER_SIGNED_AT', 'APP2_BORROWER_SIGNED_AT',
 ] as const;

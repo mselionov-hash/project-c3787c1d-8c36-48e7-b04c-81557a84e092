@@ -1,104 +1,156 @@
 /**
- * Runtime text template: Приложение 1 — Допустимые реквизиты и контактный снапшот Сторон
- * Source-aligned with TZ v2.2 legal source pack.
+ * Runtime text template: Приложение № 1 — Допустимые платежные реквизиты Сторон
+ * Source-aligned with authoritative DOCX: Shablon_APP1_dopustimye_platezhnye_rekvizity_v1_0.docx
  *
  * Placeholders use {VARIABLE_NAME} syntax.
- * Conditional blocks use [[IF {VAR} == VALUE]] ... [[ENDIF]] syntax.
+ * Single-line prefix conditionals use [При {VAR}=VALUE] syntax.
+ * Row repeaters use [[REPEAT:SECTION]] syntax.
+ * Conditional inclusion blocks use assembly-time notes (not rendered).
  *
  * DO NOT simplify or alter the legal wording.
  */
 
-export const APPENDIX_BANK_DETAILS_TEMPLATE_VERSION = '1.0';
+export const APPENDIX_BANK_DETAILS_TEMPLATE_VERSION = '2.0';
 
-export const APPENDIX_BANK_DETAILS_TEMPLATE = `# Приложение № 1
-# к Договору денежного займа № {CONTRACT_NUMBER}
+export const APPENDIX_BANK_DETAILS_TEMPLATE = `# Приложение № 1 к договору займа № {CONTRACT_NUMBER} от {CONTRACT_DATE}
 
-## Допустимые банковские реквизиты для выдачи и погашения займа и контактный снапшот Сторон
+Допустимые платежные реквизиты Сторон, параметры получения переводов и их согласованные изменения
 
-Дата формирования: {APPENDIX_DATE}
+Редакция № {APP1_VERSION_NO} от {APP1_DOCUMENT_DATE}
 
-Версия Приложения: {APP1_VERSION}
-Вид редакции: {APP1_EDITION_KIND}
+| **Номер договора** | **{CONTRACT_NUMBER}** |
+|---|---|
+| **Дата договора** | **{CONTRACT_DATE}** |
+| **Номер редакции APP1** | **{APP1_VERSION_NO}** |
+| **Дата документа** | **{APP1_DOCUMENT_DATE}** |
+| **Схема подписи** | **{SIGNATURE_SCHEME_LABEL}** |
+| **Предыдущая редакция** | **{APP1_PREVIOUS_VERSION_REF}** |
+| **Политика получения траншей Заемщиком** | **{BORROWER_DISBURSEMENT_RECEIPT_POLICY_LABEL}** |
+| **Политика получения возвратов Займодавцем** | **{LENDER_REPAYMENT_RECEIPT_POLICY_LABEL}** |
 
-[[IF {APP1_EDITION_KIND} == AMENDED]]
-Настоящая редакция заменяет предыдущую редакцию Приложения № 1 от {APP1_PREVIOUS_VERSION_DATE}.
-Причина изменения: {APP1_AMENDMENT_REASON}
-[[ENDIF]]
+Редакция вступает в силу: {APP1_EFFECTIVE_AT}. С указанного момента именно настоящая полностью подписанная редакция Приложения № 1 применяется к будущим операциям по Договору; предыдущая редакция после появления новой current-версии сохраняется только как исторически релевантная для операций, совершенных в период ее действия.
+
+Гражданин Российской Федерации {LENDER_FULL_NAME}, являющийся Займодавцем по договору займа № {CONTRACT_NUMBER} от {CONTRACT_DATE}, и гражданин Российской Федерации {BORROWER_FULL_NAME}, являющийся Заемщиком по указанному Договору, совместно именуемые «Стороны», согласовали настоящий полный актуальный перечень допустимых платежных реквизитов и параметров получения переводов, применимых к будущим операциям по указанному Договору займа.
+
+## 1. Общие положения
+
+1.1. Настоящее Приложение № 1 является единственным печатным источником платежных реквизитов Сторон и параметров получения переводов по договору займа № {CONTRACT_NUMBER} от {CONTRACT_DATE}.
+
+1.2. Настоящее Приложение не изменяет сумму займа, срок, проценты, график платежей, схему подписи или иную материальную часть Договора, а лишь фиксирует конкретные допустимые банковские реквизиты и/или СБП-маршруты в пределах уже согласованных договором политик допустимого получения перевода.
+
+1.3. Телефоны, адреса электронной почты и иные контакты Сторон из основного текста Договора используются для идентификации и направления уведомлений, но не являются реквизитами для СБП автоматически. Для СБП действуют только те телефон/идентификатор, банк и инструкция, которые отдельно согласованы и указаны в настоящем Приложении № 1.
+
+1.4. Настоящая редакция Приложения № 1 имеет prospective-эффект: она применяется к будущим переводам и возвратам с момента {APP1_EFFECTIVE_AT} и не должна ретроактивно изменять допустимые реквизиты по уже совершенным или спорным операциям.
+
+## 2. Политики допустимого получения перевода по Договору
+
+2.1. Политики допустимого получения перевода задаются самим Договором займа и не изменяются через настоящее Приложение № 1. Настоящее Приложение только отображает их и фиксирует конкретные реквизиты/маршруты, допустимые в рамках этих политик.
+
+| **Параметр** | **Значение** |
+|---|---|
+| **Политика допустимого получения траншей Заемщиком** | **{BORROWER_DISBURSEMENT_RECEIPT_POLICY_LABEL}** |
+| **Политика допустимого получения возвратов Займодавцем** | **{LENDER_REPAYMENT_RECEIPT_POLICY_LABEL}** |
+
+2.2. Если Сторона желает изменить не конкретный банковский счет или СБП-маршрут, а саму политику допустимого получения перевода («только банковский перевод / только СБП / банковский перевод или СБП»), такое изменение оформляется не через APP1, а через Приложение № 7 либо через новую версию сделки до подписания Договора.
+
+## 3. Полный актуальный перечень допустимых реквизитов и параметров получения переводов
+
+3.1. После подписания настоящей редакции именно нижеприведенный полный набор реквизитов и параметров получения перевода считается актуальным по данному Договору для будущих операций.
+
+### Банковские счета Займодавца для перечисления траншей (bank-source)
+
+[[REPEAT:LENDER_DISBURSEMENT_BANK_SOURCE]]
+| **№** | **Владелец / получатель** | **Банк** | **БИК** | **Номер счета** | **Корр. счет** |
+|---|---|---|---|---|---|
+| {ROW_NO} | {RECIPIENT_NAME_LABEL} | {BANK_NAME} | {BIC} | {ACCOUNT_NO_PRINTABLE} | {CORRESPONDENT_ACCOUNT} |
+[[END_REPEAT]]
+
+### Банковские счета Заемщика для получения траншей (bank-receipt)
+
+[[REPEAT:BORROWER_DISBURSEMENT_BANK_RECEIPT]]
+| **№** | **Владелец / получатель** | **Банк** | **БИК** | **Номер счета** | **Корр. счет** |
+|---|---|---|---|---|---|
+| {ROW_NO} | {RECIPIENT_NAME_LABEL} | {BANK_NAME} | {BIC} | {ACCOUNT_NO_PRINTABLE} | {CORRESPONDENT_ACCOUNT} |
+[[END_REPEAT]]
+
+### СБП-маршруты Заемщика для получения траншей (SBP-route)
+
+[[REPEAT:BORROWER_DISBURSEMENT_SBP_RECEIPT_ROUTE]]
+| **№** | **Владелец / получатель** | **Телефон / идентификатор** | **Банк** | **Инструкция для отправителя** |
+|---|---|---|---|---|
+| {ROW_NO} | {RECIPIENT_NAME_LABEL} | {SBP_PHONE_OR_IDENTIFIER} | {SBP_BANK} | {SBP_INSTRUCTION} |
+[[END_REPEAT]]
+
+Телефон или иной идентификатор, указанный в таблице СБП-маршрутов, является действительным маршрутом получения перевода через СБП только в составе настоящего Приложения № 1. Телефон Заемщика, приведенный в основном тексте Договора, сам по себе не образует СБП-реквизит.
+
+### Банковские счета Займодавца для получения возвратов (bank-receipt)
+
+[[REPEAT:LENDER_REPAYMENT_BANK_RECEIPT]]
+| **№** | **Владелец / получатель** | **Банк** | **БИК** | **Номер счета** | **Корр. счет** |
+|---|---|---|---|---|---|
+| {ROW_NO} | {RECIPIENT_NAME_LABEL} | {BANK_NAME} | {BIC} | {ACCOUNT_NO_PRINTABLE} | {CORRESPONDENT_ACCOUNT} |
+[[END_REPEAT]]
+
+### СБП-маршруты Займодавца для получения возвратов (SBP-route)
+
+[[REPEAT:LENDER_REPAYMENT_SBP_RECEIPT_ROUTE]]
+| **№** | **Владелец / получатель** | **Телефон / идентификатор** | **Банк** | **Инструкция для отправителя** |
+|---|---|---|---|---|
+| {ROW_NO} | {RECIPIENT_NAME_LABEL} | {SBP_PHONE_OR_IDENTIFIER} | {SBP_BANK} | {SBP_INSTRUCTION} |
+[[END_REPEAT]]
+
+Телефон или иной идентификатор, указанный в таблице СБП-маршрутов Займодавца, является маршрутом получения возвратов через СБП только в том объеме, в каком он согласован в настоящем Приложении № 1. Контактный телефон Займодавца из основного текста Договора не подставляется как СБП-реквизит автоматически.
+
+## 4. Дополнительный блок: summary изменений к предыдущей редакции
+
+[[REPEAT:APP1_CHANGES_SUMMARY]]
+| **№** | **Секция / тип записи** | **Изменение** | **Описание изменения** | **Изменил** | **Причина / комментарий** |
+|---|---|---|---|---|---|
+| {ROW_NO} | {SECTION_LABEL} | {ENTRY_CHANGE_ACTION_LABEL} | {ENTRY_CHANGE_DESCRIPTION} | {CHANGED_BY_ROLE_LABEL} | {CHANGE_REASON_OPTIONAL} |
+[[END_REPEAT]]
+
+## 5. Подписание
+
+5.1. Настоящее Приложение № 1 является двусторонним документом и подписывается обеими Сторонами в электронной форме в соответствии со схемой подписи, действующей по данному Договору займа.
+
+5.2.
+
+[При {SIGNATURE_SCHEME_EFFECTIVE}=UKEP_ONLY] Настоящее Приложение № 1 подписывается обеими Сторонами усиленной квалифицированной электронной подписью (УКЭП) в соответствии с условиями Договора займа, законодательством Российской Федерации и правилами платформы.
+
+[При {SIGNATURE_SCHEME_EFFECTIVE}=UNEP_WITH_APPENDIX_6] Настоящее Приложение № 1 подписывается обеими Сторонами усиленной неквалифицированной электронной подписью (УНЭП) в соответствии с условиями Договора займа, Приложением № 6 к Договору ({APPENDIX_6_REFERENCE}) и Регламентом электронного взаимодействия платформы.
+
+5.3. Настоящее Приложение № 1 не подтверждает факт выдачи или возврата денежных средств и не заменяет собой Приложения № 3, № 4, № 5 или № 7; оно определяет только допустимые реквизиты и параметры получения переводов в пределах уже согласованных условий Договора.
 
 ---
 
-## 1. Сведения о Сторонах
-
-**Займодавец:** {LENDER_FULL_NAME}, паспорт: серия {LENDER_PASSPORT_SERIES} № {LENDER_PASSPORT_NUMBER}, адрес регистрации: {LENDER_REG_ADDRESS}, ID учетной записи на Платформе: {LENDER_APP_ACCOUNT_ID}.
-
-**Заёмщик:** {BORROWER_FULL_NAME}, паспорт: серия {BORROWER_PASSPORT_SERIES} № {BORROWER_PASSPORT_NUMBER}, адрес регистрации: {BORROWER_REG_ADDRESS}, ID учетной записи на Платформе: {BORROWER_APP_ACCOUNT_ID}.
-
-## 2. Политика подтверждения получения
-
-Политика подтверждения получения Транша Заёмщиком: **{BORROWER_DISBURSEMENT_RECEIPT_POLICY_LABEL}**
-Политика подтверждения получения возврата Займодавцем: **{LENDER_REPAYMENT_RECEIPT_POLICY_LABEL}**
-
-## 3. Допустимые реквизиты Займодавца для выдачи (перечисления) Транша
-
-{LENDER_DISBURSEMENT_ACCOUNTS}
-
-## 4. Допустимые реквизиты Заёмщика для получения Транша
-
-{BORROWER_DISBURSEMENT_ACCOUNTS}
-
-## 5. Допустимые реквизиты Займодавца для получения возврата займа
-
-{LENDER_REPAYMENT_ACCOUNTS}
-
-## 6. Допустимые реквизиты Заёмщика для осуществления возврата займа
-
-{BORROWER_REPAYMENT_ACCOUNTS}
-
-## 7. Контактный снапшот Сторон для уведомлений
-
-{NOTICE_SNAPSHOT_TABLE}
-
-## 8. Общие положения
-
-8.1. Перечисление денежных средств на реквизиты, не включённые в настоящее Приложение и не согласованные дополнительным соглашением, не считается надлежащим исполнением обязательства до тех пор, пока получатель не подтвердит получение такого платежа либо Стороны не подпишут изменение к Договору.
-
-8.2. Изменение Допустимых реквизитов после подписания Договора допускается только путём оформления дополнительного соглашения, подписанного обеими Сторонами, или замены настоящего Приложения новой редакцией, подписанной обеими Сторонами.
-
-8.3. Настоящее Приложение является неотъемлемой частью Договора денежного займа № {CONTRACT_NUMBER}.
-
----
-
-## Подписи Сторон
-
-**Займодавец:**
-ФИО: {LENDER_FULL_NAME}
-ID учетной записи на Платформе: {LENDER_APP_ACCOUNT_ID}
-Подпись: {LENDER_SIGNATURE_BLOCK}
-
-**Заёмщик:**
-ФИО: {BORROWER_FULL_NAME}
-ID учетной записи на Платформе: {BORROWER_APP_ACCOUNT_ID}
-Подпись: {BORROWER_SIGNATURE_BLOCK}
+| **ЗАЙМОДАВЕЦ** | **ЗАЕМЩИК** |
+|---|---|
+| {LENDER_FULL_NAME} | {BORROWER_FULL_NAME} |
+| Подписано электронной подписью в платформе в соответствии со схемой {SIGNATURE_SCHEME_LABEL}. | Подписано электронной подписью в платформе в соответствии со схемой {SIGNATURE_SCHEME_LABEL}. |
+| Дата/время подписи: {APP1_SIGNED_BY_LENDER_AT} | Дата/время подписи: {APP1_SIGNED_BY_BORROWER_AT} |
 `;
 
 export const APPENDIX_BANK_DETAILS_VARIABLES = [
-  'CONTRACT_NUMBER',
-  'APPENDIX_DATE',
-  'APP1_VERSION',
-  'APP1_EDITION_KIND',
-  'APP1_PREVIOUS_VERSION_DATE',
-  'APP1_AMENDMENT_REASON',
-  'LENDER_FULL_NAME', 'LENDER_PASSPORT_SERIES', 'LENDER_PASSPORT_NUMBER',
-  'LENDER_REG_ADDRESS', 'LENDER_APP_ACCOUNT_ID',
-  'BORROWER_FULL_NAME', 'BORROWER_PASSPORT_SERIES', 'BORROWER_PASSPORT_NUMBER',
-  'BORROWER_REG_ADDRESS', 'BORROWER_APP_ACCOUNT_ID',
+  // Header metadata
+  'CONTRACT_NUMBER', 'CONTRACT_DATE',
+  'APP1_VERSION_NO', 'APP1_DOCUMENT_DATE',
+  'SIGNATURE_SCHEME_LABEL', 'SIGNATURE_SCHEME_EFFECTIVE',
+  'APP1_PREVIOUS_VERSION_REF',
+  'APP1_EFFECTIVE_AT',
+  // Parties
+  'LENDER_FULL_NAME', 'BORROWER_FULL_NAME',
+  // Policies
   'BORROWER_DISBURSEMENT_RECEIPT_POLICY_LABEL',
   'LENDER_REPAYMENT_RECEIPT_POLICY_LABEL',
-  'LENDER_DISBURSEMENT_ACCOUNTS',
-  'BORROWER_DISBURSEMENT_ACCOUNTS',
-  'LENDER_REPAYMENT_ACCOUNTS',
-  'BORROWER_REPAYMENT_ACCOUNTS',
-  'NOTICE_SNAPSHOT_TABLE',
-  'LENDER_SIGNATURE_BLOCK',
-  'BORROWER_SIGNATURE_BLOCK',
+  // Row-level repeater fields (bank)
+  'ROW_NO', 'RECIPIENT_NAME_LABEL', 'BANK_NAME', 'BIC',
+  'ACCOUNT_NO_PRINTABLE', 'CORRESPONDENT_ACCOUNT',
+  // Row-level repeater fields (SBP)
+  'SBP_PHONE_OR_IDENTIFIER', 'SBP_BANK', 'SBP_INSTRUCTION',
+  // Changes summary row fields
+  'SECTION_LABEL', 'ENTRY_CHANGE_ACTION_LABEL',
+  'ENTRY_CHANGE_DESCRIPTION', 'CHANGED_BY_ROLE_LABEL', 'CHANGE_REASON_OPTIONAL',
+  // Signature
+  'APPENDIX_6_REFERENCE',
+  'APP1_SIGNED_BY_LENDER_AT', 'APP1_SIGNED_BY_BORROWER_AT',
 ] as const;
