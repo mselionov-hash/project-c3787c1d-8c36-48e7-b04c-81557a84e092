@@ -34,6 +34,19 @@ const REPAYMENT_SCHEDULE_TYPES = [
   { value: 'installments_variable', label: 'Переменные платежи' },
 ] as const;
 
+const SIGNATURE_SCHEMES = [
+  {
+    value: 'UKEP_ONLY',
+    label: 'Простая электронная подпись (ПЭП)',
+    description: 'Визуальная подпись с фиксацией IP и времени. Подходит для большинства частных займов.',
+  },
+  {
+    value: 'UNEP_WITH_APPENDIX_6',
+    label: 'УНЭП с Приложением 6',
+    description: 'Усиленная неквалифицированная подпись. Требует принятия Регламента ЭДО обеими сторонами и подписания Приложения 6.',
+  },
+] as const;
+
 const STEPS = ['Заёмщик', 'Сумма и срок', 'Дополнительно', 'Проверка'];
 
 const CreateLoan = () => {
