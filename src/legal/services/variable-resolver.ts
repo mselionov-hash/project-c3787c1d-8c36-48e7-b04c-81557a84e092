@@ -823,7 +823,7 @@ export async function resolveFullRepaymentVariables(loanId: string): Promise<Res
   const schemeEffective = sigPkg?.signature_scheme_effective ?? loan.signature_scheme_requested ?? 'UKEP_ONLY';
   const schemeLabel = getSignatureSchemeLabel(loan.signature_scheme_requested ?? 'UKEP_ONLY');
 
-  return applyAliases({
+  return { variables: applyAliases({
     // Header metadata
     CONTRACT_NUMBER: loan.contract_number || loan.id.slice(0, 8).toUpperCase(),
     CONTRACT_DATE: formatDateRu(loan.issue_date || loan.created_at),
@@ -896,7 +896,7 @@ export async function resolveFullRepaymentVariables(loanId: string): Promise<Res
       ? 'Приложение № 6 (Соглашение об использовании УНЭП)'
       : '',
     APP5_SIGNED_AT: formatDateTimeRu(nowIso),
-  });
+  }), repeatSections: {} };
 }
 
 /**
