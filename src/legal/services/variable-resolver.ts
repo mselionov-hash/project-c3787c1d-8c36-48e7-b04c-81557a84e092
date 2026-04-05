@@ -608,6 +608,13 @@ export async function resolveAppendixScheduleVariables(loanId: string): Promise<
   const hasBorrowerSig = !!borrowerSig;
   const editionKind = (hasLenderSig && hasBorrowerSig) ? 'INITIAL_SIGNED' : 'CURRENT_DERIVED';
 
+  // Find next due item
+  const today = new Date().toISOString().slice(0, 10);
+  const nextDue = scheduleItems.find(i => i.due_date >= today && i.status === 'pending');
+  const nextDueSummary = nextDue
+    ? `Платёж № ${nextDue.item_number}, дата: ${formatDateRu(nextDue.due_date)}, сумма: ${fmtMoney(Number(nextDue.total_amount))} ${PLATFORM_CONFIG.LOAN_CURRENCY}`
+    : 'Ближайший платёж отсутствует';
+
   // Build structured repeat sections for APP2 schedule rows
   let runningPrincipal = debtSummary.totalDisbursed;
   const app2ScheduleRows: VariableRecord[] = scheduleItems.map((item, idx) => {
