@@ -121,6 +121,38 @@ function safeJsonCast<T>(json: Json): T {
 }
 
 /**
+ * Format a tranche's sender or receiver requisite into a human-readable printable string.
+ */
+function formatRequisitePrintable(tranche: Tranche, side: 'sender' | 'receiver'): string {
+  const display = side === 'sender'
+    ? tranche.sender_account_display
+    : tranche.receiver_account_display;
+  if (!display) return '[не указано]';
+  return display;
+}
+
+/**
+ * Calculate debt summary for a loan.
+ * Returns: totalDisbursed, totalRepaid, activeDebt, outstandingPrincipal.
+ * Interest/costs/395 are placeholder zeros for MVP (no interest accrual engine yet).
+ */
+async function calculateDebtSummary(loanId: string) {
+  const [tranchesRes, paymentsRes] = await Promise.all([
+    supabase.from('loan_tranches').select('amount').eq('loan_id', loanId).eq('status', 'confirmed'),
+    supabase.from('loan_payments').select('transfer_amount').eq('loan_id', loanId).eq('status', 'confirmed'),
+  ]);
+  const totalDisbursed = (tranchesRes.data || []).reduce((s, t) => s + Number(t.amount), 0);
+  const totalRepaid = (paymentsRes.data || []).reduce((s, p) => s + Number(p.transfer_amount), 0);
+  const outstandingPrincipal = Math.max(0, totalDisbursed - totalRepaid);
+  // MVP: interest/costs/395 computed as 0 — will be replaced by accrual engine
+  const outstandingInterest = 0;
+  const outstanding395Interest = 0;
+  const outstandingCosts = 0;
+  const activeDebt = outstandingPrincipal + outstandingInterest + outstanding395Interest + outstandingCosts;
+  return { totalDisbursed, totalRepaid, outstandingPrincipal, outstandingInterest, outstanding395Interest, outstandingCosts, activeDebt };
+}
+
+/**
  * Resolve all variables for a loan contract document.
  */
 export async function resolveContractVariables(loanId: string): Promise<VariableRecord> {
