@@ -636,10 +636,12 @@ export async function resolveEdoRegulationVariables(): Promise<VariableRecord> {
  * Resolve variables for APP6 (UNEP Agreement).
  */
 export async function resolveApp6Variables(loanId: string): Promise<VariableRecord> {
-  const [loanRes, regulation, snapshotsRes] = await Promise.all([
+  const [loanRes, regulation, snapshotsRes, unepRes, sigRes] = await Promise.all([
     supabase.from('loans').select('*').eq('id', loanId).single(),
     getCurrentRegulation(),
     supabase.from('signing_snapshots').select('*').eq('loan_id', loanId),
+    supabase.from('unep_agreements').select('*').eq('loan_id', loanId).single(),
+    supabase.from('loan_signatures').select('*').eq('loan_id', loanId),
   ]);
 
   const loan = loanRes.data;
@@ -653,16 +655,55 @@ export async function resolveApp6Variables(loanId: string): Promise<VariableReco
   const lenderProfile = safeJsonCast<ProfileSnapshot>(lenderSnap.snapshot_data);
   const borrowerProfile = safeJsonCast<ProfileSnapshot>(borrowerSnap.snapshot_data);
 
+  const signatures = sigRes.data || [];
+  const lenderSig = signatures.find(s => s.role === 'lender');
+  const borrowerSig = signatures.find(s => s.role === 'borrower');
+  const lastSignatureAt = signatures.length > 0
+    ? signatures.reduce((latest, s) => s.signed_at > latest ? s.signed_at : latest, signatures[0].signed_at)
+    : null;
+
+  const unep = unepRes.data;
+  const schemeRequested = (loan as any).signature_scheme_requested ?? 'UKEP_ONLY';
+
   return applyAliases({
+    // Contract / deal references
     CONTRACT_NUMBER: loan.contract_number || loan.id.slice(0, 8).toUpperCase(),
+    CONTRACT_DATE: formatDateRu(loan.issue_date || loan.created_at),
+    DEAL_ID: loan.id,
+    LAST_SIGNATURE_AT: lastSignatureAt ? formatDateTimeRu(lastSignatureAt) : '[ожидается подписание]',
+
+    // Party data
     LENDER_FULL_NAME: lenderProfile.full_name,
+    LENDER_APP_ACCOUNT_ID: lenderProfile.user_id,
     BORROWER_FULL_NAME: borrowerProfile.full_name,
+    BORROWER_APP_ACCOUNT_ID: borrowerProfile.user_id,
+
+    // Platform
     PLATFORM_NAME: PLATFORM_CONFIG.PLATFORM_NAME,
     PLATFORM_BRAND_NAME: PLATFORM_CONFIG.PLATFORM_BRAND_NAME,
     PLATFORM_URL: PLATFORM_CONFIG.PLATFORM_URL,
     PLATFORM_OPERATOR_NAME: PLATFORM_CONFIG.PLATFORM_OPERATOR_NAME,
+
+    // EDO regulation
+    EDO_REGULATION_NAME: regulation?.title ?? '[не опубликован]',
     EDO_REGULATION_VERSION: regulation?.version ?? '[не опубликован]',
-    APPENDIX_6_REQUIRED: isAppendix6Required((loan as any).signature_scheme_requested ?? 'UKEP_ONLY') ? 'YES' : 'NO',
-    APPENDIX_6_STATUS: '[определяется при подписании]',
+    EDO_REGULATION_EFFECTIVE_FROM: regulation ? formatDateRu(regulation.effective_from) : '[не опубликован]',
+
+    // Signature scheme
+    SIGNATURE_SCHEME_REQUESTED: schemeRequested,
+    SIGNATURE_SCHEME_LABEL: getSignatureSchemeLabel(schemeRequested),
+    APPENDIX_6_REQUIRED: isAppendix6Required(schemeRequested) ? 'YES' : 'NO',
+    APPENDIX_6_STATUS: unep?.status ?? 'pending',
+
+    // APP6-specific fields
+    APP6_CREATED_AT: unep ? formatDateTimeRu(unep.created_at) : formatDateTimeRu(new Date().toISOString()),
+    APP6_SCOPE_TEXT: 'Настоящее Соглашение распространяется на все электронные документы, формируемые и подписываемые Сторонами в рамках Договора денежного займа, указанного в заголовке настоящего Соглашения, посредством Платформы.',
+    APP6_COVERED_DOCUMENTS_TEXT: 'Договор денежного займа, Приложения к Договору, Расписки о получении траншей, Подтверждения частичного и полного погашения, а также иные документы, предусмотренные Договором.',
+    APP6_SIGNED_BY_LENDER_AT: unep?.lender_signed_at ? formatDateTimeRu(unep.lender_signed_at) : '[ожидается подписание]',
+    APP6_SIGNED_BY_BORROWER_AT: unep?.borrower_signed_at ? formatDateTimeRu(unep.borrower_signed_at) : '[ожидается подписание]',
+
+    // Signature blocks
+    LENDER_SIGNATURE_BLOCK: renderSignatureBlock(lenderSig, 'lender'),
+    BORROWER_SIGNATURE_BLOCK: renderSignatureBlock(borrowerSig, 'borrower'),
   });
 }
