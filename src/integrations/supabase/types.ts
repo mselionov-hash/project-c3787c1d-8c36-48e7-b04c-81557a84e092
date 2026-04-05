@@ -68,6 +68,74 @@ export type Database = {
         }
         Relationships: []
       }
+      edo_regulation_acceptances: {
+        Row: {
+          accepted_at: string
+          id: string
+          ip_address: string | null
+          regulation_id: string
+          user_agent: string | null
+          user_id: string
+        }
+        Insert: {
+          accepted_at?: string
+          id?: string
+          ip_address?: string | null
+          regulation_id: string
+          user_agent?: string | null
+          user_id: string
+        }
+        Update: {
+          accepted_at?: string
+          id?: string
+          ip_address?: string | null
+          regulation_id?: string
+          user_agent?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "edo_regulation_acceptances_regulation_id_fkey"
+            columns: ["regulation_id"]
+            isOneToOne: false
+            referencedRelation: "edo_regulations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      edo_regulations: {
+        Row: {
+          content_hash: string | null
+          created_at: string
+          effective_from: string
+          id: string
+          is_current: boolean
+          title: string
+          updated_at: string
+          version: string
+        }
+        Insert: {
+          content_hash?: string | null
+          created_at?: string
+          effective_from?: string
+          id?: string
+          is_current?: boolean
+          title?: string
+          updated_at?: string
+          version: string
+        }
+        Update: {
+          content_hash?: string | null
+          created_at?: string
+          effective_from?: string
+          id?: string
+          is_current?: boolean
+          title?: string
+          updated_at?: string
+          version?: string
+        }
+        Relationships: []
+      }
       generated_documents: {
         Row: {
           created_at: string
@@ -368,15 +436,20 @@ export type Database = {
         Row: {
           amount: number
           borrower_address: string | null
+          borrower_disbursement_receipt_policy: string
           borrower_id: string | null
           borrower_name: string
           borrower_passport: string | null
           city: string
           contract_number: string | null
           created_at: string
+          deal_version: number
           disbursement_method: string
+          early_repayment_interest_rule: string
           early_repayment_notice_days: number
           id: string
+          initiator_role: string
+          interest_accrual_start: string
           interest_mode: string
           interest_payment_schedule: string | null
           interest_rate: number
@@ -385,25 +458,33 @@ export type Database = {
           lender_id: string
           lender_name: string
           lender_passport: string | null
+          lender_repayment_receipt_policy: string
+          loan_type: string
           notes: string | null
           penalty_rate: number
           repayment_date: string
           repayment_schedule_type: string
+          signature_scheme_requested: string
           status: string
           updated_at: string
         }
         Insert: {
           amount: number
           borrower_address?: string | null
+          borrower_disbursement_receipt_policy?: string
           borrower_id?: string | null
           borrower_name: string
           borrower_passport?: string | null
           city?: string
           contract_number?: string | null
           created_at?: string
+          deal_version?: number
           disbursement_method?: string
+          early_repayment_interest_rule?: string
           early_repayment_notice_days?: number
           id?: string
+          initiator_role?: string
+          interest_accrual_start?: string
           interest_mode?: string
           interest_payment_schedule?: string | null
           interest_rate?: number
@@ -412,25 +493,33 @@ export type Database = {
           lender_id: string
           lender_name: string
           lender_passport?: string | null
+          lender_repayment_receipt_policy?: string
+          loan_type?: string
           notes?: string | null
           penalty_rate?: number
           repayment_date: string
           repayment_schedule_type?: string
+          signature_scheme_requested?: string
           status?: string
           updated_at?: string
         }
         Update: {
           amount?: number
           borrower_address?: string | null
+          borrower_disbursement_receipt_policy?: string
           borrower_id?: string | null
           borrower_name?: string
           borrower_passport?: string | null
           city?: string
           contract_number?: string | null
           created_at?: string
+          deal_version?: number
           disbursement_method?: string
+          early_repayment_interest_rule?: string
           early_repayment_notice_days?: number
           id?: string
+          initiator_role?: string
+          interest_accrual_start?: string
           interest_mode?: string
           interest_payment_schedule?: string | null
           interest_rate?: number
@@ -439,10 +528,13 @@ export type Database = {
           lender_id?: string
           lender_name?: string
           lender_passport?: string | null
+          lender_repayment_receipt_policy?: string
+          loan_type?: string
           notes?: string | null
           penalty_rate?: number
           repayment_date?: string
           repayment_schedule_type?: string
+          signature_scheme_requested?: string
           status?: string
           updated_at?: string
         }
@@ -594,6 +686,50 @@ export type Database = {
         }
         Relationships: []
       }
+      signature_packages: {
+        Row: {
+          app6_required: boolean
+          app6_status: string
+          created_at: string
+          id: string
+          loan_id: string
+          package_status: string
+          signature_scheme_effective: string
+          signed_no_debt: boolean
+          updated_at: string
+        }
+        Insert: {
+          app6_required?: boolean
+          app6_status?: string
+          created_at?: string
+          id?: string
+          loan_id: string
+          package_status?: string
+          signature_scheme_effective?: string
+          signed_no_debt?: boolean
+          updated_at?: string
+        }
+        Update: {
+          app6_required?: boolean
+          app6_status?: string
+          created_at?: string
+          id?: string
+          loan_id?: string
+          package_status?: string
+          signature_scheme_effective?: string
+          signed_no_debt?: boolean
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "signature_packages_loan_id_fkey"
+            columns: ["loan_id"]
+            isOneToOne: true
+            referencedRelation: "loans"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       signing_snapshots: {
         Row: {
           created_at: string
@@ -627,6 +763,50 @@ export type Database = {
             foreignKeyName: "signing_snapshots_loan_id_fkey"
             columns: ["loan_id"]
             isOneToOne: false
+            referencedRelation: "loans"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      unep_agreements: {
+        Row: {
+          borrower_signed_at: string | null
+          completed_at: string | null
+          created_at: string
+          generated_at: string | null
+          id: string
+          lender_signed_at: string | null
+          loan_id: string
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          borrower_signed_at?: string | null
+          completed_at?: string | null
+          created_at?: string
+          generated_at?: string | null
+          id?: string
+          lender_signed_at?: string | null
+          loan_id: string
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          borrower_signed_at?: string | null
+          completed_at?: string | null
+          created_at?: string
+          generated_at?: string | null
+          id?: string
+          lender_signed_at?: string | null
+          loan_id?: string
+          status?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "unep_agreements_loan_id_fkey"
+            columns: ["loan_id"]
+            isOneToOne: true
             referencedRelation: "loans"
             referencedColumns: ["id"]
           },
