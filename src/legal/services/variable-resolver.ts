@@ -553,3 +553,62 @@ export async function resolveFullRepaymentVariables(loanId: string): Promise<Var
     LENDER_CONFIRMATION_BLOCK: `Подтверждено на Платформе ${formatDateTimeRu(new Date().toISOString())}\n(простая электронная подпись на Платформе; не является УКЭП)`,
   });
 }
+
+/**
+ * Resolve variables for EDO Regulation document.
+ */
+export async function resolveEdoRegulationVariables(): Promise<VariableRecord> {
+  const regulation = await getCurrentRegulation();
+
+  if (!regulation) {
+    throw new Error('Регламент ЭДО не опубликован.');
+  }
+
+  return applyAliases({
+    EDO_REGULATION_NAME: regulation.title,
+    EDO_REGULATION_VERSION: regulation.version,
+    EDO_REGULATION_ID: regulation.id,
+    EDO_REGULATION_EFFECTIVE_FROM: formatDateRu(regulation.effective_from),
+    PLATFORM_NAME: PLATFORM_CONFIG.PLATFORM_NAME,
+    PLATFORM_BRAND_NAME: PLATFORM_CONFIG.PLATFORM_BRAND_NAME,
+    PLATFORM_URL: PLATFORM_CONFIG.PLATFORM_URL,
+    PLATFORM_OPERATOR_NAME: PLATFORM_CONFIG.PLATFORM_OPERATOR_NAME,
+    PLATFORM_OPERATOR_LEGAL_DETAILS: PLATFORM_CONFIG.PLATFORM_OPERATOR_LEGAL_DETAILS,
+    SUPPORT_CONTACTS_TEXT: PLATFORM_CONFIG.SUPPORT_CONTACTS_TEXT,
+  });
+}
+
+/**
+ * Resolve variables for APP6 (UNEP Agreement).
+ */
+export async function resolveApp6Variables(loanId: string): Promise<VariableRecord> {
+  const [loanRes, regulation, snapshotsRes] = await Promise.all([
+    supabase.from('loans').select('*').eq('id', loanId).single(),
+    getCurrentRegulation(),
+    supabase.from('signing_snapshots').select('*').eq('loan_id', loanId),
+  ]);
+
+  const loan = loanRes.data;
+  if (!loan) throw new Error('Loan not found');
+
+  const snapshots = snapshotsRes.data || [];
+  const lenderSnap = snapshots.find(s => s.snapshot_type === 'party_profile' && s.role === 'lender');
+  const borrowerSnap = snapshots.find(s => s.snapshot_type === 'party_profile' && s.role === 'borrower');
+  if (!lenderSnap || !borrowerSnap) throw new Error('Снимки профилей сторон не найдены.');
+
+  const lenderProfile = safeJsonCast<ProfileSnapshot>(lenderSnap.snapshot_data);
+  const borrowerProfile = safeJsonCast<ProfileSnapshot>(borrowerSnap.snapshot_data);
+
+  return applyAliases({
+    CONTRACT_NUMBER: loan.contract_number || loan.id.slice(0, 8).toUpperCase(),
+    LENDER_FULL_NAME: lenderProfile.full_name,
+    BORROWER_FULL_NAME: borrowerProfile.full_name,
+    PLATFORM_NAME: PLATFORM_CONFIG.PLATFORM_NAME,
+    PLATFORM_BRAND_NAME: PLATFORM_CONFIG.PLATFORM_BRAND_NAME,
+    PLATFORM_URL: PLATFORM_CONFIG.PLATFORM_URL,
+    PLATFORM_OPERATOR_NAME: PLATFORM_CONFIG.PLATFORM_OPERATOR_NAME,
+    EDO_REGULATION_VERSION: regulation?.version ?? '[не опубликован]',
+    APPENDIX_6_REQUIRED: isAppendix6Required((loan as any).signature_scheme_requested ?? 'UKEP_ONLY') ? 'YES' : 'NO',
+    APPENDIX_6_STATUS: '[определяется при подписании]',
+  });
+}
