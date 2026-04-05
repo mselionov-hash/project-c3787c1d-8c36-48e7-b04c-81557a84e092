@@ -181,11 +181,11 @@ const REPAYMENT_VARS: VariableDefinition[] = [
 const DEAL_VARS: VariableDefinition[] = [
   v('DEAL_VERSION', 'scalar_printed', 'deal', 'loans.deal_version', false, [C]),
   v('INITIATOR_ROLE', 'system_only', 'deal', 'loans.initiator_role', false, [C]),
-  v('OFFEROR_ROLE', 'system_only', 'deal', 'derived from deal flow', false, [C], 'deferred'),
-  v('OFFEREE_ROLE', 'system_only', 'deal', 'derived from deal flow', false, [C], 'deferred'),
-  v('SIGNATURE_SCHEME_LABEL', 'derived_printed', 'derived', 'scheme → Russian label', false, [C], 'deferred'),
-  v('APPENDIX_6_REFERENCE', 'derived_printed', 'derived', 'APP6 ref text if applicable', false, [C], 'deferred'),
-  v('SNAPSHOT_VERSION_LABEL', 'derived_printed', 'derived', 'snapshot version display', false, [C], 'deferred'),
+  v('OFFEROR_ROLE', 'system_only', 'deal', 'derived from deal flow', false, [C]),
+  v('OFFEREE_ROLE', 'system_only', 'deal', 'derived from deal flow', false, [C]),
+  v('SIGNATURE_SCHEME_LABEL', 'derived_printed', 'derived', 'scheme → Russian label', false, [C]),
+  v('APPENDIX_6_REFERENCE', 'derived_printed', 'derived', 'APP6 ref text if applicable', false, [C]),
+  v('SNAPSHOT_VERSION_LABEL', 'derived_printed', 'derived', 'snapshot version display', false, [C]),
 ];
 
 // ── EDO Regulation variables ────────────────────────────────────────

@@ -9,6 +9,9 @@ import { amountToWordsRu } from './number-to-words-ru';
 import type { VariableRecord } from './template-engine';
 import type { Tables, Json } from '@/integrations/supabase/types';
 import { applyAliases } from '../variables/aliases';
+import { getOfferorRole, getOffereeRole, getRoleLabel } from './deal-logic';
+import { getSignatureSchemeLabel, isAppendix6Required } from './signature-scheme';
+import { getCurrentRegulation } from './regulation-service';
 
 type Loan = Tables<'loans'>;
 type Tranche = Tables<'loan_tranches'>;
