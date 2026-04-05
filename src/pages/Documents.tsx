@@ -75,6 +75,12 @@ const Documents = () => {
     const { data } = await supabase.from('loans').select('*').order('created_at', { ascending: false });
     setLoans(data || []);
     setLoadingLoans(false);
+
+    // Auto-expand loan from URL param
+    const loanParam = searchParams.get('loan');
+    if (loanParam && data?.some(l => l.id === loanParam)) {
+      toggleLoan(loanParam);
+    }
   };
 
   const toggleLoan = async (loanId: string) => {
