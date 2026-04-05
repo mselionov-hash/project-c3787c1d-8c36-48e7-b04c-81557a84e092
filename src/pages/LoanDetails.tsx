@@ -18,7 +18,7 @@ import { toast } from 'sonner';
 import {
   ArrowLeft, PenTool, CheckCircle2, Clock,
   AlertTriangle, Shield, Send, FileText,
-  CreditCard, ChevronDown, ChevronUp,
+  CreditCard, ChevronDown, ChevronUp, Banknote,
 } from 'lucide-react';
 import type { Tables } from '@/integrations/supabase/types';
 
@@ -235,6 +235,12 @@ const LoanDetails = () => {
   const totalRepaid = confirmedPayments.reduce((s, p) => s + Number(p.transfer_amount), 0);
   const outstanding = Math.max(0, totalDisbursed - totalRepaid);
 
+  // Next-action logic
+  const isSignedPhase = ['fully_signed', 'signed_no_debt'].includes(loan.status);
+  const hasNoConfirmedTranches = confirmedTranches.length === 0;
+  const pendingTranches = tranches.filter(t => t.status === 'planned' || t.status === 'sent');
+  const showPostSignAction = isSignedPhase && hasNoConfirmedTranches;
+
   return (
     <AppLayout>
       <div className="max-w-3xl mx-auto px-4 sm:px-6 py-6 sm:py-8 space-y-3">
@@ -304,6 +310,15 @@ const LoanDetails = () => {
             <PenTool className="w-3.5 h-3.5" />
             Подписать как {isLender ? 'займодавец' : 'заёмщик'}
           </Button>
+        )}
+
+        {/* Post-sign primary action */}
+        {showPostSignAction && (
+          <NextActionBlock
+            isLender={isLender}
+            hasPendingTranches={pendingTranches.length > 0}
+            onOpenBankDetails={() => setExpanded(prev => ({ ...prev, bank: true }))}
+          />
         )}
 
         {/* Timeline */}
@@ -498,5 +513,45 @@ const Row = ({ label, value }: { label: string; value: string }) => (
     <span className="font-medium">{value}</span>
   </div>
 );
+
+const NextActionBlock = ({ isLender, hasPendingTranches, onOpenBankDetails }: {
+  isLender: boolean;
+  hasPendingTranches: boolean;
+  onOpenBankDetails: () => void;
+}) => {
+  if (isLender) {
+    return (
+      <div className="rounded-xl border-2 border-primary/30 bg-primary/5 p-4 space-y-2">
+        <div className="flex items-center gap-2">
+          <Banknote className="w-5 h-5 text-primary" />
+          <p className="text-sm font-semibold">Договор подписан — пора перевести деньги</p>
+        </div>
+        <p className="text-xs text-muted-foreground">
+          {hasPendingTranches
+            ? 'У вас есть запланированные транши. Переведите средства и подтвердите.'
+            : 'Создайте транш и переведите средства заёмщику.'}
+        </p>
+        <div className="flex gap-2 pt-1">
+          <Button size="sm" variant="outline" className="rounded-lg text-xs gap-1" onClick={onOpenBankDetails}>
+            <CreditCard className="w-3.5 h-3.5" />
+            Реквизиты
+          </Button>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="rounded-xl border border-border/50 bg-muted/30 p-4">
+      <div className="flex items-center gap-2">
+        <Clock className="w-5 h-5 text-muted-foreground" />
+        <div>
+          <p className="text-sm font-semibold">Ожидаем перевод от займодавца</p>
+          <p className="text-xs text-muted-foreground">Договор подписан. Когда займодавец переведёт средства, вам нужно будет подтвердить получение.</p>
+        </div>
+      </div>
+    </div>
+  );
+};
 
 export default LoanDetails;
