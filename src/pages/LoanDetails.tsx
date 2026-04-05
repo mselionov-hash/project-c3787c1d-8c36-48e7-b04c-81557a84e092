@@ -281,6 +281,28 @@ const LoanDetails = () => {
             Отправить заёмщику
           </Button>
         )}
+
+        {/* UNEP EDO regulation acceptance block */}
+        {isUnepFlow && baseCanSign && !isFullySigned && user && (
+          <EdoRegulationAcceptance
+            userId={user.id}
+            counterpartyId={isLender ? loan.borrower_id : loan.lender_id}
+            onAccepted={() => {
+              setEdoAcceptedByUser(true);
+            }}
+          />
+        )}
+
+        {/* UNEP gating message */}
+        {isUnepFlow && baseCanSign && !unepReady && (
+          <div className="rounded-lg border border-warning/30 bg-warning/5 p-3">
+            <p className="text-xs text-warning font-medium mb-1">Подписание заблокировано</p>
+            <p className="text-[10px] text-muted-foreground">
+              Для подписания по схеме УНЭП обе стороны должны принять текущую версию Регламента ЭДО.
+            </p>
+          </div>
+        )}
+
         {canSign && (
           <Button onClick={() => setShowSignature(true)} className="w-full gap-2 rounded-lg h-10 text-sm">
             <PenTool className="w-4 h-4" />
