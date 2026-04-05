@@ -909,7 +909,7 @@ export async function resolveEdoRegulationVariables(): Promise<ResolverResult> {
     throw new Error('Регламент ЭДО не опубликован.');
   }
 
-  return applyAliases({
+  return { variables: applyAliases({
     EDO_REGULATION_NAME: regulation.title,
     EDO_REGULATION_VERSION: regulation.version,
     EDO_REGULATION_ID: regulation.id,
@@ -920,7 +920,7 @@ export async function resolveEdoRegulationVariables(): Promise<ResolverResult> {
     PLATFORM_OPERATOR_NAME: PLATFORM_CONFIG.PLATFORM_OPERATOR_NAME,
     PLATFORM_OPERATOR_LEGAL_DETAILS: PLATFORM_CONFIG.PLATFORM_OPERATOR_LEGAL_DETAILS,
     SUPPORT_CONTACTS_TEXT: PLATFORM_CONFIG.SUPPORT_CONTACTS_TEXT,
-  });
+  }), repeatSections: {} };
 }
 
 /**
@@ -956,7 +956,7 @@ export async function resolveApp6Variables(loanId: string): Promise<ResolverResu
   const unep = unepRes.data;
   const schemeRequested = (loan as any).signature_scheme_requested ?? 'UKEP_ONLY';
 
-  return applyAliases({
+  return { variables: applyAliases({
     // Contract / deal references
     CONTRACT_NUMBER: loan.contract_number || loan.id.slice(0, 8).toUpperCase(),
     CONTRACT_PLACE: loan.city,
@@ -998,5 +998,5 @@ export async function resolveApp6Variables(loanId: string): Promise<ResolverResu
     // Signature blocks
     LENDER_SIGNATURE_BLOCK: renderSignatureBlock(lenderSig, 'lender'),
     BORROWER_SIGNATURE_BLOCK: renderSignatureBlock(borrowerSig, 'borrower'),
-  });
+  }), repeatSections: {} };
 }
