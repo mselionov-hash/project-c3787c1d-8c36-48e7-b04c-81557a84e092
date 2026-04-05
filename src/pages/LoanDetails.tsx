@@ -11,6 +11,7 @@ import { PaymentSchedule } from '@/components/PaymentSchedule';
 import { RepaymentList } from '@/components/RepaymentList';
 import { TransferEvidence } from '@/components/TransferEvidence';
 import { LoanTimeline } from '@/components/LoanTimeline';
+import { EdoRegulationAcceptance } from '@/components/EdoRegulationAcceptance';
 import { AppLayout } from '@/components/AppLayout';
 import { Button } from '@/components/ui/button';
 import { toast } from 'sonner';
@@ -62,6 +63,8 @@ const LoanDetails = () => {
   const [loading, setLoading] = useState(true);
   const [showSignature, setShowSignature] = useState(false);
   const [showSend, setShowSend] = useState(false);
+  const [edoAcceptedByUser, setEdoAcceptedByUser] = useState(false);
+  const [edoAcceptedByCounterparty, setEdoAcceptedByCounterparty] = useState(false);
   const [expandedSections, setExpandedSections] = useState<Record<string, boolean>>({
     terms: false,
     bank: false,
@@ -92,6 +95,39 @@ const LoanDetails = () => {
     setScheduleItems(schedRes.data || []);
     setPayments(payRes.data || []);
     setLoading(false);
+
+    // Load EDO acceptance state for UNEP flows
+    if (loanRes.data?.signature_scheme_requested === 'UNEP_WITH_APPENDIX_6' && user) {
+      const { data: reg } = await supabase
+        .from('edo_regulations')
+        .select('id')
+        .eq('is_current', true)
+        .limit(1)
+        .single();
+
+      if (reg) {
+        const { data: userAcc } = await supabase
+          .from('edo_regulation_acceptances')
+          .select('id')
+          .eq('user_id', user.id)
+          .eq('regulation_id', reg.id)
+          .limit(1);
+        setEdoAcceptedByUser((userAcc?.length || 0) > 0);
+
+        const counterpartyId = loanRes.data.lender_id === user.id
+          ? loanRes.data.borrower_id
+          : loanRes.data.lender_id;
+        if (counterpartyId) {
+          const { data: cpAcc } = await supabase
+            .from('edo_regulation_acceptances')
+            .select('id')
+            .eq('user_id', counterpartyId)
+            .eq('regulation_id', reg.id)
+            .limit(1);
+          setEdoAcceptedByCounterparty((cpAcc?.length || 0) > 0);
+        }
+      }
+    }
 
     if (loanRes.data && loanRes.data.status === 'fully_signed') {
       const hasConfirmedTranche = (trancheRes.data || []).some(t => t.status === 'confirmed');
@@ -201,7 +237,10 @@ const LoanDetails = () => {
   const borrowerSig = signatures.find(s => s.role === 'borrower');
   const isLender = user?.id === loan.lender_id;
   const isBorrower = user?.id === loan.borrower_id;
-  const canSign = (isLender && !lenderSig) || (isBorrower && !borrowerSig);
+  const isUnepFlow = loan.signature_scheme_requested === 'UNEP_WITH_APPENDIX_6';
+  const baseCanSign = (isLender && !lenderSig) || (isBorrower && !borrowerSig);
+  const unepReady = !isUnepFlow || (edoAcceptedByUser && edoAcceptedByCounterparty);
+  const canSign = baseCanSign && unepReady;
   const canSend = isLender && !loan.borrower_id;
   const isFullySigned = Boolean(lenderSig && borrowerSig) || ['fully_signed', 'active', 'repaid'].includes(loan.status);
   const hasSchedule = ['installments_fixed', 'installments_variable'].includes(loan.repayment_schedule_type);
@@ -275,6 +314,28 @@ const LoanDetails = () => {
             Отправить заёмщику
           </Button>
         )}
+
+        {/* UNEP EDO regulation acceptance block */}
+        {isUnepFlow && baseCanSign && !isFullySigned && user && (
+          <EdoRegulationAcceptance
+            userId={user.id}
+            counterpartyId={isLender ? loan.borrower_id : loan.lender_id}
+            onAccepted={() => {
+              setEdoAcceptedByUser(true);
+            }}
+          />
+        )}
+
+        {/* UNEP gating message */}
+        {isUnepFlow && baseCanSign && !unepReady && (
+          <div className="rounded-lg border border-warning/30 bg-warning/5 p-3">
+            <p className="text-xs text-warning font-medium mb-1">Подписание заблокировано</p>
+            <p className="text-[10px] text-muted-foreground">
+              Для подписания по схеме УНЭП обе стороны должны принять текущую версию Регламента ЭДО.
+            </p>
+          </div>
+        )}
+
         {canSign && (
           <Button onClick={() => setShowSignature(true)} className="w-full gap-2 rounded-lg h-10 text-sm">
             <PenTool className="w-4 h-4" />

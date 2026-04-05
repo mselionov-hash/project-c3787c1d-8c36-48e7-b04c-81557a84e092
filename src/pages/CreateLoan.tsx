@@ -34,6 +34,19 @@ const REPAYMENT_SCHEDULE_TYPES = [
   { value: 'installments_variable', label: 'Переменные платежи' },
 ] as const;
 
+const SIGNATURE_SCHEMES = [
+  {
+    value: 'UKEP_ONLY',
+    label: 'Простая электронная подпись (ПЭП)',
+    description: 'Визуальная подпись с фиксацией IP и времени. Подходит для большинства частных займов.',
+  },
+  {
+    value: 'UNEP_WITH_APPENDIX_6',
+    label: 'УНЭП с Приложением 6',
+    description: 'Усиленная неквалифицированная подпись. Требует принятия Регламента ЭДО обеими сторонами и подписания Приложения 6.',
+  },
+] as const;
+
 const STEPS = ['Заёмщик', 'Сумма и срок', 'Дополнительно', 'Проверка'];
 
 const CreateLoan = () => {
@@ -60,6 +73,7 @@ const CreateLoan = () => {
   const [city, setCity] = useState('Москва');
   const [issueDate, setIssueDate] = useState(new Date().toISOString().split('T')[0]);
   const [notes, setNotes] = useState('');
+  const [signatureScheme, setSignatureScheme] = useState('UKEP_ONLY');
   const [showAdvanced, setShowAdvanced] = useState(false);
   const [submitting, setSubmitting] = useState(false);
 
@@ -113,6 +127,7 @@ const CreateLoan = () => {
         interest_payment_schedule: interestMode === 'fixed_rate' ? interestPaymentSchedule : null,
         repayment_schedule_type: repaymentScheduleType,
         early_repayment_notice_days: parseInt(earlyRepaymentNoticeDays, 10) || 30,
+        signature_scheme_requested: signatureScheme,
       }).select().single();
 
       if (error) throw error;
@@ -231,6 +246,36 @@ const CreateLoan = () => {
               </Select>
             </div>
 
+            {/* Signature scheme */}
+            <div className="space-y-2">
+              <Label className="text-xs text-muted-foreground">Схема подписания</Label>
+              <div className="space-y-2">
+                {SIGNATURE_SCHEMES.map(scheme => (
+                  <label
+                    key={scheme.value}
+                    className={`flex items-start gap-3 p-3 rounded-lg border cursor-pointer transition-colors ${
+                      signatureScheme === scheme.value
+                        ? 'border-primary/50 bg-primary/5'
+                        : 'border-border/50 hover:bg-muted/30'
+                    }`}
+                  >
+                    <input
+                      type="radio"
+                      name="signatureScheme"
+                      value={scheme.value}
+                      checked={signatureScheme === scheme.value}
+                      onChange={() => setSignatureScheme(scheme.value)}
+                      className="mt-0.5 accent-primary"
+                    />
+                    <div>
+                      <p className="text-sm font-medium">{scheme.label}</p>
+                      <p className="text-[10px] text-muted-foreground mt-0.5">{scheme.description}</p>
+                    </div>
+                  </label>
+                ))}
+              </div>
+            </div>
+
             <button
               onClick={() => setShowAdvanced(!showAdvanced)}
               className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors"
@@ -304,6 +349,13 @@ const CreateLoan = () => {
               <div className="flex justify-between text-sm">
                 <span className="text-muted-foreground">Город</span>
                 <span className="font-medium">{city}</span>
+              </div>
+              <div className="border-t border-border/50 pt-3" />
+              <div className="flex justify-between text-sm">
+                <span className="text-muted-foreground">Подписание</span>
+                <span className="font-medium">
+                  {signatureScheme === 'UNEP_WITH_APPENDIX_6' ? 'УНЭП + Приложение 6' : 'ПЭП (простая)'}
+                </span>
               </div>
             </div>
 
