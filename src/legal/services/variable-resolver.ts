@@ -155,7 +155,7 @@ async function calculateDebtSummary(loanId: string) {
 /**
  * Resolve all variables for a loan contract document.
  */
-export async function resolveContractVariables(loanId: string): Promise<VariableRecord> {
+export async function resolveContractVariables(loanId: string): Promise<ResolverResult> {
   // Fetch all needed data in parallel
   const [loanRes, sigRes, snapshotsRes, scheduleRes] = await Promise.all([
     supabase.from('loans').select('*').eq('id', loanId).single(),
@@ -285,7 +285,7 @@ export async function resolveContractVariables(loanId: string): Promise<Variable
     BORROWER_SIGNATURE_BLOCK: renderSignatureBlock(borrowerSig, 'borrower'),
   };
 
-  return applyAliases(vars);
+  return { variables: applyAliases(vars), repeatSections: {} };
 }
 
 /**
@@ -294,7 +294,7 @@ export async function resolveContractVariables(loanId: string): Promise<Variable
 export async function resolveTrancheReceiptVariables(
   loanId: string,
   trancheId: string
-): Promise<VariableRecord> {
+): Promise<ResolverResult> {
   const [loanRes, trancheRes, sigRes, snapshotsRes, existingDocsRes] = await Promise.all([
     supabase.from('loans').select('*').eq('id', loanId).single(),
     supabase.from('loan_tranches').select('*').eq('id', trancheId).single(),
@@ -407,7 +407,7 @@ export async function resolveTrancheReceiptVariables(
     LENDER_SIGNATURE_BLOCK_OPTIONAL: '[не требуется]',
   };
 
-  return applyAliases(vars);
+  return { variables: applyAliases(vars), repeatSections: {} };
 }
 
 const SCHEDULE_TYPE_LABELS: Record<string, string> = {
