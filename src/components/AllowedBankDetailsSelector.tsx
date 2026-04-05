@@ -274,9 +274,10 @@ export const AllowedBankDetailsSelector = ({
       )}
 
       {canEdit && myDetails.length === 0 && (
-        <p className="text-xs text-muted-foreground">
-          У вас нет банковских реквизитов. Добавьте их в профиле.
-        </p>
+        <div className="rounded-lg border border-dashed border-warning/30 bg-warning/5 p-3">
+          <p className="text-xs text-warning font-medium">Нет реквизитов</p>
+          <p className="text-[10px] text-muted-foreground mt-0.5">Добавьте банковские реквизиты в разделе «Профиль», чтобы привязать их к договору.</p>
+        </div>
       )}
     </div>
   );
