@@ -6,7 +6,7 @@
 import { supabase } from '@/integrations/supabase/client';
 import { PLATFORM_CONFIG } from './platform-config';
 import { amountToWordsRu } from './number-to-words-ru';
-import type { VariableRecord } from './template-engine';
+import type { VariableRecord, RepeatData, ResolverResult } from './template-engine';
 import type { Tables, Json } from '@/integrations/supabase/types';
 import { applyAliases } from '../variables/aliases';
 import { getOfferorRole, getOffereeRole, getRoleLabel } from './deal-logic';
@@ -155,7 +155,7 @@ async function calculateDebtSummary(loanId: string) {
 /**
  * Resolve all variables for a loan contract document.
  */
-export async function resolveContractVariables(loanId: string): Promise<VariableRecord> {
+export async function resolveContractVariables(loanId: string): Promise<ResolverResult> {
   // Fetch all needed data in parallel
   const [loanRes, sigRes, snapshotsRes, scheduleRes] = await Promise.all([
     supabase.from('loans').select('*').eq('id', loanId).single(),
@@ -285,7 +285,7 @@ export async function resolveContractVariables(loanId: string): Promise<Variable
     BORROWER_SIGNATURE_BLOCK: renderSignatureBlock(borrowerSig, 'borrower'),
   };
 
-  return applyAliases(vars);
+  return { variables: applyAliases(vars), repeatSections: {} };
 }
 
 /**
@@ -294,7 +294,7 @@ export async function resolveContractVariables(loanId: string): Promise<Variable
 export async function resolveTrancheReceiptVariables(
   loanId: string,
   trancheId: string
-): Promise<VariableRecord> {
+): Promise<ResolverResult> {
   const [loanRes, trancheRes, sigRes, snapshotsRes, existingDocsRes] = await Promise.all([
     supabase.from('loans').select('*').eq('id', loanId).single(),
     supabase.from('loan_tranches').select('*').eq('id', trancheId).single(),
@@ -407,7 +407,7 @@ export async function resolveTrancheReceiptVariables(
     LENDER_SIGNATURE_BLOCK_OPTIONAL: '[не требуется]',
   };
 
-  return applyAliases(vars);
+  return { variables: applyAliases(vars), repeatSections: {} };
 }
 
 const SCHEDULE_TYPE_LABELS: Record<string, string> = {
@@ -458,7 +458,7 @@ function renderApp1BankRows(details: BankDetailSnapshotItem[], purpose: string, 
  * Resolve variables for Appendix 1 — allowed bank details.
  * Source-aligned with Shablon_APP1_dopustimye_platezhnye_rekvizity_v1_0.docx
  */
-export async function resolveAppendixBankDetailsVariables(loanId: string): Promise<VariableRecord> {
+export async function resolveAppendixBankDetailsVariables(loanId: string): Promise<ResolverResult> {
   const [loanRes, snapshotsRes, sigRes, sigPkgRes] = await Promise.all([
     supabase.from('loans').select('*').eq('id', loanId).single(),
     supabase.from('signing_snapshots').select('*').eq('loan_id', loanId),
@@ -500,52 +500,77 @@ export async function resolveAppendixBankDetailsVariables(loanId: string): Promi
   const borrowerDisbursementBankRows = renderApp1BankRows(bankDetails, 'disbursement', 'borrower');
   const lenderRepaymentBankRows = renderApp1BankRows(bankDetails, 'repayment', 'lender');
 
-  return applyAliases({
-    // Header metadata
-    CONTRACT_NUMBER: loan.contract_number || loan.id.slice(0, 8).toUpperCase(),
-    CONTRACT_DATE: formatDateRu(loan.issue_date || loan.created_at),
-    APP1_VERSION_NO: '1',
-    APP1_DOCUMENT_DATE: formatDateRu(nowIso),
-    SIGNATURE_SCHEME_LABEL: schemeLabel,
-    SIGNATURE_SCHEME_EFFECTIVE: schemeEffective,
-    APP1_PREVIOUS_VERSION_REF: '',
-    APP1_EFFECTIVE_AT: formatDateTimeRu(nowIso),
+  // Build structured repeat sections for APP1
+  const buildBankRows = (purpose: string, partyRole: string): VariableRecord[] => {
+    const filtered = bankDetails.filter(d => d.purpose === purpose && d.party_role === partyRole);
+    return filtered.map((d, i) => ({
+      ROW_NO: String(i + 1),
+      RECIPIENT_NAME_LABEL: d.recipient_display_name || d.bank_name,
+      BANK_NAME: d.bank_name,
+      BIC: d.bik || '—',
+      ACCOUNT_NO_PRINTABLE: d.account_number || d.card_number || '—',
+      CORRESPONDENT_ACCOUNT: '—',
+    }));
+  };
 
-    // Parties
-    LENDER_FULL_NAME: lenderProfile.full_name,
-    BORROWER_FULL_NAME: borrowerProfile.full_name,
+  const buildSbpRows = (purpose: string, partyRole: string): VariableRecord[] => {
+    const filtered = bankDetails.filter(d => d.purpose === purpose && d.party_role === partyRole && d.phone);
+    return filtered.map((d, i) => ({
+      ROW_NO: String(i + 1),
+      RECIPIENT_NAME_LABEL: d.recipient_display_name || d.bank_name,
+      SBP_PHONE_OR_IDENTIFIER: d.phone || '—',
+      SBP_BANK: d.bank_name,
+      SBP_INSTRUCTION: '—',
+    }));
+  };
 
-    // Policies
-    BORROWER_DISBURSEMENT_RECEIPT_POLICY_LABEL: RECEIPT_POLICY_LABELS[loan.borrower_disbursement_receipt_policy] || loan.borrower_disbursement_receipt_policy,
-    LENDER_REPAYMENT_RECEIPT_POLICY_LABEL: RECEIPT_POLICY_LABELS[loan.lender_repayment_receipt_policy] || loan.lender_repayment_receipt_policy,
-    BORROWER_DISBURSEMENT_RECEIPT_POLICY: loan.borrower_disbursement_receipt_policy,
-    LENDER_REPAYMENT_RECEIPT_POLICY: loan.lender_repayment_receipt_policy,
+  const repeatSections: RepeatData = {
+    LENDER_DISBURSEMENT_BANK_SOURCE: buildBankRows('disbursement', 'lender'),
+    BORROWER_DISBURSEMENT_BANK_RECEIPT: buildBankRows('disbursement', 'borrower'),
+    BORROWER_DISBURSEMENT_SBP_RECEIPT_ROUTE: buildSbpRows('disbursement', 'borrower'),
+    LENDER_REPAYMENT_BANK_RECEIPT: buildBankRows('repayment', 'lender'),
+    LENDER_REPAYMENT_SBP_RECEIPT_ROUTE: buildSbpRows('repayment', 'lender'),
+    APP1_CHANGES_SUMMARY: [], // Empty for initial version
+  };
 
-    // Row-level bank fields (pre-rendered for REPEAT blocks)
-    // These become render_block content that replaces [[REPEAT:...]]...[[END_REPEAT]]
-    LENDER_DISBURSEMENT_BANK_SOURCE_ROWS: lenderDisbursementBankRows,
-    BORROWER_DISBURSEMENT_BANK_RECEIPT_ROWS: borrowerDisbursementBankRows,
-    BORROWER_DISBURSEMENT_SBP_RECEIPT_ROUTE_ROWS: '[СБП-маршруты не указаны]',
-    LENDER_REPAYMENT_BANK_RECEIPT_ROWS: lenderRepaymentBankRows,
-    LENDER_REPAYMENT_SBP_RECEIPT_ROUTE_ROWS: '[СБП-маршруты не указаны]',
+  return {
+    variables: applyAliases({
+      // Header metadata
+      CONTRACT_NUMBER: loan.contract_number || loan.id.slice(0, 8).toUpperCase(),
+      CONTRACT_DATE: formatDateRu(loan.issue_date || loan.created_at),
+      APP1_VERSION_NO: '1',
+      APP1_DOCUMENT_DATE: formatDateRu(nowIso),
+      SIGNATURE_SCHEME_LABEL: schemeLabel,
+      SIGNATURE_SCHEME_EFFECTIVE: schemeEffective,
+      APP1_PREVIOUS_VERSION_REF: '',
+      APP1_EFFECTIVE_AT: formatDateTimeRu(nowIso),
 
-    // Changes summary (empty for initial version)
-    APP1_CHANGES_SUMMARY_ROWS: '',
+      // Parties
+      LENDER_FULL_NAME: lenderProfile.full_name,
+      BORROWER_FULL_NAME: borrowerProfile.full_name,
 
-    // Signature
-    APPENDIX_6_REFERENCE: isAppendix6Required(loan.signature_scheme_requested ?? 'UKEP_ONLY')
-      ? 'Приложение № 6 (Соглашение об использовании УНЭП)'
-      : '',
-    APP1_SIGNED_BY_LENDER_AT: lenderSig ? formatDateTimeRu(lenderSig.signed_at) : '[ожидается подписание]',
-    APP1_SIGNED_BY_BORROWER_AT: borrowerSig ? formatDateTimeRu(borrowerSig.signed_at) : '[ожидается подписание]',
-  });
+      // Policies
+      BORROWER_DISBURSEMENT_RECEIPT_POLICY_LABEL: RECEIPT_POLICY_LABELS[loan.borrower_disbursement_receipt_policy] || loan.borrower_disbursement_receipt_policy,
+      LENDER_REPAYMENT_RECEIPT_POLICY_LABEL: RECEIPT_POLICY_LABELS[loan.lender_repayment_receipt_policy] || loan.lender_repayment_receipt_policy,
+      BORROWER_DISBURSEMENT_RECEIPT_POLICY: loan.borrower_disbursement_receipt_policy,
+      LENDER_REPAYMENT_RECEIPT_POLICY: loan.lender_repayment_receipt_policy,
+
+      // Signature
+      APPENDIX_6_REFERENCE: isAppendix6Required(loan.signature_scheme_requested ?? 'UKEP_ONLY')
+        ? 'Приложение № 6 (Соглашение об использовании УНЭП)'
+        : '',
+      APP1_SIGNED_BY_LENDER_AT: lenderSig ? formatDateTimeRu(lenderSig.signed_at) : '[ожидается подписание]',
+      APP1_SIGNED_BY_BORROWER_AT: borrowerSig ? formatDateTimeRu(borrowerSig.signed_at) : '[ожидается подписание]',
+    }),
+    repeatSections,
+  };
 }
 
 /**
  * Resolve variables for Appendix 2 — repayment schedule.
  * Source-aligned with Shablon_APP2_grafik_platezhey_v1_1_rus_clean.docx
  */
-export async function resolveAppendixScheduleVariables(loanId: string): Promise<VariableRecord> {
+export async function resolveAppendixScheduleVariables(loanId: string): Promise<ResolverResult> {
   const [loanRes, scheduleRes, snapshotsRes, sigRes, debtSummary] = await Promise.all([
     supabase.from('loans').select('*').eq('id', loanId).single(),
     supabase.from('payment_schedule_items').select('*').eq('loan_id', loanId).order('item_number'),
@@ -583,11 +608,6 @@ export async function resolveAppendixScheduleVariables(loanId: string): Promise<
   const hasBorrowerSig = !!borrowerSig;
   const editionKind = (hasLenderSig && hasBorrowerSig) ? 'INITIAL_SIGNED' : 'CURRENT_DERIVED';
 
-  // Build schedule rows (pre-rendered for [[REPEAT:APP2_SCHEDULE_ROWS]])
-  const scheduleRowsRendered = scheduleItems.map((item, idx) => {
-    return `| ${idx + 1} | CONTRACTUAL_PLANNED | ${formatDateRu(item.due_date)} | — | 0 | ${fmtMoney(Number(item.interest_amount))} | ${fmtMoney(Number(item.principal_amount))} | 0 | ${fmtMoney(Number(item.total_amount))} | — | ${item.status} |`;
-  }).join('\n');
-
   // Find next due item
   const today = new Date().toISOString().slice(0, 10);
   const nextDue = scheduleItems.find(i => i.due_date >= today && i.status === 'pending');
@@ -595,46 +615,72 @@ export async function resolveAppendixScheduleVariables(loanId: string): Promise<
     ? `Платёж № ${nextDue.item_number}, дата: ${formatDateRu(nextDue.due_date)}, сумма: ${fmtMoney(Number(nextDue.total_amount))} ${PLATFORM_CONFIG.LOAN_CURRENCY}`
     : 'Ближайший платёж отсутствует';
 
-  return applyAliases({
-    // Header metadata
-    CONTRACT_NUMBER: loan.contract_number || loan.id.slice(0, 8).toUpperCase(),
-    CONTRACT_DATE: formatDateRu(loan.issue_date || loan.created_at),
-    APP2_VERSION_NO: '1',
-    APP2_DOCUMENT_DATE: formatDateRu(nowIso),
-    APP2_EDITION_KIND: editionKind,
-    APP2_EDITION_KIND_LABEL: EDITION_KIND_LABELS[editionKind] || editionKind,
-    APP2_GENERATION_SOURCE_LABEL: 'Автоматически из условий Договора',
-    SIGNATURE_SCHEME_LABEL: schemeLabel,
-    REPAYMENT_SCHEDULE_TYPE_LABEL: SCHEDULE_TYPE_LABELS[loan.repayment_schedule_type] || loan.repayment_schedule_type,
-    APP2_CALCULATED_AT: formatDateTimeRu(nowIso),
-    APP2_RECALC_RESULT_LABEL: 'Первоначальный расчет',
-    APP2_CURRENT_STATUS_LABEL: editionKind === 'INITIAL_SIGNED' ? 'Подписанная' : 'Расчетная',
-    APP2_WARNING_LEVEL_LABEL: 'Нет предупреждений',
-    APP2_BASE_CONTRACT_VIEW_REF: `Версия сделки ${loan.deal_version}`,
-    APP2_SOURCE_SET_HASH: '[MVP: not computed]',
-    APP2_TRIGGER_REFERENCE: 'Первоначальное формирование',
-    APP2_CONTEXT_APP1_REFS: 'Приложение № 1 (текущая редакция)',
-
-    // Summary section 1
-    CONFIRMED_TRANCHE_TOTAL: fmtMoney(debtSummary.totalDisbursed),
-    CONFIRMED_REPAYMENT_TOTAL: fmtMoney(debtSummary.totalRepaid),
-    OUTSTANDING_PRINCIPAL: fmtMoney(debtSummary.outstandingPrincipal),
-    OUTSTANDING_LOAN_INTEREST: fmtMoney(debtSummary.outstandingInterest),
-    OUTSTANDING_395_INTEREST: fmtMoney(debtSummary.outstanding395Interest),
-    OUTSTANDING_CREDITOR_COSTS: fmtMoney(debtSummary.outstandingCosts),
-    CONTRACTUAL_FINAL_DEADLINE: formatDateRu(loan.repayment_date),
-    PROJECTED_PAYOFF_DATE: formatDateRu(loan.repayment_date),
-    NEXT_DUE_ROW_SUMMARY: nextDueSummary,
-
-    // Row-level repeater (pre-rendered)
-    APP2_SCHEDULE_ROWS_RENDERED: scheduleRowsRendered,
-
-    // Signature
-    LENDER_FULL_NAME: lenderProfile.full_name,
-    BORROWER_FULL_NAME: borrowerProfile.full_name,
-    APP2_LENDER_SIGNED_AT: lenderSig ? formatDateTimeRu(lenderSig.signed_at) : '[ожидается подписание]',
-    APP2_BORROWER_SIGNED_AT: borrowerSig ? formatDateTimeRu(borrowerSig.signed_at) : '[ожидается подписание]',
+  // Build structured repeat sections for APP2 schedule rows
+  let runningPrincipal = debtSummary.totalDisbursed;
+  const app2ScheduleRows: VariableRecord[] = scheduleItems.map((item, idx) => {
+    const principalAmt = Number(item.principal_amount);
+    const interestAmt = Number(item.interest_amount);
+    const totalAmt = Number(item.total_amount);
+    runningPrincipal = Math.max(0, runningPrincipal - principalAmt);
+    return {
+      APP2_ROW_NO: String(idx + 1),
+      APP2_ROW_KIND_LABEL: 'CONTRACTUAL_PLANNED',
+      APP2_ROW_DATE_OR_PERIOD: formatDateRu(item.due_date),
+      APP2_ROW_EVENT_REF: '—',
+      APP2_ROW_TO_COSTS: '0',
+      APP2_ROW_TO_LOAN_INTEREST: fmtMoney(interestAmt),
+      APP2_ROW_TO_PRINCIPAL: fmtMoney(principalAmt),
+      APP2_ROW_TO_395: '0',
+      APP2_ROW_TOTAL: fmtMoney(totalAmt),
+      APP2_ROW_OUTSTANDING_PRINCIPAL_AFTER: fmtMoney(runningPrincipal),
+      APP2_ROW_NOTE: item.status,
+    };
   });
+
+  const repeatSections: RepeatData = {
+    APP2_SCHEDULE_ROWS: app2ScheduleRows,
+  };
+
+  return {
+    variables: applyAliases({
+      // Header metadata
+      CONTRACT_NUMBER: loan.contract_number || loan.id.slice(0, 8).toUpperCase(),
+      CONTRACT_DATE: formatDateRu(loan.issue_date || loan.created_at),
+      APP2_VERSION_NO: '1',
+      APP2_DOCUMENT_DATE: formatDateRu(nowIso),
+      APP2_EDITION_KIND: editionKind,
+      APP2_EDITION_KIND_LABEL: EDITION_KIND_LABELS[editionKind] || editionKind,
+      APP2_GENERATION_SOURCE_LABEL: 'Автоматически из условий Договора',
+      SIGNATURE_SCHEME_LABEL: schemeLabel,
+      REPAYMENT_SCHEDULE_TYPE_LABEL: SCHEDULE_TYPE_LABELS[loan.repayment_schedule_type] || loan.repayment_schedule_type,
+      APP2_CALCULATED_AT: formatDateTimeRu(nowIso),
+      APP2_RECALC_RESULT_LABEL: 'Первоначальный расчет',
+      APP2_CURRENT_STATUS_LABEL: editionKind === 'INITIAL_SIGNED' ? 'Подписанная' : 'Расчетная',
+      APP2_WARNING_LEVEL_LABEL: 'Нет предупреждений',
+      APP2_BASE_CONTRACT_VIEW_REF: `Версия сделки ${loan.deal_version}`,
+      APP2_SOURCE_SET_HASH: '[MVP: not computed]',
+      APP2_TRIGGER_REFERENCE: 'Первоначальное формирование',
+      APP2_CONTEXT_APP1_REFS: 'Приложение № 1 (текущая редакция)',
+
+      // Summary section 1
+      CONFIRMED_TRANCHE_TOTAL: fmtMoney(debtSummary.totalDisbursed),
+      CONFIRMED_REPAYMENT_TOTAL: fmtMoney(debtSummary.totalRepaid),
+      OUTSTANDING_PRINCIPAL: fmtMoney(debtSummary.outstandingPrincipal),
+      OUTSTANDING_LOAN_INTEREST: fmtMoney(debtSummary.outstandingInterest),
+      OUTSTANDING_395_INTEREST: fmtMoney(debtSummary.outstanding395Interest),
+      OUTSTANDING_CREDITOR_COSTS: fmtMoney(debtSummary.outstandingCosts),
+      CONTRACTUAL_FINAL_DEADLINE: formatDateRu(loan.repayment_date),
+      PROJECTED_PAYOFF_DATE: formatDateRu(loan.repayment_date),
+      NEXT_DUE_ROW_SUMMARY: nextDueSummary,
+
+      // Signature
+      LENDER_FULL_NAME: lenderProfile.full_name,
+      BORROWER_FULL_NAME: borrowerProfile.full_name,
+      APP2_LENDER_SIGNED_AT: lenderSig ? formatDateTimeRu(lenderSig.signed_at) : '[ожидается подписание]',
+      APP2_BORROWER_SIGNED_AT: borrowerSig ? formatDateTimeRu(borrowerSig.signed_at) : '[ожидается подписание]',
+    }),
+    repeatSections,
+  };
 }
 
 /**
@@ -644,7 +690,7 @@ export async function resolveAppendixScheduleVariables(loanId: string): Promise<
 export async function resolvePartialRepaymentVariables(
   loanId: string,
   paymentId: string
-): Promise<VariableRecord> {
+): Promise<ResolverResult> {
   const [loanRes, paymentRes, snapshotsRes, scheduleRes, debtSummary, existingApp4Res, sigPkgRes] = await Promise.all([
     supabase.from('loans').select('*').eq('id', loanId).single(),
     supabase.from('loan_payments').select('*').eq('id', paymentId).single(),
@@ -685,7 +731,7 @@ export async function resolvePartialRepaymentVariables(
   const schemeEffective = sigPkg?.signature_scheme_effective ?? loan.signature_scheme_requested ?? 'UKEP_ONLY';
   const schemeLabel = getSignatureSchemeLabel(loan.signature_scheme_requested ?? 'UKEP_ONLY');
 
-  return applyAliases({
+  return { variables: applyAliases({
     // Header metadata
     CONTRACT_NUMBER: loan.contract_number || loan.id.slice(0, 8).toUpperCase(),
     CONTRACT_DATE: formatDateRu(loan.issue_date || loan.created_at),
@@ -703,56 +749,38 @@ export async function resolvePartialRepaymentVariables(
     REPAYMENT_METHOD_LABEL: REPAYMENT_METHOD_LABELS[methodKey] || methodKey,
     REPAYMENT_BANK_DOCUMENT_ID: payment.transaction_id?.trim() || '[не указано]',
     APP1_EFFECTIVE_DOCUMENT_ID: 'Приложение № 1 (текущая редакция)',
-
-    // Parties
     LENDER_FULL_NAME: lenderProfile.full_name,
     BORROWER_FULL_NAME: borrowerProfile.full_name,
-
-    // Method-specific payment details (bank)
     REPAYMENT_RECEIVER_BANK_ACCOUNT_DISPLAY: '[реквизит Займодавца из APP1]',
     REPAYMENT_RECEIVER_BANK_NAME: payment.bank_name?.trim() || '[не указано]',
     REPAYMENT_RECEIVER_BANK_REQUISITE_DETAILS: '[см. Приложение № 1]',
-
-    // Method-specific payment details (SBP)
     REPAYMENT_RECEIVER_SBP_ID: '[не указано]',
     REPAYMENT_RECEIVER_SBP_BANK: '[не указано]',
     REPAYMENT_RECEIVER_SBP_INSTRUCTION: '[не указано]',
-
-    // Reference text
     REPAYMENT_REFERENCE_TEXT: payment.payment_reference?.trim() || `Возврат по договору займа № ${loan.contract_number || loan.id.slice(0, 8).toUpperCase()}`,
-
-    // Allocation table — MVP: full payment allocated to principal
     APP4_ALLOCATION_TO_COSTS: '0',
     APP4_ALLOCATION_TO_INTEREST: '0',
     APP4_ALLOCATION_TO_PRINCIPAL: fmtMoney(paymentAmount),
     APP4_ALLOCATION_TO_395: '0',
-
-    // Remaining obligation
     APP4_REMAINING_PRINCIPAL_AFTER: fmtMoney(remaining),
     APP4_TOTAL_REMAINING_OBLIGATION_AFTER: fmtMoney(totalRemaining),
-
-    // APP2 linkage
     APP2_APPLIES: hasSchedule ? 'true' : 'false',
     APP2_LINKED_DOCUMENT_ID: hasSchedule ? 'Приложение № 2 (текущая расчетная редакция)' : '',
     APP2_RECALC_ACTION_LABEL: hasSchedule ? 'Актуализация по подтвержденному возврату' : '',
-
-    // Request ID conditional
     APP4_REQUEST_ID_EXISTS: 'false',
     APP4_REQUEST_ID: '',
-
-    // Signature
     APPENDIX_6_REFERENCE: isAppendix6Required(loan.signature_scheme_requested ?? 'UKEP_ONLY')
       ? 'Приложение № 6 (Соглашение об использовании УНЭП)'
       : '',
     APP4_SIGNED_AT: payment.confirmed_at ? formatDateTimeRu(payment.confirmed_at) : formatDateTimeRu(nowIso),
-  });
+  }), repeatSections: {} };
 }
 
 /**
  * Resolve variables for full repayment confirmation (APP5).
  * Source-aligned with Shablon_APP5_podtverzhdenie_polnogo_ispolneniya_v1_0.docx
  */
-export async function resolveFullRepaymentVariables(loanId: string): Promise<VariableRecord> {
+export async function resolveFullRepaymentVariables(loanId: string): Promise<ResolverResult> {
   const [loanRes, tranchesRes, paymentsRes, snapshotsRes, scheduleRes, existingApp5Res, sigPkgRes] = await Promise.all([
     supabase.from('loans').select('*').eq('id', loanId).single(),
     supabase.from('loan_tranches').select('*').eq('loan_id', loanId).eq('status', 'confirmed'),
@@ -795,7 +823,7 @@ export async function resolveFullRepaymentVariables(loanId: string): Promise<Var
   const schemeEffective = sigPkg?.signature_scheme_effective ?? loan.signature_scheme_requested ?? 'UKEP_ONLY';
   const schemeLabel = getSignatureSchemeLabel(loan.signature_scheme_requested ?? 'UKEP_ONLY');
 
-  return applyAliases({
+  return { variables: applyAliases({
     // Header metadata
     CONTRACT_NUMBER: loan.contract_number || loan.id.slice(0, 8).toUpperCase(),
     CONTRACT_DATE: formatDateRu(loan.issue_date || loan.created_at),
@@ -868,20 +896,20 @@ export async function resolveFullRepaymentVariables(loanId: string): Promise<Var
       ? 'Приложение № 6 (Соглашение об использовании УНЭП)'
       : '',
     APP5_SIGNED_AT: formatDateTimeRu(nowIso),
-  });
+  }), repeatSections: {} };
 }
 
 /**
  * Resolve variables for EDO Regulation document.
  */
-export async function resolveEdoRegulationVariables(): Promise<VariableRecord> {
+export async function resolveEdoRegulationVariables(): Promise<ResolverResult> {
   const regulation = await getCurrentRegulation();
 
   if (!regulation) {
     throw new Error('Регламент ЭДО не опубликован.');
   }
 
-  return applyAliases({
+  return { variables: applyAliases({
     EDO_REGULATION_NAME: regulation.title,
     EDO_REGULATION_VERSION: regulation.version,
     EDO_REGULATION_ID: regulation.id,
@@ -892,13 +920,13 @@ export async function resolveEdoRegulationVariables(): Promise<VariableRecord> {
     PLATFORM_OPERATOR_NAME: PLATFORM_CONFIG.PLATFORM_OPERATOR_NAME,
     PLATFORM_OPERATOR_LEGAL_DETAILS: PLATFORM_CONFIG.PLATFORM_OPERATOR_LEGAL_DETAILS,
     SUPPORT_CONTACTS_TEXT: PLATFORM_CONFIG.SUPPORT_CONTACTS_TEXT,
-  });
+  }), repeatSections: {} };
 }
 
 /**
  * Resolve variables for APP6 (UNEP Agreement).
  */
-export async function resolveApp6Variables(loanId: string): Promise<VariableRecord> {
+export async function resolveApp6Variables(loanId: string): Promise<ResolverResult> {
   const [loanRes, regulation, snapshotsRes, unepRes, sigRes] = await Promise.all([
     supabase.from('loans').select('*').eq('id', loanId).single(),
     getCurrentRegulation(),
@@ -928,7 +956,7 @@ export async function resolveApp6Variables(loanId: string): Promise<VariableReco
   const unep = unepRes.data;
   const schemeRequested = (loan as any).signature_scheme_requested ?? 'UKEP_ONLY';
 
-  return applyAliases({
+  return { variables: applyAliases({
     // Contract / deal references
     CONTRACT_NUMBER: loan.contract_number || loan.id.slice(0, 8).toUpperCase(),
     CONTRACT_PLACE: loan.city,
@@ -970,5 +998,5 @@ export async function resolveApp6Variables(loanId: string): Promise<VariableReco
     // Signature blocks
     LENDER_SIGNATURE_BLOCK: renderSignatureBlock(lenderSig, 'lender'),
     BORROWER_SIGNATURE_BLOCK: renderSignatureBlock(borrowerSig, 'borrower'),
-  });
+  }), repeatSections: {} };
 }
