@@ -63,6 +63,8 @@ const LoanDetails = () => {
   const [loading, setLoading] = useState(true);
   const [showSignature, setShowSignature] = useState(false);
   const [showSend, setShowSend] = useState(false);
+  const [edoAcceptedByUser, setEdoAcceptedByUser] = useState(false);
+  const [edoAcceptedByCounterparty, setEdoAcceptedByCounterparty] = useState(false);
   const [expandedSections, setExpandedSections] = useState<Record<string, boolean>>({
     terms: false,
     bank: false,
