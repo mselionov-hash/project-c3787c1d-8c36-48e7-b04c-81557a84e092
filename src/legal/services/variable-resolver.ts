@@ -6,7 +6,7 @@
 import { supabase } from '@/integrations/supabase/client';
 import { PLATFORM_CONFIG } from './platform-config';
 import { amountToWordsRu } from './number-to-words-ru';
-import type { VariableRecord } from './template-engine';
+import type { VariableRecord, RepeatData, ResolverResult } from './template-engine';
 import type { Tables, Json } from '@/integrations/supabase/types';
 import { applyAliases } from '../variables/aliases';
 import { getOfferorRole, getOffereeRole, getRoleLabel } from './deal-logic';
