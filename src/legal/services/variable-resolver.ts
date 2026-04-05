@@ -353,7 +353,7 @@ export async function resolveTrancheReceiptVariables(
     LENDER_SIGNATURE_BLOCK_OPTIONAL: '[не требуется]',
   };
 
-  return vars;
+  return applyAliases(vars);
 }
 
 const SCHEDULE_TYPE_LABELS: Record<string, string> = {
