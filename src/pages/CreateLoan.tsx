@@ -350,6 +350,13 @@ const CreateLoan = () => {
                 <span className="text-muted-foreground">Город</span>
                 <span className="font-medium">{city}</span>
               </div>
+              <div className="border-t border-border/50 pt-3" />
+              <div className="flex justify-between text-sm">
+                <span className="text-muted-foreground">Подписание</span>
+                <span className="font-medium">
+                  {signatureScheme === 'UNEP_WITH_APPENDIX_6' ? 'УНЭП + Приложение 6' : 'ПЭП (простая)'}
+                </span>
+              </div>
             </div>
 
             <p className="text-[10px] text-muted-foreground text-center">
