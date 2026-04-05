@@ -731,7 +731,7 @@ export async function resolvePartialRepaymentVariables(
   const schemeEffective = sigPkg?.signature_scheme_effective ?? loan.signature_scheme_requested ?? 'UKEP_ONLY';
   const schemeLabel = getSignatureSchemeLabel(loan.signature_scheme_requested ?? 'UKEP_ONLY');
 
-  return applyAliases({
+  return { variables: applyAliases({
     // Header metadata
     CONTRACT_NUMBER: loan.contract_number || loan.id.slice(0, 8).toUpperCase(),
     CONTRACT_DATE: formatDateRu(loan.issue_date || loan.created_at),
@@ -749,49 +749,31 @@ export async function resolvePartialRepaymentVariables(
     REPAYMENT_METHOD_LABEL: REPAYMENT_METHOD_LABELS[methodKey] || methodKey,
     REPAYMENT_BANK_DOCUMENT_ID: payment.transaction_id?.trim() || '[не указано]',
     APP1_EFFECTIVE_DOCUMENT_ID: 'Приложение № 1 (текущая редакция)',
-
-    // Parties
     LENDER_FULL_NAME: lenderProfile.full_name,
     BORROWER_FULL_NAME: borrowerProfile.full_name,
-
-    // Method-specific payment details (bank)
     REPAYMENT_RECEIVER_BANK_ACCOUNT_DISPLAY: '[реквизит Займодавца из APP1]',
     REPAYMENT_RECEIVER_BANK_NAME: payment.bank_name?.trim() || '[не указано]',
     REPAYMENT_RECEIVER_BANK_REQUISITE_DETAILS: '[см. Приложение № 1]',
-
-    // Method-specific payment details (SBP)
     REPAYMENT_RECEIVER_SBP_ID: '[не указано]',
     REPAYMENT_RECEIVER_SBP_BANK: '[не указано]',
     REPAYMENT_RECEIVER_SBP_INSTRUCTION: '[не указано]',
-
-    // Reference text
     REPAYMENT_REFERENCE_TEXT: payment.payment_reference?.trim() || `Возврат по договору займа № ${loan.contract_number || loan.id.slice(0, 8).toUpperCase()}`,
-
-    // Allocation table — MVP: full payment allocated to principal
     APP4_ALLOCATION_TO_COSTS: '0',
     APP4_ALLOCATION_TO_INTEREST: '0',
     APP4_ALLOCATION_TO_PRINCIPAL: fmtMoney(paymentAmount),
     APP4_ALLOCATION_TO_395: '0',
-
-    // Remaining obligation
     APP4_REMAINING_PRINCIPAL_AFTER: fmtMoney(remaining),
     APP4_TOTAL_REMAINING_OBLIGATION_AFTER: fmtMoney(totalRemaining),
-
-    // APP2 linkage
     APP2_APPLIES: hasSchedule ? 'true' : 'false',
     APP2_LINKED_DOCUMENT_ID: hasSchedule ? 'Приложение № 2 (текущая расчетная редакция)' : '',
     APP2_RECALC_ACTION_LABEL: hasSchedule ? 'Актуализация по подтвержденному возврату' : '',
-
-    // Request ID conditional
     APP4_REQUEST_ID_EXISTS: 'false',
     APP4_REQUEST_ID: '',
-
-    // Signature
     APPENDIX_6_REFERENCE: isAppendix6Required(loan.signature_scheme_requested ?? 'UKEP_ONLY')
       ? 'Приложение № 6 (Соглашение об использовании УНЭП)'
       : '',
     APP4_SIGNED_AT: payment.confirmed_at ? formatDateTimeRu(payment.confirmed_at) : formatDateTimeRu(nowIso),
-  });
+  }), repeatSections: {} };
 }
 
 /**
