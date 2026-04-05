@@ -235,6 +235,12 @@ const LoanDetails = () => {
   const totalRepaid = confirmedPayments.reduce((s, p) => s + Number(p.transfer_amount), 0);
   const outstanding = Math.max(0, totalDisbursed - totalRepaid);
 
+  // Next-action logic
+  const isSignedPhase = ['fully_signed', 'signed_no_debt'].includes(loan.status);
+  const hasNoConfirmedTranches = confirmedTranches.length === 0;
+  const pendingTranches = tranches.filter(t => t.status === 'planned' || t.status === 'sent');
+  const showPostSignAction = isSignedPhase && hasNoConfirmedTranches;
+
   return (
     <AppLayout>
       <div className="max-w-3xl mx-auto px-4 sm:px-6 py-6 sm:py-8 space-y-3">
@@ -304,6 +310,15 @@ const LoanDetails = () => {
             <PenTool className="w-3.5 h-3.5" />
             Подписать как {isLender ? 'займодавец' : 'заёмщик'}
           </Button>
+        )}
+
+        {/* Post-sign primary action */}
+        {showPostSignAction && (
+          <NextActionBlock
+            isLender={isLender}
+            hasPendingTranches={pendingTranches.length > 0}
+            onOpenBankDetails={() => setExpanded(prev => ({ ...prev, bank: true }))}
+          />
         )}
 
         {/* Timeline */}

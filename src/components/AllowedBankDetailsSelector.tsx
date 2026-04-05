@@ -92,56 +92,55 @@ export const AllowedBankDetailsSelector = ({
     setMyDetails(details);
     setLoading(false);
 
-    // Safe auto-suggest: only if exactly 1 detail, no existing bindings for my role,
-    // and the detail type is compatible with the loan's receipt policy for each purpose.
-    // We suggest (toast) but still auto-bind only for bank_transfer detail_type
-    // matching BANK_TRANSFER_ONLY policy. All other combos require manual selection.
-    if (canEdit && allowedData.filter(a => a.party_role === myRole).length === 0 && details.length === 1) {
-      const detail = details[0];
-      const isBankTransferDetail = detail.detail_type === 'general' || detail.detail_type === 'bank_transfer';
-      const isSbpDetail = detail.detail_type === 'sbp';
+    // Auto-suggest: ONLY if exactly 1 detail total AND no existing bindings for my role.
+    // If user has multiple details, always require manual choice — never auto-bind all.
+    if (canEdit && allowedData.filter(a => a.party_role === myRole).length === 0) {
+      if (details.length === 1) {
+        const detail = details[0];
+        const isBankTransferDetail = detail.detail_type === 'general' || detail.detail_type === 'bank_transfer';
+        const isSbpDetail = detail.detail_type === 'sbp';
 
-      // Fetch loan to check receipt policies
-      const { data: loanData } = await supabase
-        .from('loans')
-        .select('borrower_disbursement_receipt_policy, lender_repayment_receipt_policy')
-        .eq('id', loanId)
-        .single();
+        const { data: loanData } = await supabase
+          .from('loans')
+          .select('borrower_disbursement_receipt_policy, lender_repayment_receipt_policy')
+          .eq('id', loanId)
+          .single();
 
-      if (loanData) {
-        const autoAttached: string[] = [];
+        if (loanData) {
+          const autoAttached: string[] = [];
 
-        for (const purpose of ['disbursement', 'repayment'] as const) {
-          // Determine which policy governs this role+purpose combo
-          const policy = purpose === 'disbursement'
-            ? loanData.borrower_disbursement_receipt_policy
-            : loanData.lender_repayment_receipt_policy;
+          for (const purpose of ['disbursement', 'repayment'] as const) {
+            const policy = purpose === 'disbursement'
+              ? loanData.borrower_disbursement_receipt_policy
+              : loanData.lender_repayment_receipt_policy;
 
-          // Check compatibility: only auto-attach if detail type matches policy
-          const compatible =
-            (policy === 'BANK_TRANSFER_ONLY' && isBankTransferDetail) ||
-            (policy === 'SBP_ONLY' && isSbpDetail) ||
-            (policy === 'BANK_TRANSFER_OR_SBP' && (isBankTransferDetail || isSbpDetail));
+            const compatible =
+              (policy === 'BANK_TRANSFER_ONLY' && isBankTransferDetail) ||
+              (policy === 'SBP_ONLY' && isSbpDetail) ||
+              (policy === 'BANK_TRANSFER_OR_SBP' && (isBankTransferDetail || isSbpDetail));
 
-          if (compatible) {
-            await supabase.from('loan_allowed_bank_details').insert({
-              loan_id: loanId,
-              bank_detail_id: detail.id,
-              party_role: myRole,
-              purpose,
-            });
-            autoAttached.push(purpose === 'disbursement' ? 'выдачу' : 'погашение');
+            if (compatible) {
+              await supabase.from('loan_allowed_bank_details').insert({
+                loan_id: loanId,
+                bank_detail_id: detail.id,
+                party_role: myRole,
+                purpose,
+              });
+              autoAttached.push(purpose === 'disbursement' ? 'выдачу' : 'погашение');
+            }
+          }
+
+          if (autoAttached.length > 0) {
+            toast.success(`Реквизит привязан для: ${autoAttached.join(', ')}`);
+            fetchData();
+            onUpdate?.();
+          } else {
+            toast.info('Реквизит не подходит для автоматической привязки. Выберите вручную.');
           }
         }
-
-        if (autoAttached.length > 0) {
-          toast.success(`Реквизит привязан для: ${autoAttached.join(', ')}`);
-          fetchData();
-          onUpdate?.();
-        } else if (details.length === 1) {
-          // Detail exists but is not compatible — notify user
-          toast.info('Реквизит не подходит для автоматической привязки. Выберите вручную.');
-        }
+      } else if (details.length > 1) {
+        // Multiple details — never auto-bind, ask user to choose
+        toast.info('У вас несколько реквизитов. Выберите нужные вручную.');
       }
     }
   };
