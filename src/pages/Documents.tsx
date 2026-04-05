@@ -226,7 +226,9 @@ const Documents = () => {
                               {isLender && totalDisbursed > 0 && totalRepaid >= totalDisbursed && (
                                 <DocRow label="Полное погашение" type="full_repayment_confirmation" loanId={loan.id} generating={generating} onGen={generate} />
                               )}
-                              <DocRow label="Приложение 6: Соглашение УНЭП" type="unep_agreement" loanId={loan.id} generating={generating} onGen={generate} />
+                              {loan.signature_scheme_requested === 'UNEP_WITH_APPENDIX_6' && (
+                                <DocRow label="Приложение 6: Соглашение УНЭП" type="unep_agreement" loanId={loan.id} generating={generating} onGen={generate} />
+                              )}
                               <DocRow label="Регламент ЭДО" type="edo_regulation" loanId={loan.id} generating={generating} onGen={generate} />
                             </div>
                           )}
