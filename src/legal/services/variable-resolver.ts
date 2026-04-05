@@ -608,58 +608,72 @@ export async function resolveAppendixScheduleVariables(loanId: string): Promise<
   const hasBorrowerSig = !!borrowerSig;
   const editionKind = (hasLenderSig && hasBorrowerSig) ? 'INITIAL_SIGNED' : 'CURRENT_DERIVED';
 
-  // Build schedule rows (pre-rendered for [[REPEAT:APP2_SCHEDULE_ROWS]])
-  const scheduleRowsRendered = scheduleItems.map((item, idx) => {
-    return `| ${idx + 1} | CONTRACTUAL_PLANNED | ${formatDateRu(item.due_date)} | — | 0 | ${fmtMoney(Number(item.interest_amount))} | ${fmtMoney(Number(item.principal_amount))} | 0 | ${fmtMoney(Number(item.total_amount))} | — | ${item.status} |`;
-  }).join('\n');
-
-  // Find next due item
-  const today = new Date().toISOString().slice(0, 10);
-  const nextDue = scheduleItems.find(i => i.due_date >= today && i.status === 'pending');
-  const nextDueSummary = nextDue
-    ? `Платёж № ${nextDue.item_number}, дата: ${formatDateRu(nextDue.due_date)}, сумма: ${fmtMoney(Number(nextDue.total_amount))} ${PLATFORM_CONFIG.LOAN_CURRENCY}`
-    : 'Ближайший платёж отсутствует';
-
-  return applyAliases({
-    // Header metadata
-    CONTRACT_NUMBER: loan.contract_number || loan.id.slice(0, 8).toUpperCase(),
-    CONTRACT_DATE: formatDateRu(loan.issue_date || loan.created_at),
-    APP2_VERSION_NO: '1',
-    APP2_DOCUMENT_DATE: formatDateRu(nowIso),
-    APP2_EDITION_KIND: editionKind,
-    APP2_EDITION_KIND_LABEL: EDITION_KIND_LABELS[editionKind] || editionKind,
-    APP2_GENERATION_SOURCE_LABEL: 'Автоматически из условий Договора',
-    SIGNATURE_SCHEME_LABEL: schemeLabel,
-    REPAYMENT_SCHEDULE_TYPE_LABEL: SCHEDULE_TYPE_LABELS[loan.repayment_schedule_type] || loan.repayment_schedule_type,
-    APP2_CALCULATED_AT: formatDateTimeRu(nowIso),
-    APP2_RECALC_RESULT_LABEL: 'Первоначальный расчет',
-    APP2_CURRENT_STATUS_LABEL: editionKind === 'INITIAL_SIGNED' ? 'Подписанная' : 'Расчетная',
-    APP2_WARNING_LEVEL_LABEL: 'Нет предупреждений',
-    APP2_BASE_CONTRACT_VIEW_REF: `Версия сделки ${loan.deal_version}`,
-    APP2_SOURCE_SET_HASH: '[MVP: not computed]',
-    APP2_TRIGGER_REFERENCE: 'Первоначальное формирование',
-    APP2_CONTEXT_APP1_REFS: 'Приложение № 1 (текущая редакция)',
-
-    // Summary section 1
-    CONFIRMED_TRANCHE_TOTAL: fmtMoney(debtSummary.totalDisbursed),
-    CONFIRMED_REPAYMENT_TOTAL: fmtMoney(debtSummary.totalRepaid),
-    OUTSTANDING_PRINCIPAL: fmtMoney(debtSummary.outstandingPrincipal),
-    OUTSTANDING_LOAN_INTEREST: fmtMoney(debtSummary.outstandingInterest),
-    OUTSTANDING_395_INTEREST: fmtMoney(debtSummary.outstanding395Interest),
-    OUTSTANDING_CREDITOR_COSTS: fmtMoney(debtSummary.outstandingCosts),
-    CONTRACTUAL_FINAL_DEADLINE: formatDateRu(loan.repayment_date),
-    PROJECTED_PAYOFF_DATE: formatDateRu(loan.repayment_date),
-    NEXT_DUE_ROW_SUMMARY: nextDueSummary,
-
-    // Row-level repeater (pre-rendered)
-    APP2_SCHEDULE_ROWS_RENDERED: scheduleRowsRendered,
-
-    // Signature
-    LENDER_FULL_NAME: lenderProfile.full_name,
-    BORROWER_FULL_NAME: borrowerProfile.full_name,
-    APP2_LENDER_SIGNED_AT: lenderSig ? formatDateTimeRu(lenderSig.signed_at) : '[ожидается подписание]',
-    APP2_BORROWER_SIGNED_AT: borrowerSig ? formatDateTimeRu(borrowerSig.signed_at) : '[ожидается подписание]',
+  // Build structured repeat sections for APP2 schedule rows
+  let runningPrincipal = debtSummary.totalDisbursed;
+  const app2ScheduleRows: VariableRecord[] = scheduleItems.map((item, idx) => {
+    const principalAmt = Number(item.principal_amount);
+    const interestAmt = Number(item.interest_amount);
+    const totalAmt = Number(item.total_amount);
+    runningPrincipal = Math.max(0, runningPrincipal - principalAmt);
+    return {
+      APP2_ROW_NO: String(idx + 1),
+      APP2_ROW_KIND_LABEL: 'CONTRACTUAL_PLANNED',
+      APP2_ROW_DATE_OR_PERIOD: formatDateRu(item.due_date),
+      APP2_ROW_EVENT_REF: '—',
+      APP2_ROW_TO_COSTS: '0',
+      APP2_ROW_TO_LOAN_INTEREST: fmtMoney(interestAmt),
+      APP2_ROW_TO_PRINCIPAL: fmtMoney(principalAmt),
+      APP2_ROW_TO_395: '0',
+      APP2_ROW_TOTAL: fmtMoney(totalAmt),
+      APP2_ROW_OUTSTANDING_PRINCIPAL_AFTER: fmtMoney(runningPrincipal),
+      APP2_ROW_NOTE: item.status,
+    };
   });
+
+  const repeatSections: RepeatData = {
+    APP2_SCHEDULE_ROWS: app2ScheduleRows,
+  };
+
+  return {
+    variables: applyAliases({
+      // Header metadata
+      CONTRACT_NUMBER: loan.contract_number || loan.id.slice(0, 8).toUpperCase(),
+      CONTRACT_DATE: formatDateRu(loan.issue_date || loan.created_at),
+      APP2_VERSION_NO: '1',
+      APP2_DOCUMENT_DATE: formatDateRu(nowIso),
+      APP2_EDITION_KIND: editionKind,
+      APP2_EDITION_KIND_LABEL: EDITION_KIND_LABELS[editionKind] || editionKind,
+      APP2_GENERATION_SOURCE_LABEL: 'Автоматически из условий Договора',
+      SIGNATURE_SCHEME_LABEL: schemeLabel,
+      REPAYMENT_SCHEDULE_TYPE_LABEL: SCHEDULE_TYPE_LABELS[loan.repayment_schedule_type] || loan.repayment_schedule_type,
+      APP2_CALCULATED_AT: formatDateTimeRu(nowIso),
+      APP2_RECALC_RESULT_LABEL: 'Первоначальный расчет',
+      APP2_CURRENT_STATUS_LABEL: editionKind === 'INITIAL_SIGNED' ? 'Подписанная' : 'Расчетная',
+      APP2_WARNING_LEVEL_LABEL: 'Нет предупреждений',
+      APP2_BASE_CONTRACT_VIEW_REF: `Версия сделки ${loan.deal_version}`,
+      APP2_SOURCE_SET_HASH: '[MVP: not computed]',
+      APP2_TRIGGER_REFERENCE: 'Первоначальное формирование',
+      APP2_CONTEXT_APP1_REFS: 'Приложение № 1 (текущая редакция)',
+
+      // Summary section 1
+      CONFIRMED_TRANCHE_TOTAL: fmtMoney(debtSummary.totalDisbursed),
+      CONFIRMED_REPAYMENT_TOTAL: fmtMoney(debtSummary.totalRepaid),
+      OUTSTANDING_PRINCIPAL: fmtMoney(debtSummary.outstandingPrincipal),
+      OUTSTANDING_LOAN_INTEREST: fmtMoney(debtSummary.outstandingInterest),
+      OUTSTANDING_395_INTEREST: fmtMoney(debtSummary.outstanding395Interest),
+      OUTSTANDING_CREDITOR_COSTS: fmtMoney(debtSummary.outstandingCosts),
+      CONTRACTUAL_FINAL_DEADLINE: formatDateRu(loan.repayment_date),
+      PROJECTED_PAYOFF_DATE: formatDateRu(loan.repayment_date),
+      NEXT_DUE_ROW_SUMMARY: nextDueSummary,
+
+      // Signature
+      LENDER_FULL_NAME: lenderProfile.full_name,
+      BORROWER_FULL_NAME: borrowerProfile.full_name,
+      APP2_LENDER_SIGNED_AT: lenderSig ? formatDateTimeRu(lenderSig.signed_at) : '[ожидается подписание]',
+      APP2_BORROWER_SIGNED_AT: borrowerSig ? formatDateTimeRu(borrowerSig.signed_at) : '[ожидается подписание]',
+    }),
+    repeatSections,
+  };
 }
 
 /**
