@@ -17,7 +17,7 @@ import { Button } from '@/components/ui/button';
 import { toast } from 'sonner';
 import {
   ArrowLeft, PenTool, CheckCircle2, Clock,
-  AlertTriangle, Shield, Send,
+  AlertTriangle, Shield, Send, FileText,
   CreditCard, ChevronDown, ChevronUp,
 } from 'lucide-react';
 import type { Tables } from '@/integrations/supabase/types';
@@ -33,7 +33,7 @@ const statusConfig: Record<string, { label: string; icon: React.ElementType; cla
   awaiting_signatures: { label: 'Ожидает подписей', icon: PenTool, class: 'bg-warning/15 text-warning' },
   signed_by_lender: { label: 'Подписан займодавцем', icon: PenTool, class: 'bg-info/15 text-info' },
   signed_by_borrower: { label: 'Подписан заёмщиком', icon: PenTool, class: 'bg-info/15 text-info' },
-  fully_signed: { label: 'Полностью подписан', icon: CheckCircle2, class: 'bg-primary/15 text-primary' },
+  fully_signed: { label: 'Подписан', icon: CheckCircle2, class: 'bg-primary/15 text-primary' },
   active: { label: 'Активный', icon: CheckCircle2, class: 'bg-primary/15 text-primary' },
   repaid: { label: 'Погашён', icon: CheckCircle2, class: 'bg-muted text-muted-foreground' },
   overdue: { label: 'Просрочен', icon: AlertTriangle, class: 'bg-destructive/15 text-destructive' },
@@ -50,6 +50,8 @@ const SCHEDULE_TYPE_LABELS: Record<string, string> = {
   installments_variable: 'Перем. платежи',
 };
 
+type SectionKey = 'terms' | 'bank' | 'tranches' | 'schedule' | 'repayments' | 'signatures' | 'evidence';
+
 const LoanDetails = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
@@ -65,9 +67,14 @@ const LoanDetails = () => {
   const [showSend, setShowSend] = useState(false);
   const [edoAcceptedByUser, setEdoAcceptedByUser] = useState(false);
   const [edoAcceptedByCounterparty, setEdoAcceptedByCounterparty] = useState(false);
-  const [expandedSections, setExpandedSections] = useState<Record<string, boolean>>({
+  const [expanded, setExpanded] = useState<Record<SectionKey, boolean>>({
     terms: false,
     bank: false,
+    tranches: true,
+    schedule: false,
+    repayments: true,
+    signatures: false,
+    evidence: false,
   });
 
   useEffect(() => {
@@ -78,8 +85,8 @@ const LoanDetails = () => {
     if (id && user) fetchAll();
   }, [id, user]);
 
-  const toggle = (key: string) =>
-    setExpandedSections(prev => ({ ...prev, [key]: !prev[key] }));
+  const toggle = (key: SectionKey) =>
+    setExpanded(prev => ({ ...prev, [key]: !prev[key] }));
 
   const fetchAll = async () => {
     const [loanRes, sigRes, trancheRes, schedRes, payRes] = await Promise.all([
@@ -96,7 +103,6 @@ const LoanDetails = () => {
     setPayments(payRes.data || []);
     setLoading(false);
 
-    // Load EDO acceptance state for UNEP flows
     if (loanRes.data?.signature_scheme_requested === 'UNEP_WITH_APPENDIX_6' && user) {
       const { data: reg } = await supabase
         .from('edo_regulations')
@@ -138,11 +144,11 @@ const LoanDetails = () => {
     }
 
     if (loanRes.data && loanRes.data.status === 'active') {
-      const confirmedTranches = (trancheRes.data || []).filter(t => t.status === 'confirmed');
-      const totalDisbursed = confirmedTranches.reduce((s, t) => s + Number(t.amount), 0);
-      const confirmedPayments = (payRes.data || []).filter(p => p.status === 'confirmed');
-      const totalRepaid = confirmedPayments.reduce((s, p) => s + Number(p.transfer_amount), 0);
-      if (totalDisbursed > 0 && totalRepaid >= totalDisbursed) {
+      const ct = (trancheRes.data || []).filter(t => t.status === 'confirmed');
+      const td = ct.reduce((s, t) => s + Number(t.amount), 0);
+      const cp = (payRes.data || []).filter(p => p.status === 'confirmed');
+      const tr = cp.reduce((s, p) => s + Number(p.transfer_amount), 0);
+      if (td > 0 && tr >= td) {
         await supabase.from('loans').update({ status: 'repaid' }).eq('id', id!);
         setLoan(prev => prev ? { ...prev, status: 'repaid' } : prev);
       }
@@ -226,13 +232,11 @@ const LoanDetails = () => {
     }
   };
 
-
   if (loading || authLoading || !loan) {
     return <AppLayout><div className="flex items-center justify-center h-64 text-muted-foreground text-sm">Загрузка...</div></AppLayout>;
   }
 
   const status = statusConfig[loan.status] || statusConfig.draft;
-  const StatusIcon = status.icon;
   const lenderSig = signatures.find(s => s.role === 'lender');
   const borrowerSig = signatures.find(s => s.role === 'borrower');
   const isLender = user?.id === loan.lender_id;
@@ -242,10 +246,8 @@ const LoanDetails = () => {
   const unepReady = !isUnepFlow || (edoAcceptedByUser && edoAcceptedByCounterparty);
   const canSign = baseCanSign && unepReady;
   const canSend = isLender && !loan.borrower_id;
-  const isFullySigned = Boolean(lenderSig && borrowerSig) || ['fully_signed', 'active', 'repaid'].includes(loan.status);
   const hasSchedule = ['installments_fixed', 'installments_variable'].includes(loan.repayment_schedule_type);
 
-  // Calculate outstanding
   const confirmedTranches = tranches.filter(t => t.status === 'confirmed');
   const totalDisbursed = confirmedTranches.reduce((s, t) => s + Number(t.amount), 0);
   const confirmedPayments = payments.filter(p => p.status === 'confirmed');
@@ -254,7 +256,7 @@ const LoanDetails = () => {
 
   return (
     <AppLayout>
-      <div className="max-w-3xl mx-auto px-4 sm:px-6 py-6 sm:py-8 space-y-4">
+      <div className="max-w-3xl mx-auto px-4 sm:px-6 py-6 sm:py-8 space-y-3">
         {/* Header */}
         <div className="flex items-center gap-3">
           <button onClick={() => navigate(-1)} className="p-2 rounded-lg hover:bg-secondary transition-colors text-muted-foreground">
@@ -273,160 +275,126 @@ const LoanDetails = () => {
           </div>
         </div>
 
-        {/* Summary card */}
-        <div className="card-elevated p-5">
-          <div className="flex items-center justify-between mb-3">
-            <div>
-              <p className="text-3xl font-bold font-display">{Number(loan.amount).toLocaleString('ru-RU')} ₽</p>
-              <p className="text-xs text-muted-foreground mt-0.5">
-                {loan.interest_mode === 'fixed_rate' ? `${Number(loan.interest_rate)}% годовых` : 'Без процентов'}
-                {' • до '}
-                {new Date(loan.repayment_date).toLocaleDateString('ru-RU')}
-              </p>
-            </div>
+        {/* Summary */}
+        <div className="card-elevated p-4">
+          <div className="flex items-baseline justify-between">
+            <p className="text-2xl font-bold font-display">{Number(loan.amount).toLocaleString('ru-RU')} ₽</p>
+            <p className="text-xs text-muted-foreground">
+              {loan.interest_mode === 'fixed_rate' ? `${Number(loan.interest_rate)}%` : 'Без %'}
+              {' · до '}
+              {new Date(loan.repayment_date).toLocaleDateString('ru-RU')}
+            </p>
           </div>
-
-          {/* Outstanding principal */}
           {totalDisbursed > 0 && (
-            <div className="flex gap-4 pt-3 border-t border-border/50">
-              <div>
-                <p className="stat-label">Выдано</p>
-                <p className="text-sm font-bold text-primary">{totalDisbursed.toLocaleString('ru-RU')} ₽</p>
-              </div>
-              <div>
-                <p className="stat-label">Погашено</p>
-                <p className="text-sm font-bold">{totalRepaid.toLocaleString('ru-RU')} ₽</p>
-              </div>
-              <div>
-                <p className="stat-label">Остаток</p>
-                <p className={`text-sm font-bold ${outstanding > 0 ? 'text-warning' : 'text-primary'}`}>
-                  {outstanding.toLocaleString('ru-RU')} ₽
-                </p>
-              </div>
+            <div className="flex gap-4 pt-3 mt-3 border-t border-border/50 text-xs">
+              <div><span className="text-muted-foreground">Выдано </span><span className="font-semibold text-primary">{totalDisbursed.toLocaleString('ru-RU')} ₽</span></div>
+              <div><span className="text-muted-foreground">Погашено </span><span className="font-semibold">{totalRepaid.toLocaleString('ru-RU')} ₽</span></div>
+              <div><span className="text-muted-foreground">Остаток </span><span className={`font-semibold ${outstanding > 0 ? 'text-warning' : 'text-primary'}`}>{outstanding.toLocaleString('ru-RU')} ₽</span></div>
             </div>
           )}
         </div>
 
-        {/* Primary action */}
+        {/* Primary actions */}
         {canSend && (
-          <Button onClick={() => setShowSend(true)} className="w-full gap-2 rounded-lg h-10 text-sm">
-            <Send className="w-4 h-4" />
+          <Button onClick={() => setShowSend(true)} className="w-full gap-2 rounded-lg h-9 text-xs">
+            <Send className="w-3.5 h-3.5" />
             Отправить заёмщику
           </Button>
         )}
 
-        {/* UNEP EDO regulation acceptance block */}
-        {isUnepFlow && baseCanSign && !isFullySigned && user && (
-          <EdoRegulationAcceptance
-            userId={user.id}
-            counterpartyId={isLender ? loan.borrower_id : loan.lender_id}
-            onAccepted={() => {
-              setEdoAcceptedByUser(true);
-            }}
-          />
-        )}
-
-        {/* UNEP gating message */}
         {isUnepFlow && baseCanSign && !unepReady && (
-          <div className="rounded-lg border border-warning/30 bg-warning/5 p-3">
-            <p className="text-xs text-warning font-medium mb-1">Подписание заблокировано</p>
-            <p className="text-[10px] text-muted-foreground">
-              Для подписания по схеме УНЭП обе стороны должны принять текущую версию Регламента ЭДО.
-            </p>
-          </div>
+          <>
+            <EdoRegulationAcceptance
+              userId={user!.id}
+              counterpartyId={isLender ? loan.borrower_id : loan.lender_id}
+              onAccepted={() => setEdoAcceptedByUser(true)}
+            />
+            <div className="rounded-lg border border-warning/30 bg-warning/5 p-3">
+              <p className="text-xs text-warning font-medium mb-0.5">Подписание заблокировано</p>
+              <p className="text-[10px] text-muted-foreground">
+                Для подписания по схеме УНЭП обе стороны должны принять Регламент ЭДО.
+              </p>
+            </div>
+          </>
         )}
 
         {canSign && (
-          <Button onClick={() => setShowSignature(true)} className="w-full gap-2 rounded-lg h-10 text-sm">
-            <PenTool className="w-4 h-4" />
+          <Button onClick={() => setShowSignature(true)} className="w-full gap-2 rounded-lg h-9 text-xs">
+            <PenTool className="w-3.5 h-3.5" />
             Подписать как {isLender ? 'займодавец' : 'заёмщик'}
           </Button>
         )}
 
         {/* Timeline */}
-        <div className="card-elevated p-5">
-          <h2 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-4">Хронология</h2>
-          <LoanTimeline loan={loan} signatures={signatures} tranches={tranches} payments={payments} />
-        </div>
+        <Section title="Хронология" defaultOpen>
+          <LoanTimeline
+            loan={loan}
+            signatures={signatures}
+            tranches={tranches}
+            payments={payments}
+            edoAccepted={edoAcceptedByUser && edoAcceptedByCounterparty}
+          />
+        </Section>
 
-        {/* Signatures */}
-        <div className="card-elevated p-5">
-          <h2 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-3 flex items-center gap-2">
-            <Shield className="w-3.5 h-3.5" />
-            Подписи
-          </h2>
-          <p className="text-[10px] text-muted-foreground mb-3">Электронная подпись (в MVP — визуальная ПЭП-заглушка, не является УКЭП)</p>
-          <div className="grid grid-cols-2 gap-3">
-            <div className={`rounded-lg border p-3 ${lenderSig ? 'border-primary/30 bg-primary/5' : 'border-dashed border-border'}`}>
-              <p className="text-[10px] text-muted-foreground uppercase mb-1">Займодавец</p>
-              {lenderSig ? (
-                <>
-                  <img src={lenderSig.signature_data} alt="" className="h-10 mb-1" />
-                  <p className="text-[10px] text-muted-foreground">{new Date(lenderSig.signed_at).toLocaleDateString('ru-RU')}</p>
-                </>
-              ) : (
-                <p className="text-xs text-muted-foreground py-3 text-center">—</p>
-              )}
-            </div>
-            <div className={`rounded-lg border p-3 ${borrowerSig ? 'border-primary/30 bg-primary/5' : 'border-dashed border-border'}`}>
-              <p className="text-[10px] text-muted-foreground uppercase mb-1">Заёмщик</p>
-              {borrowerSig ? (
-                <>
-                  <img src={borrowerSig.signature_data} alt="" className="h-10 mb-1" />
-                  <p className="text-[10px] text-muted-foreground">{new Date(borrowerSig.signed_at).toLocaleDateString('ru-RU')}</p>
-                </>
-              ) : (
-                <p className="text-xs text-muted-foreground py-3 text-center">—</p>
-              )}
-            </div>
+        {/* Compact documents link */}
+        <button
+          onClick={() => navigate(`/documents?loan=${loan.id}`)}
+          className="w-full card-elevated p-3 flex items-center gap-2 text-left hover:border-border transition-colors group"
+        >
+          <FileText className="w-4 h-4 text-muted-foreground" />
+          <span className="text-xs font-medium flex-1">Документы</span>
+          <span className="text-[10px] text-muted-foreground group-hover:text-foreground transition-colors">Открыть →</span>
+        </button>
+
+        {/* Collapsible sections */}
+        <CollapsibleCard
+          title="Подписи"
+          icon={<Shield className="w-3.5 h-3.5" />}
+          open={expanded.signatures}
+          onToggle={() => toggle('signatures')}
+        >
+          <p className="text-[10px] text-muted-foreground mb-3">Электронная подпись (в MVP — визуальная ПЭП-заглушка)</p>
+          <div className="grid grid-cols-2 gap-2">
+            <SigBox label="Займодавец" sig={lenderSig} />
+            <SigBox label="Заёмщик" sig={borrowerSig} />
           </div>
-        </div>
+        </CollapsibleCard>
 
-        {/* Collapsible: Terms */}
-        <div className="card-elevated">
-          <button onClick={() => toggle('terms')} className="w-full flex items-center justify-between p-4 text-left">
-            <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Условия</span>
-            {expandedSections.terms ? <ChevronUp className="w-4 h-4 text-muted-foreground" /> : <ChevronDown className="w-4 h-4 text-muted-foreground" />}
-          </button>
-          {expandedSections.terms && (
-            <div className="px-4 pb-4 space-y-2 text-sm">
-              <Row label="Тип" value={INTEREST_MODE_LABELS[loan.interest_mode] || loan.interest_mode} />
-              {loan.interest_mode === 'fixed_rate' && <Row label="Ставка" value={`${Number(loan.interest_rate)}% годовых`} />}
-              <Row label="Неустойка" value={`${Number(loan.penalty_rate)}%/день`} />
-              <Row label="График" value={SCHEDULE_TYPE_LABELS[loan.repayment_schedule_type] || loan.repayment_schedule_type} />
-              <Row label="Дата выдачи" value={new Date(loan.issue_date).toLocaleDateString('ru-RU')} />
-              <Row label="Срок возврата" value={new Date(loan.repayment_date).toLocaleDateString('ru-RU')} />
-              <Row label="Город" value={loan.city} />
-              <Row label="Займодавец" value={loan.lender_name} />
-              <Row label="Заёмщик" value={loan.borrower_name} />
-            </div>
-          )}
-        </div>
+        <CollapsibleCard
+          title="Условия"
+          open={expanded.terms}
+          onToggle={() => toggle('terms')}
+        >
+          <div className="space-y-1.5 text-xs">
+            <Row label="Тип" value={INTEREST_MODE_LABELS[loan.interest_mode] || loan.interest_mode} />
+            {loan.interest_mode === 'fixed_rate' && <Row label="Ставка" value={`${Number(loan.interest_rate)}% годовых`} />}
+            <Row label="Неустойка" value={`${Number(loan.penalty_rate)}%/день`} />
+            <Row label="График" value={SCHEDULE_TYPE_LABELS[loan.repayment_schedule_type] || loan.repayment_schedule_type} />
+            <Row label="Дата выдачи" value={new Date(loan.issue_date).toLocaleDateString('ru-RU')} />
+            <Row label="Срок возврата" value={new Date(loan.repayment_date).toLocaleDateString('ru-RU')} />
+            <Row label="Город" value={loan.city} />
+            <Row label="Займодавец" value={loan.lender_name} />
+            <Row label="Заёмщик" value={loan.borrower_name} />
+          </div>
+        </CollapsibleCard>
 
-        {/* Collapsible: Bank details */}
-        <div className="card-elevated">
-          <button onClick={() => toggle('bank')} className="w-full flex items-center justify-between p-4 text-left">
-            <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider flex items-center gap-2">
-              <CreditCard className="w-3.5 h-3.5" />
-              Реквизиты
-            </span>
-            {expandedSections.bank ? <ChevronUp className="w-4 h-4 text-muted-foreground" /> : <ChevronDown className="w-4 h-4 text-muted-foreground" />}
-          </button>
-          {expandedSections.bank && (
-            <div className="px-4 pb-4">
-              <AllowedBankDetailsSelector
-                loanId={loan.id}
-                lenderId={loan.lender_id}
-                borrowerId={loan.borrower_id}
-                loanStatus={loan.status}
-                onUpdate={fetchAll}
-              />
-            </div>
-          )}
-        </div>
+        <CollapsibleCard
+          title="Реквизиты"
+          icon={<CreditCard className="w-3.5 h-3.5" />}
+          open={expanded.bank}
+          onToggle={() => toggle('bank')}
+        >
+          <AllowedBankDetailsSelector
+            loanId={loan.id}
+            lenderId={loan.lender_id}
+            borrowerId={loan.borrower_id}
+            loanStatus={loan.status}
+            onUpdate={fetchAll}
+          />
+        </CollapsibleCard>
 
-        {/* Tranches */}
-        <div className="card-elevated p-5">
+        {/* Tranches — always visible when relevant */}
+        <div className="card-elevated p-4">
           <TrancheList
             tranches={tranches}
             loanId={loan.id}
@@ -438,13 +406,16 @@ const LoanDetails = () => {
             loanStatus={loan.status}
             contractNumber={loan.contract_number}
             onRefresh={fetchAll}
-            
           />
         </div>
 
         {/* Schedule */}
         {hasSchedule && (
-          <div className="card-elevated p-5">
+          <CollapsibleCard
+            title="График платежей"
+            open={expanded.schedule}
+            onToggle={() => toggle('schedule')}
+          >
             <PaymentSchedule
               items={scheduleItems}
               loanId={loan.id}
@@ -453,11 +424,11 @@ const LoanDetails = () => {
               repaymentScheduleType={loan.repayment_schedule_type}
               onRefresh={fetchAll}
             />
-          </div>
+          </CollapsibleCard>
         )}
 
         {/* Repayments */}
-        <div className="card-elevated p-5">
+        <div className="card-elevated p-4">
           <RepaymentList
             payments={payments}
             loanId={loan.id}
@@ -468,11 +439,10 @@ const LoanDetails = () => {
             loanStatus={loan.status}
             contractNumber={loan.contract_number}
             onRefresh={fetchAll}
-            
           />
         </div>
 
-        {/* Transfer Evidence — separate from documents */}
+        {/* Transfer Evidence */}
         <TransferEvidence tranches={tranches} payments={payments} />
       </div>
 
@@ -494,6 +464,50 @@ const LoanDetails = () => {
     </AppLayout>
   );
 };
+
+/* --- Helper components --- */
+
+const Section = ({ title, children, defaultOpen = false }: { title: string; children: React.ReactNode; defaultOpen?: boolean }) => {
+  const [open, setOpen] = useState(defaultOpen);
+  return (
+    <div className="card-elevated">
+      <button onClick={() => setOpen(!open)} className="w-full flex items-center justify-between p-3 text-left">
+        <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">{title}</span>
+        {open ? <ChevronUp className="w-3.5 h-3.5 text-muted-foreground" /> : <ChevronDown className="w-3.5 h-3.5 text-muted-foreground" />}
+      </button>
+      {open && <div className="px-3 pb-3">{children}</div>}
+    </div>
+  );
+};
+
+const CollapsibleCard = ({ title, icon, open, onToggle, children }: {
+  title: string; icon?: React.ReactNode; open: boolean; onToggle: () => void; children: React.ReactNode;
+}) => (
+  <div className="card-elevated">
+    <button onClick={onToggle} className="w-full flex items-center justify-between p-3 text-left">
+      <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider flex items-center gap-1.5">
+        {icon}
+        {title}
+      </span>
+      {open ? <ChevronUp className="w-3.5 h-3.5 text-muted-foreground" /> : <ChevronDown className="w-3.5 h-3.5 text-muted-foreground" />}
+    </button>
+    {open && <div className="px-3 pb-3">{children}</div>}
+  </div>
+);
+
+const SigBox = ({ label, sig }: { label: string; sig?: Signature | null }) => (
+  <div className={`rounded-lg border p-2.5 ${sig ? 'border-primary/30 bg-primary/5' : 'border-dashed border-border'}`}>
+    <p className="text-[10px] text-muted-foreground uppercase mb-1">{label}</p>
+    {sig ? (
+      <>
+        <img src={sig.signature_data} alt="" className="h-8 mb-0.5" />
+        <p className="text-[10px] text-muted-foreground">{new Date(sig.signed_at).toLocaleDateString('ru-RU')}</p>
+      </>
+    ) : (
+      <p className="text-[10px] text-muted-foreground py-2 text-center">—</p>
+    )}
+  </div>
+);
 
 const Row = ({ label, value }: { label: string; value: string }) => (
   <div className="flex justify-between">

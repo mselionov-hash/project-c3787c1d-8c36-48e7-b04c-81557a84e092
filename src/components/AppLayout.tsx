@@ -19,17 +19,17 @@ export const AppLayout = ({ children }: { children: ReactNode }) => {
   return (
     <div className="min-h-screen bg-background flex">
       {/* Desktop sidebar */}
-      <aside className="hidden md:flex flex-col w-60 border-r border-border/50 bg-card/50 sticky top-0 h-screen">
-        <div className="p-5 border-b border-border/50">
-          <div className="flex items-center gap-2.5">
-            <div className="w-8 h-8 rounded-lg bg-primary flex items-center justify-center">
-              <Wallet className="w-4 h-4 text-primary-foreground" />
+      <aside className="hidden md:flex flex-col w-56 border-r border-border/50 bg-card/50 sticky top-0 h-screen">
+        <div className="p-4 border-b border-border/50">
+          <div className="flex items-center gap-2">
+            <div className="w-7 h-7 rounded-lg bg-primary flex items-center justify-center">
+              <Wallet className="w-3.5 h-3.5 text-primary-foreground" />
             </div>
             <span className="font-bold text-sm font-display">P2P Займы</span>
           </div>
         </div>
 
-        <nav className="flex-1 p-3 space-y-0.5">
+        <nav className="flex-1 p-2 space-y-0.5">
           {navItems.map(item => (
             <NavLink
               key={item.to}
@@ -44,16 +44,16 @@ export const AppLayout = ({ children }: { children: ReactNode }) => {
           ))}
         </nav>
 
-        <div className="p-3 space-y-2 border-t border-border/50">
+        <div className="p-2 space-y-1.5 border-t border-border/50">
           <Button
             onClick={() => navigate('/loans/create')}
-            className="w-full gap-2 rounded-lg h-9 text-xs"
+            className="w-full gap-2 rounded-lg h-8 text-xs"
             size="sm"
           >
             <Plus className="w-3.5 h-3.5" />
             Новый займ
           </Button>
-          <div className="flex items-center justify-between px-3 py-2">
+          <div className="flex items-center justify-between px-2 py-1.5">
             <span className="text-xs text-muted-foreground truncate">{displayName}</span>
             <button
               onClick={signOut}
