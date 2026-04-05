@@ -9,6 +9,8 @@ import {
   generateAppendixSchedule,
   generatePartialRepaymentConfirmation,
   generateFullRepaymentConfirmation,
+  generateUnepAgreement,
+  generateEdoRegulation,
 } from '@/legal/services/document-generator';
 import { AppLayout } from '@/components/AppLayout';
 import { Button } from '@/components/ui/button';
@@ -32,6 +34,8 @@ const DOC_TYPE_LABELS: Record<string, string> = {
   appendix_repayment_schedule: 'Приложение 2: График погашения',
   partial_repayment_confirmation: 'Подтверждение частичного погашения',
   full_repayment_confirmation: 'Подтверждение полного погашения',
+  unep_agreement: 'Приложение 6: Соглашение УНЭП',
+  edo_regulation: 'Регламент ЭДО',
 };
 
 const statusLabels: Record<string, { label: string; class: string }> = {
@@ -103,6 +107,8 @@ const Documents = () => {
         case 'tranche_receipt': if (entityId) await generateTrancheReceipt(loanId, entityId, user.id); break;
         case 'partial_repayment_confirmation': if (entityId) await generatePartialRepaymentConfirmation(loanId, entityId, user.id); break;
         case 'full_repayment_confirmation': await generateFullRepaymentConfirmation(loanId, user.id); break;
+        case 'unep_agreement': await generateUnepAgreement(loanId, user.id); break;
+        case 'edo_regulation': await generateEdoRegulation(loanId, user.id); break;
       }
       toast.success('Документ сформирован и скачан');
       // Refresh docs for this loan
@@ -217,9 +223,11 @@ const Documents = () => {
                                   onGen={generate}
                                 />
                               ))}
-                              {isLender && loan.status === 'repaid' && totalDisbursed > 0 && totalRepaid >= totalDisbursed && (
+                              {isLender && totalDisbursed > 0 && totalRepaid >= totalDisbursed && (
                                 <DocRow label="Полное погашение" type="full_repayment_confirmation" loanId={loan.id} generating={generating} onGen={generate} />
                               )}
+                              <DocRow label="Приложение 6: Соглашение УНЭП" type="unep_agreement" loanId={loan.id} generating={generating} onGen={generate} />
+                              <DocRow label="Регламент ЭДО" type="edo_regulation" loanId={loan.id} generating={generating} onGen={generate} />
                             </div>
                           )}
 
