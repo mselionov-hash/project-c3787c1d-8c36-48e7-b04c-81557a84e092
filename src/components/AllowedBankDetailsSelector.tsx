@@ -69,6 +69,7 @@ export const AllowedBankDetailsSelector = ({
     ]);
 
     const allowedData = allowedRes.data || [];
+    const details = detailsRes.data || [];
 
     // Fetch bank detail info for each allowed entry
     if (allowedData.length > 0) {
@@ -88,8 +89,25 @@ export const AllowedBankDetailsSelector = ({
       setAllowed([]);
     }
 
-    setMyDetails(detailsRes.data || []);
+    setMyDetails(details);
     setLoading(false);
+
+    // Auto-preselect: if no allowed details for my role yet and exactly 1 bank detail exists, add it for each purpose
+    if (canEdit && allowedData.filter(a => a.party_role === myRole).length === 0 && details.length === 1) {
+      const detail = details[0];
+      const purposes = ['disbursement', 'repayment'];
+      for (const purpose of purposes) {
+        await supabase.from('loan_allowed_bank_details').insert({
+          loan_id: loanId,
+          bank_detail_id: detail.id,
+          party_role: myRole,
+          purpose,
+        });
+      }
+      toast.success('Единственный реквизит автоматически привязан к договору');
+      fetchData(); // re-fetch to show updated state
+      onUpdate?.();
+    }
   };
 
   const handleAdd = async (bankDetailId: string) => {
