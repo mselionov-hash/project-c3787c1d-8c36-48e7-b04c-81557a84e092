@@ -88,6 +88,15 @@ const LoanDetails = () => {
   const toggle = (key: SectionKey) =>
     setExpanded(prev => ({ ...prev, [key]: !prev[key] }));
 
+  const refreshEdoAcceptance = async (loanData: Loan, userId: string) => {
+    const { data } = await supabase.rpc('get_loan_edo_acceptance', { p_loan_id: loanData.id });
+    if (!data || (data as any).error || (data as any).has_regulation === false) return;
+    const d = data as Record<string, unknown>;
+    const isL = loanData.lender_id === userId;
+    setEdoAcceptedByUser(isL ? !!d.lender_accepted : !!d.borrower_accepted);
+    setEdoAcceptedByCounterparty(isL ? !!d.borrower_accepted : !!d.lender_accepted);
+  };
+
   const fetchAll = async () => {
     const [loanRes, sigRes, trancheRes, schedRes, payRes] = await Promise.all([
       supabase.from('loans').select('*').eq('id', id!).single(),
