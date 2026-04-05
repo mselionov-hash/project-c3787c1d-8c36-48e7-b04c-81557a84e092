@@ -351,12 +351,20 @@ export async function resolveTrancheReceiptVariables(
     TRANCHE_TIME: tranche.actual_time || '—',
     TRANCHE_TIMEZONE: tranche.timezone || 'Europe/Moscow',
     TRANCHE_METHOD: methodKey,
+    TRANCHE_METHOD_LABEL: methodKey === 'SBP' ? 'Перевод через СБП' : 'Банковский перевод',
     TRANCHE_SENDER_ACCOUNT_DISPLAY: tranche.sender_account_display || '[не указано]',
     TRANCHE_RECEIVER_ACCOUNT_DISPLAY: tranche.receiver_account_display || '[не указано]',
     TRANCHE_REFERENCE_TEXT: tranche.reference_text || `По договору займа № ${loan.contract_number || loan.id.slice(0, 8).toUpperCase()}`,
     TRANCHE_BANK_DOCUMENT_ID: tranche.bank_document_id || '[не указано]',
     TRANCHE_BANK_DOCUMENT_DATE: formatDateRu(tranche.bank_document_date),
     TRANCHE_TRANSFER_SOURCE: tranche.transfer_source || 'MANUAL',
+
+    // TZ v2.2 printable requisite fields
+    TRANCHE_SENDER_REQUISITE_PRINTABLE: formatRequisitePrintable(tranche, 'sender'),
+    TRANCHE_RECEIVER_REQUISITE_PRINTABLE: formatRequisitePrintable(tranche, 'receiver'),
+    TRANCHE_RECEIVER_SBP_ROUTE_PRINTABLE: methodKey === 'SBP'
+      ? (tranche.receiver_account_display || '[не указано]')
+      : '',
 
     // Conditional flags
     LENDER_CO_SIGNATURE_ENABLED: PLATFORM_CONFIG.LENDER_CO_SIGNATURE_ENABLED,
