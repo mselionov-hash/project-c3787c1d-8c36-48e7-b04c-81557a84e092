@@ -824,6 +824,7 @@ export type Database = {
           user_id: string
         }[]
       }
+      get_loan_edo_acceptance: { Args: { p_loan_id: string }; Returns: Json }
     }
     Enums: {
       [_ in never]: never
