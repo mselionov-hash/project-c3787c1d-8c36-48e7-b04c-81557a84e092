@@ -205,13 +205,24 @@ export async function resolveContractVariables(loanId: string): Promise<Variable
 
     // Platform config
     PLATFORM_NAME: PLATFORM_CONFIG.PLATFORM_NAME,
+    PLATFORM_BRAND_NAME: PLATFORM_CONFIG.PLATFORM_BRAND_NAME,
     PLATFORM_URL: PLATFORM_CONFIG.PLATFORM_URL,
     PLATFORM_OPERATOR_NAME: PLATFORM_CONFIG.PLATFORM_OPERATOR_NAME,
     DISBURSEMENT_REFERENCE_RULE: PLATFORM_CONFIG.DISBURSEMENT_REFERENCE_RULE,
     PAYMENT_REFERENCE_RULE: PLATFORM_CONFIG.PAYMENT_REFERENCE_RULE,
+    CONTRACT_LANGUAGE: PLATFORM_CONFIG.CONTRACT_LANGUAGE,
+    INTEREST_ACCRUAL_START: PLATFORM_CONFIG.INTEREST_ACCRUAL_START,
+    EARLY_REPAYMENT_INTEREST_RULE: PLATFORM_CONFIG.EARLY_REPAYMENT_INTEREST_RULE,
+
+    // TZ v2.2: deal and signature scheme
+    DEAL_VERSION: String((loan as any).deal_version ?? 1),
+    INITIATOR_ROLE: (loan as any).initiator_role ?? 'lender',
+    LOAN_TYPE: (loan as any).loan_type ?? PLATFORM_CONFIG.LOAN_TYPE,
+    SIGNATURE_SCHEME_REQUESTED: (loan as any).signature_scheme_requested ?? 'UKEP_ONLY',
+    BORROWER_DISBURSEMENT_RECEIPT_POLICY: (loan as any).borrower_disbursement_receipt_policy ?? 'BANK_TRANSFER_ONLY',
+    LENDER_REPAYMENT_RECEIPT_POLICY: (loan as any).lender_repayment_receipt_policy ?? 'BANK_TRANSFER_ONLY',
 
     // Render blocks: bank details tables
-    // DB stores purpose='disbursement' (lender sends / borrower receives) and purpose='repayment' (borrower sends / lender receives)
     'ALLOWED_LENDER_DISBURSEMENT_ACCOUNTS_TABLE': renderBankDetailsTable(bankDetails, 'disbursement', 'lender'),
     'ALLOWED_LENDER_DISBURSEMENT_ACCOUNTS': renderBankDetailsTable(bankDetails, 'disbursement', 'lender'),
     'ALLOWED_BORROWER_RECEIVING_ACCOUNTS_TABLE': renderBankDetailsTable(bankDetails, 'disbursement', 'borrower'),
@@ -228,7 +239,7 @@ export async function resolveContractVariables(loanId: string): Promise<Variable
     BORROWER_SIGNATURE_BLOCK: renderSignatureBlock(borrowerSig, 'borrower'),
   };
 
-  return vars;
+  return applyAliases(vars);
 }
 
 /**
