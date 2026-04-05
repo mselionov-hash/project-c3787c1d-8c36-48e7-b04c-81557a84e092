@@ -8,6 +8,7 @@ import { PLATFORM_CONFIG } from './platform-config';
 import { amountToWordsRu } from './number-to-words-ru';
 import type { VariableRecord } from './template-engine';
 import type { Tables, Json } from '@/integrations/supabase/types';
+import { applyAliases } from '../variables/aliases';
 
 type Loan = Tables<'loans'>;
 type Tranche = Tables<'loan_tranches'>;
@@ -204,13 +205,24 @@ export async function resolveContractVariables(loanId: string): Promise<Variable
 
     // Platform config
     PLATFORM_NAME: PLATFORM_CONFIG.PLATFORM_NAME,
+    PLATFORM_BRAND_NAME: PLATFORM_CONFIG.PLATFORM_BRAND_NAME,
     PLATFORM_URL: PLATFORM_CONFIG.PLATFORM_URL,
     PLATFORM_OPERATOR_NAME: PLATFORM_CONFIG.PLATFORM_OPERATOR_NAME,
     DISBURSEMENT_REFERENCE_RULE: PLATFORM_CONFIG.DISBURSEMENT_REFERENCE_RULE,
     PAYMENT_REFERENCE_RULE: PLATFORM_CONFIG.PAYMENT_REFERENCE_RULE,
+    CONTRACT_LANGUAGE: PLATFORM_CONFIG.CONTRACT_LANGUAGE,
+    INTEREST_ACCRUAL_START: PLATFORM_CONFIG.INTEREST_ACCRUAL_START,
+    EARLY_REPAYMENT_INTEREST_RULE: PLATFORM_CONFIG.EARLY_REPAYMENT_INTEREST_RULE,
+
+    // TZ v2.2: deal and signature scheme
+    DEAL_VERSION: String((loan as any).deal_version ?? 1),
+    INITIATOR_ROLE: (loan as any).initiator_role ?? 'lender',
+    LOAN_TYPE: (loan as any).loan_type ?? PLATFORM_CONFIG.LOAN_TYPE,
+    SIGNATURE_SCHEME_REQUESTED: (loan as any).signature_scheme_requested ?? 'UKEP_ONLY',
+    BORROWER_DISBURSEMENT_RECEIPT_POLICY: (loan as any).borrower_disbursement_receipt_policy ?? 'BANK_TRANSFER_ONLY',
+    LENDER_REPAYMENT_RECEIPT_POLICY: (loan as any).lender_repayment_receipt_policy ?? 'BANK_TRANSFER_ONLY',
 
     // Render blocks: bank details tables
-    // DB stores purpose='disbursement' (lender sends / borrower receives) and purpose='repayment' (borrower sends / lender receives)
     'ALLOWED_LENDER_DISBURSEMENT_ACCOUNTS_TABLE': renderBankDetailsTable(bankDetails, 'disbursement', 'lender'),
     'ALLOWED_LENDER_DISBURSEMENT_ACCOUNTS': renderBankDetailsTable(bankDetails, 'disbursement', 'lender'),
     'ALLOWED_BORROWER_RECEIVING_ACCOUNTS_TABLE': renderBankDetailsTable(bankDetails, 'disbursement', 'borrower'),
@@ -227,7 +239,7 @@ export async function resolveContractVariables(loanId: string): Promise<Variable
     BORROWER_SIGNATURE_BLOCK: renderSignatureBlock(borrowerSig, 'borrower'),
   };
 
-  return vars;
+  return applyAliases(vars);
 }
 
 /**
@@ -341,7 +353,7 @@ export async function resolveTrancheReceiptVariables(
     LENDER_SIGNATURE_BLOCK_OPTIONAL: '[не требуется]',
   };
 
-  return vars;
+  return applyAliases(vars);
 }
 
 const SCHEDULE_TYPE_LABELS: Record<string, string> = {
@@ -382,7 +394,7 @@ export async function resolveAppendixBankDetailsVariables(loanId: string): Promi
     ? safeJsonCast<AllowedBankDetailsSnapshotData>(bankDetailsSnap.snapshot_data).details
     : [];
 
-  return {
+  return applyAliases({
     CONTRACT_NUMBER: loan.contract_number || loan.id.slice(0, 8).toUpperCase(),
     APPENDIX_DATE: formatDateTimeRu(new Date().toISOString()),
     LENDER_DISBURSEMENT_ACCOUNTS: renderBankDetailsTable(bankDetails, 'disbursement', 'lender'),
@@ -390,7 +402,7 @@ export async function resolveAppendixBankDetailsVariables(loanId: string): Promi
     LENDER_REPAYMENT_ACCOUNTS: renderBankDetailsTable(bankDetails, 'repayment', 'lender'),
     BORROWER_REPAYMENT_ACCOUNTS: renderBankDetailsTable(bankDetails, 'repayment', 'borrower'),
     NOTICE_SNAPSHOT_TABLE: renderNoticeTable(lenderProfile, borrowerProfile),
-  };
+  });
 }
 
 /**
@@ -410,7 +422,7 @@ export async function resolveAppendixScheduleVariables(loanId: string): Promise<
     throw new Error('График платежей не сформирован. Создайте записи графика перед генерацией Приложения 2.');
   }
 
-  return {
+  return applyAliases({
     CONTRACT_NUMBER: loan.contract_number || loan.id.slice(0, 8).toUpperCase(),
     APPENDIX_DATE: formatDateTimeRu(new Date().toISOString()),
     SCHEDULE_TYPE_LABEL: SCHEDULE_TYPE_LABELS[loan.repayment_schedule_type] || loan.repayment_schedule_type,
@@ -421,7 +433,7 @@ export async function resolveAppendixScheduleVariables(loanId: string): Promise<
     INTEREST_RATE_ANNUAL: String(Number(loan.interest_rate)),
     FINAL_REPAYMENT_DEADLINE: formatDateRu(loan.repayment_date),
     SCHEDULE_TABLE: renderScheduleTable(scheduleItems),
-  };
+  });
 }
 
 /**
@@ -457,7 +469,7 @@ export async function resolvePartialRepaymentVariables(
   const totalRepaid = (allPaymentsRes.data || []).reduce((s, p) => s + Number(p.transfer_amount), 0);
   const remaining = Math.max(0, totalDisbursed - totalRepaid);
 
-  return {
+  return applyAliases({
     CONTRACT_NUMBER: loan.contract_number || loan.id.slice(0, 8).toUpperCase(),
     CONFIRMATION_DATE: formatDateTimeRu(new Date().toISOString()),
     LENDER_FULL_NAME: lenderProfile.full_name,
@@ -475,7 +487,7 @@ export async function resolvePartialRepaymentVariables(
     TOTAL_REPAID: totalRepaid.toLocaleString('ru-RU'),
     REMAINING_BALANCE: remaining.toLocaleString('ru-RU'),
     LENDER_CONFIRMATION_BLOCK: `Подтверждено на Платформе ${formatDateTimeRu(payment.confirmed_at)}\n(простая электронная подпись на Платформе; не является УКЭП)`,
-  };
+  });
 }
 
 /**
@@ -509,7 +521,7 @@ export async function resolveFullRepaymentVariables(loanId: string): Promise<Var
 
   const lastPayment = confirmedPayments[0];
 
-  return {
+  return applyAliases({
     CONTRACT_NUMBER: loan.contract_number || loan.id.slice(0, 8).toUpperCase(),
     CONFIRMATION_DATE: formatDateTimeRu(new Date().toISOString()),
     LENDER_FULL_NAME: lenderProfile.full_name,
@@ -527,5 +539,5 @@ export async function resolveFullRepaymentVariables(loanId: string): Promise<Var
     LOAN_CURRENCY: PLATFORM_CONFIG.LOAN_CURRENCY,
     LAST_REPAYMENT_DATE: lastPayment ? formatDateRu(lastPayment.transfer_date) : '___________',
     LENDER_CONFIRMATION_BLOCK: `Подтверждено на Платформе ${formatDateTimeRu(new Date().toISOString())}\n(простая электронная подпись на Платформе; не является УКЭП)`,
-  };
+  });
 }
