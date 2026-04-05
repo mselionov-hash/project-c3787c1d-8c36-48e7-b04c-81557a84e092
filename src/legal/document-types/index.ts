@@ -86,7 +86,7 @@ export const DOCUMENT_TYPE_CONFIGS: Record<DocumentType, DocumentTypeConfig> = {
     label: 'Приложение 6: Соглашение о признании УНЭП',
     description: 'Двустороннее соглашение о взаимном признании действительности УНЭП',
     requiresSourceEntity: false,
-    templateStatus: 'placeholder',
+    templateStatus: 'ready',
     scope: 'loan',
   },
   [DOCUMENT_TYPES.EDO_REGULATION]: {
@@ -94,7 +94,7 @@ export const DOCUMENT_TYPE_CONFIGS: Record<DocumentType, DocumentTypeConfig> = {
     label: 'Регламент электронного взаимодействия',
     description: 'Общеплатформенный регламент ЭДО — внешний, версионный, не персонализированный',
     requiresSourceEntity: false,
-    templateStatus: 'placeholder',
+    templateStatus: 'ready',
     scope: 'platform',
   },
 };

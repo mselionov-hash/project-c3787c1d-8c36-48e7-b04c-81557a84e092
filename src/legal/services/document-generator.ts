@@ -13,6 +13,8 @@ import {
   resolveAppendixScheduleVariables,
   resolvePartialRepaymentVariables,
   resolveFullRepaymentVariables,
+  resolveApp6Variables,
+  resolveEdoRegulationVariables,
 } from './variable-resolver';
 import { renderDocumentToPdf } from './pdf-renderer';
 import type { DocumentType } from '@/legal/document-types';
@@ -194,5 +196,35 @@ export async function generateFullRepaymentConfirmation(
     loanId, userId, 'full_repayment_confirmation',
     () => resolveFullRepaymentVariables(loanId),
     { title: 'Подтверждение полного погашения по договору №', fileNamePrefix: 'подтверждение-полного-погашения' }
+  );
+}
+
+/**
+ * Generate APP6 — UNEP Agreement (Приложение 6).
+ */
+export async function generateUnepAgreement(
+  loanId: string,
+  userId: string
+): Promise<GenerateResult> {
+  return generateDocument(
+    loanId, userId, 'unep_agreement',
+    () => resolveApp6Variables(loanId),
+    { title: 'Приложение 6 к договору №', fileNamePrefix: 'приложение-6-унэп' }
+  );
+}
+
+/**
+ * Generate EDO Regulation document (platform-level, non-personalized).
+ * Note: This is a platform-wide document, not per-loan.
+ * The loanId is used only for document storage association.
+ */
+export async function generateEdoRegulation(
+  loanId: string,
+  userId: string
+): Promise<GenerateResult> {
+  return generateDocument(
+    loanId, userId, 'edo_regulation',
+    () => resolveEdoRegulationVariables(),
+    { title: 'Регламент ЭДО', fileNamePrefix: 'регламент-эдо' }
   );
 }
