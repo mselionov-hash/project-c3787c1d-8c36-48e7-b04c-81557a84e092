@@ -306,7 +306,7 @@ const LoanDetails = () => {
           <>
             <EdoRegulationAcceptance
               userId={user!.id}
-              counterpartyId={isLender ? loan.borrower_id : loan.lender_id}
+              loanId={loan.id}
               onAccepted={() => setEdoAcceptedByUser(true)}
             />
             <div className="rounded-lg border border-warning/30 bg-warning/5 p-3">
