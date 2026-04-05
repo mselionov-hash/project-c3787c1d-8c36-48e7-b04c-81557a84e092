@@ -14,6 +14,20 @@
 export type VariableRecord = Record<string, string>;
 
 /**
+ * Structured row arrays for [[REPEAT:SECTION]] blocks.
+ * Each key is a section name, value is an array of row objects.
+ */
+export type RepeatData = Record<string, VariableRecord[]>;
+
+/**
+ * Combined result from a resolver: scalar variables + repeat section data.
+ */
+export interface ResolverResult {
+  variables: VariableRecord;
+  repeatSections: RepeatData;
+}
+
+/**
  * Resolve all [[IF ...]] / [[ENDIF]] conditional blocks.
  * Supports:
  *   [[IF {VAR} == VALUE]]
@@ -150,24 +164,36 @@ function resolveReferences(template: string): string {
 
 /**
  * Render [[REPEAT:SECTION_NAME]] blocks.
- * These are repeated for each item in an array variable.
+ * For each section, iterates the corresponding row array from repeatSections,
+ * substituting row-level {PLACEHOLDER} values per iteration.
  *
  * Format:
  *   [[REPEAT:SECTION_NAME]]
- *   row template with {SECTION_NAME_ITEM_FIELD}
+ *   row template with {FIELD_NAME} placeholders
  *   [[END_REPEAT]]
- *
- * Currently a placeholder — repeated data is handled by render_block
- * variables in the resolver layer.
  */
-function renderRepeatedRows(template: string, _variables: VariableRecord): string {
-  // For now, REPEAT blocks are handled by render_block variables
-  // that produce pre-formatted text. This function strips any
-  // unresolved REPEAT markers as a safety measure.
+function renderRepeatedRows(template: string, repeatSections: RepeatData): string {
   return template.replace(
     /\[\[REPEAT:(\w+)\]\]([\s\S]*?)\[\[END_REPEAT\]\]/g,
-    (_match, sectionName: string) => {
-      return `[REPEAT:${sectionName} — не реализован]`;
+    (_match, sectionName: string, bodyTemplate: string) => {
+      const rows = repeatSections[sectionName];
+
+      // If section not provided at all, render explicit empty marker
+      if (!rows) {
+        return `[данные секции ${sectionName} не предоставлены]`;
+      }
+
+      // If array is empty, render a clean "no data" message
+      if (rows.length === 0) {
+        return `[нет записей в секции ${sectionName}]`;
+      }
+
+      // For each row object, substitute all {PLACEHOLDER} in the body template
+      return rows.map(rowVars => {
+        return bodyTemplate.replace(/\{(\w+?)(\[\])?\}/g, (_m, varName: string) => {
+          return rowVars[varName] ?? '';
+        });
+      }).join('\n');
     }
   );
 }
@@ -248,16 +274,16 @@ function cleanWhitespace(text: string): string {
  * Pipeline order:
  * 1. [[IF]] block conditionals (innermost-first peeling)
  * 2. [При {VAR}=VALUE] inline prefix conditionals
- * 3. [[REPEAT]] repeated rows
- * 4. {VARIABLE} substitution
+ * 3. [[REPEAT]] repeated rows (from structured RepeatData)
+ * 4. {VARIABLE} substitution (scalars only)
  * 5. [[AUTO_NUM]] sequential numbering
  * 6. [[REF:ID]] cross-references
  * 7. Whitespace cleanup
  */
-export function renderTemplate(template: string, variables: VariableRecord): string {
+export function renderTemplate(template: string, variables: VariableRecord, repeatSections?: RepeatData): string {
   let result = resolveConditionals(template, variables);
   result = resolveInlinePrefixConditionals(result, variables);
-  result = renderRepeatedRows(result, variables);
+  result = renderRepeatedRows(result, repeatSections || {});
   result = substituteVariables(result, variables);
   result = resolveAutoNumbering(result);
   result = resolveReferences(result);
