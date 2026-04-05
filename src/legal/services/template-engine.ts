@@ -251,6 +251,18 @@ export function validateRenderedOutput(text: string): string[] {
     issues.push(`Unresolved repeat blocks: ${repeatMatch.join(', ')}`);
   }
 
+  // Leftover repeat placeholder text from old engine
+  const oldRepeatMatch = text.match(/\[REPEAT:\w+ — н[её] реализован\]/g);
+  if (oldRepeatMatch) {
+    issues.push(`Unresolved legacy repeat placeholders: ${oldRepeatMatch.join(', ')}`);
+  }
+
+  // Missing repeat section data
+  const missingRepeatMatch = text.match(/\[данные секции \w+ не предоставлены\]/g);
+  if (missingRepeatMatch) {
+    issues.push(`Missing repeat section data: ${missingRepeatMatch.join(', ')}`);
+  }
+
   // Leftover ANCHOR markers
   const anchorMatch = text.match(/\[\[ANCHOR:[^\]]+\]\]/g);
   if (anchorMatch) {
