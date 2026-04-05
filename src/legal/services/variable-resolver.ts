@@ -225,6 +225,15 @@ export async function resolveContractVariables(loanId: string): Promise<Variable
     BORROWER_DISBURSEMENT_RECEIPT_POLICY: (loan as any).borrower_disbursement_receipt_policy ?? 'BANK_TRANSFER_ONLY',
     LENDER_REPAYMENT_RECEIPT_POLICY: (loan as any).lender_repayment_receipt_policy ?? 'BANK_TRANSFER_ONLY',
 
+    // TZ v2.2: derived deal/scheme variables
+    OFFEROR_ROLE: getOfferorRole((loan as any).initiator_role ?? 'lender', (loan as any).deal_version ?? 1),
+    OFFEREE_ROLE: getOffereeRole(getOfferorRole((loan as any).initiator_role ?? 'lender', (loan as any).deal_version ?? 1)),
+    SIGNATURE_SCHEME_LABEL: getSignatureSchemeLabel((loan as any).signature_scheme_requested ?? 'UKEP_ONLY'),
+    APPENDIX_6_REFERENCE: isAppendix6Required((loan as any).signature_scheme_requested ?? 'UKEP_ONLY')
+      ? 'Приложение № 6 (Соглашение об использовании УНЭП) является неотъемлемой частью настоящего Договора.'
+      : '',
+    SNAPSHOT_VERSION_LABEL: `Версия ${(loan as any).deal_version ?? 1}`,
+
     // Render blocks: bank details tables
     'ALLOWED_LENDER_DISBURSEMENT_ACCOUNTS_TABLE': renderBankDetailsTable(bankDetails, 'disbursement', 'lender'),
     'ALLOWED_LENDER_DISBURSEMENT_ACCOUNTS': renderBankDetailsTable(bankDetails, 'disbursement', 'lender'),
