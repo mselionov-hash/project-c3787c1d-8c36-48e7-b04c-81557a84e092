@@ -598,6 +598,12 @@ export async function resolveFullRepaymentVariables(loanId: string): Promise<Var
     TOTAL_REPAID_IN_WORDS: amountToWordsRu(totalRepaid),
     LOAN_CURRENCY: PLATFORM_CONFIG.LOAN_CURRENCY,
     LAST_REPAYMENT_DATE: lastPayment ? formatDateRu(lastPayment.transfer_date) : '___________',
+    // Debt tracking vars — all zero at full repayment
+    ACTIVE_DEBT_AMOUNT: '0',
+    OUTSTANDING_PRINCIPAL: '0',
+    OUTSTANDING_INTEREST: '0',
+    OUTSTANDING_395_INTEREST: '0',
+    OUTSTANDING_COSTS: '0',
     LENDER_CONFIRMATION_BLOCK: `Подтверждено на Платформе ${formatDateTimeRu(new Date().toISOString())}\n(простая электронная подпись на Платформе; не является УКЭП)`,
   });
 }
