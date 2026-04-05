@@ -668,6 +668,7 @@ export async function resolveApp6Variables(loanId: string): Promise<VariableReco
   return applyAliases({
     // Contract / deal references
     CONTRACT_NUMBER: loan.contract_number || loan.id.slice(0, 8).toUpperCase(),
+    CONTRACT_PLACE: loan.city,
     CONTRACT_DATE: formatDateRu(loan.issue_date || loan.created_at),
     DEAL_ID: loan.id,
     LAST_SIGNATURE_AT: lastSignatureAt ? formatDateTimeRu(lastSignatureAt) : '[ожидается подписание]',
@@ -683,6 +684,7 @@ export async function resolveApp6Variables(loanId: string): Promise<VariableReco
     PLATFORM_BRAND_NAME: PLATFORM_CONFIG.PLATFORM_BRAND_NAME,
     PLATFORM_URL: PLATFORM_CONFIG.PLATFORM_URL,
     PLATFORM_OPERATOR_NAME: PLATFORM_CONFIG.PLATFORM_OPERATOR_NAME,
+    SUPPORT_CONTACTS_TEXT: PLATFORM_CONFIG.SUPPORT_CONTACTS_TEXT,
 
     // EDO regulation
     EDO_REGULATION_NAME: regulation?.title ?? '[не опубликован]',

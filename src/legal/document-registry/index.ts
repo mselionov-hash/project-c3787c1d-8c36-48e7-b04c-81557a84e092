@@ -1,6 +1,5 @@
 /**
  * Document registry: maps document_type → template + metadata.
- * Template engine and renderer will be implemented in Phase 4.
  */
 
 import { type DocumentType, DOCUMENT_TYPE_CONFIGS } from '@/legal/document-types';
@@ -10,6 +9,8 @@ import { APPENDIX_BANK_DETAILS_TEMPLATE, APPENDIX_BANK_DETAILS_TEMPLATE_VERSION,
 import { APPENDIX_REPAYMENT_SCHEDULE_TEMPLATE, APPENDIX_REPAYMENT_SCHEDULE_TEMPLATE_VERSION, APPENDIX_REPAYMENT_SCHEDULE_VARIABLES } from '@/legal/templates/appendix-repayment-schedule';
 import { PARTIAL_REPAYMENT_CONFIRMATION_TEMPLATE, PARTIAL_REPAYMENT_CONFIRMATION_TEMPLATE_VERSION, PARTIAL_REPAYMENT_CONFIRMATION_VARIABLES } from '@/legal/templates/partial-repayment-confirmation';
 import { FULL_REPAYMENT_CONFIRMATION_TEMPLATE, FULL_REPAYMENT_CONFIRMATION_TEMPLATE_VERSION, FULL_REPAYMENT_CONFIRMATION_VARIABLES } from '@/legal/templates/full-repayment-confirmation';
+import { UNEP_AGREEMENT_TEMPLATE, UNEP_AGREEMENT_TEMPLATE_VERSION, UNEP_AGREEMENT_VARIABLES } from '@/legal/templates/unep-agreement';
+import { EDO_REGULATION_TEMPLATE, EDO_REGULATION_TEMPLATE_VERSION, EDO_REGULATION_VARIABLES } from '@/legal/templates/edo-regulation';
 
 export interface DocumentTemplate {
   readonly type: DocumentType;
@@ -69,6 +70,22 @@ templateRegistry.set('full_repayment_confirmation', {
   title: 'Подтверждение полного погашения',
   template: FULL_REPAYMENT_CONFIRMATION_TEMPLATE,
   variables: FULL_REPAYMENT_CONFIRMATION_VARIABLES,
+});
+
+templateRegistry.set('unep_agreement', {
+  type: 'unep_agreement',
+  version: UNEP_AGREEMENT_TEMPLATE_VERSION,
+  title: 'Приложение 6: Соглашение о признании УНЭП',
+  template: UNEP_AGREEMENT_TEMPLATE,
+  variables: UNEP_AGREEMENT_VARIABLES,
+});
+
+templateRegistry.set('edo_regulation', {
+  type: 'edo_regulation',
+  version: EDO_REGULATION_TEMPLATE_VERSION,
+  title: 'Регламент электронного взаимодействия',
+  template: EDO_REGULATION_TEMPLATE,
+  variables: EDO_REGULATION_VARIABLES,
 });
 
 export function getTemplate(type: DocumentType): DocumentTemplate | undefined {
