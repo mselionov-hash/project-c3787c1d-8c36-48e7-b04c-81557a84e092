@@ -355,7 +355,7 @@ const LoanDetails = () => {
             <Shield className="w-3.5 h-3.5" />
             Подписи
           </h2>
-          <p className="text-[10px] text-muted-foreground mb-3">Простая электронная подпись (не является УКЭП)</p>
+          <p className="text-[10px] text-muted-foreground mb-3">Электронная подпись (в MVP — визуальная ПЭП-заглушка, не является УКЭП)</p>
           <div className="grid grid-cols-2 gap-3">
             <div className={`rounded-lg border p-3 ${lenderSig ? 'border-primary/30 bg-primary/5' : 'border-dashed border-border'}`}>
               <p className="text-[10px] text-muted-foreground uppercase mb-1">Займодавец</p>

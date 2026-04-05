@@ -37,13 +37,13 @@ const REPAYMENT_SCHEDULE_TYPES = [
 const SIGNATURE_SCHEMES = [
   {
     value: 'UKEP_ONLY',
-    label: 'Простая электронная подпись (ПЭП)',
-    description: 'Визуальная подпись с фиксацией IP и времени. Подходит для большинства частных займов.',
+    label: 'УКЭП (усиленная квалифицированная)',
+    description: 'Квалифицированная электронная подпись. В текущей версии платформы реализована как визуальная подпись с фиксацией IP и времени (ПЭП-заглушка).',
   },
   {
     value: 'UNEP_WITH_APPENDIX_6',
     label: 'УНЭП с Приложением 6',
-    description: 'Усиленная неквалифицированная подпись. Требует принятия Регламента ЭДО обеими сторонами и подписания Приложения 6.',
+    description: 'Усиленная неквалифицированная электронная подпись. Требует принятия Регламента ЭДО обеими сторонами и включения Приложения 6 в пакет подписания.',
   },
 ] as const;
 
@@ -354,7 +354,7 @@ const CreateLoan = () => {
               <div className="flex justify-between text-sm">
                 <span className="text-muted-foreground">Подписание</span>
                 <span className="font-medium">
-                  {signatureScheme === 'UNEP_WITH_APPENDIX_6' ? 'УНЭП + Приложение 6' : 'ПЭП (простая)'}
+                  {signatureScheme === 'UNEP_WITH_APPENDIX_6' ? 'УНЭП + Приложение 6' : 'УКЭП'}
                 </span>
               </div>
             </div>
