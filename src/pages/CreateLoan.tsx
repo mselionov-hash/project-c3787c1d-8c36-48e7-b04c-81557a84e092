@@ -17,6 +17,8 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 
+/* ── Constants ── */
+
 const INTEREST_MODES = [
   { value: 'interest_free', label: 'Беспроцентный' },
   { value: 'fixed_rate', label: 'Фиксированная ставка' },
@@ -49,31 +51,70 @@ const SIGNATURE_SCHEMES = [
 
 const STEPS = ['Заёмщик', 'Сумма и срок', 'Дополнительно', 'Проверка'];
 
+const DEFAULTS_KEY = 'loan_create_defaults';
+
+/* ── Saved defaults helpers ── */
+
+interface SavedDefaults {
+  city?: string;
+  interestMode?: string;
+  repaymentScheduleType?: string;
+  repaymentTermMonths?: number;
+  signatureScheme?: string;
+  penaltyRate?: string;
+  earlyRepaymentNoticeDays?: string;
+}
+
+function loadDefaults(): SavedDefaults {
+  try {
+    const raw = localStorage.getItem(DEFAULTS_KEY);
+    return raw ? JSON.parse(raw) : {};
+  } catch {
+    return {};
+  }
+}
+
+function saveDefaults(d: SavedDefaults) {
+  try {
+    localStorage.setItem(DEFAULTS_KEY, JSON.stringify(d));
+  } catch {}
+}
+
+function monthsBetween(from: string, to: string): number {
+  const a = new Date(from);
+  const b = new Date(to);
+  return (b.getFullYear() - a.getFullYear()) * 12 + (b.getMonth() - a.getMonth());
+}
+
+/* ── Component ── */
+
 const CreateLoan = () => {
   const navigate = useNavigate();
   const { user, profile, loading } = useAuth();
   const [step, setStep] = useState(0);
+
+  const saved = loadDefaults();
 
   // Auto-filled from profile
   const [lenderName, setLenderName] = useState('');
   const [lenderPassport, setLenderPassport] = useState('');
   const [lenderAddress, setLenderAddress] = useState('');
 
-  // User input
+  // User input with safe defaults from last loan
   const [borrowerName, setBorrowerName] = useState('');
   const [borrowerEmail, setBorrowerEmail] = useState('');
   const [amount, setAmount] = useState('');
   const [repaymentDate, setRepaymentDate] = useState('');
-  const [interestMode, setInterestMode] = useState('interest_free');
+  const [interestMode, setInterestMode] = useState(saved.interestMode || 'interest_free');
   const [interestRate, setInterestRate] = useState('');
   const [interestPaymentSchedule, setInterestPaymentSchedule] = useState('at_maturity');
-  const [repaymentScheduleType, setRepaymentScheduleType] = useState('no_schedule_single_deadline');
-  const [penaltyRate, setPenaltyRate] = useState('0.1');
-  const [earlyRepaymentNoticeDays, setEarlyRepaymentNoticeDays] = useState('30');
-  const [city, setCity] = useState('Москва');
+  const [repaymentScheduleType, setRepaymentScheduleType] = useState(saved.repaymentScheduleType || 'no_schedule_single_deadline');
+  const [penaltyRate, setPenaltyRate] = useState(saved.penaltyRate || '0.1');
+  const [earlyRepaymentNoticeDays, setEarlyRepaymentNoticeDays] = useState(saved.earlyRepaymentNoticeDays || '30');
+  const [city, setCity] = useState(saved.city || 'Москва');
   const [issueDate, setIssueDate] = useState(new Date().toISOString().split('T')[0]);
   const [notes, setNotes] = useState('');
-  const [signatureScheme, setSignatureScheme] = useState('UKEP_ONLY');
+  const [signatureScheme, setSignatureScheme] = useState(saved.signatureScheme || 'UKEP_ONLY');
   const [showAdvanced, setShowAdvanced] = useState(false);
   const [submitting, setSubmitting] = useState(false);
 
@@ -89,11 +130,12 @@ const CreateLoan = () => {
     }
   }, [profile]);
 
-  // Default repayment date to 1 year from now
+  // Default repayment date from saved term or 1 year
   useEffect(() => {
     if (!repaymentDate) {
       const d = new Date();
-      d.setFullYear(d.getFullYear() + 1);
+      const months = saved.repaymentTermMonths ?? 12;
+      d.setMonth(d.getMonth() + months);
       setRepaymentDate(d.toISOString().split('T')[0]);
     }
   }, []);
@@ -104,6 +146,17 @@ const CreateLoan = () => {
       toast.error('Заполните обязательные поля');
       return;
     }
+
+    // Save defaults for next time
+    saveDefaults({
+      city: city.trim(),
+      interestMode,
+      repaymentScheduleType,
+      repaymentTermMonths: monthsBetween(issueDate, repaymentDate),
+      signatureScheme,
+      penaltyRate,
+      earlyRepaymentNoticeDays,
+    });
 
     setSubmitting(true);
     try {
@@ -200,6 +253,9 @@ const CreateLoan = () => {
             <div className="space-y-1.5">
               <Label className="text-xs text-muted-foreground">Дата возврата *</Label>
               <Input type="date" value={repaymentDate} onChange={e => setRepaymentDate(e.target.value)} className={inputClass} />
+              {saved.repaymentTermMonths && (
+                <p className="text-[10px] text-muted-foreground">Подставлен срок из прошлого займа ({saved.repaymentTermMonths} мес.)</p>
+              )}
             </div>
             <div className="space-y-1.5">
               <Label className="text-xs text-muted-foreground">Тип процентов</Label>
