@@ -570,7 +570,7 @@ export async function resolveAppendixBankDetailsVariables(loanId: string): Promi
  * Resolve variables for Appendix 2 — repayment schedule.
  * Source-aligned with Shablon_APP2_grafik_platezhey_v1_1_rus_clean.docx
  */
-export async function resolveAppendixScheduleVariables(loanId: string): Promise<VariableRecord> {
+export async function resolveAppendixScheduleVariables(loanId: string): Promise<ResolverResult> {
   const [loanRes, scheduleRes, snapshotsRes, sigRes, debtSummary] = await Promise.all([
     supabase.from('loans').select('*').eq('id', loanId).single(),
     supabase.from('payment_schedule_items').select('*').eq('loan_id', loanId).order('item_number'),
@@ -669,7 +669,7 @@ export async function resolveAppendixScheduleVariables(loanId: string): Promise<
 export async function resolvePartialRepaymentVariables(
   loanId: string,
   paymentId: string
-): Promise<VariableRecord> {
+): Promise<ResolverResult> {
   const [loanRes, paymentRes, snapshotsRes, scheduleRes, debtSummary, existingApp4Res, sigPkgRes] = await Promise.all([
     supabase.from('loans').select('*').eq('id', loanId).single(),
     supabase.from('loan_payments').select('*').eq('id', paymentId).single(),
@@ -777,7 +777,7 @@ export async function resolvePartialRepaymentVariables(
  * Resolve variables for full repayment confirmation (APP5).
  * Source-aligned with Shablon_APP5_podtverzhdenie_polnogo_ispolneniya_v1_0.docx
  */
-export async function resolveFullRepaymentVariables(loanId: string): Promise<VariableRecord> {
+export async function resolveFullRepaymentVariables(loanId: string): Promise<ResolverResult> {
   const [loanRes, tranchesRes, paymentsRes, snapshotsRes, scheduleRes, existingApp5Res, sigPkgRes] = await Promise.all([
     supabase.from('loans').select('*').eq('id', loanId).single(),
     supabase.from('loan_tranches').select('*').eq('loan_id', loanId).eq('status', 'confirmed'),
@@ -899,7 +899,7 @@ export async function resolveFullRepaymentVariables(loanId: string): Promise<Var
 /**
  * Resolve variables for EDO Regulation document.
  */
-export async function resolveEdoRegulationVariables(): Promise<VariableRecord> {
+export async function resolveEdoRegulationVariables(): Promise<ResolverResult> {
   const regulation = await getCurrentRegulation();
 
   if (!regulation) {
@@ -923,7 +923,7 @@ export async function resolveEdoRegulationVariables(): Promise<VariableRecord> {
 /**
  * Resolve variables for APP6 (UNEP Agreement).
  */
-export async function resolveApp6Variables(loanId: string): Promise<VariableRecord> {
+export async function resolveApp6Variables(loanId: string): Promise<ResolverResult> {
   const [loanRes, regulation, snapshotsRes, unepRes, sigRes] = await Promise.all([
     supabase.from('loans').select('*').eq('id', loanId).single(),
     getCurrentRegulation(),
