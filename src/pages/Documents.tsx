@@ -51,6 +51,7 @@ const statusLabels: Record<string, { label: string; class: string }> = {
 
 const Documents = () => {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const { user, loading } = useAuth();
   const [loans, setLoans] = useState<Loan[]>([]);
   const [loadingLoans, setLoadingLoans] = useState(true);
