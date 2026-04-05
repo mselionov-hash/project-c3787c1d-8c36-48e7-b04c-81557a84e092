@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
 import { supabase } from '@/integrations/supabase/client';
 import {
@@ -51,6 +51,7 @@ const statusLabels: Record<string, { label: string; class: string }> = {
 
 const Documents = () => {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const { user, loading } = useAuth();
   const [loans, setLoans] = useState<Loan[]>([]);
   const [loadingLoans, setLoadingLoans] = useState(true);
@@ -74,6 +75,12 @@ const Documents = () => {
     const { data } = await supabase.from('loans').select('*').order('created_at', { ascending: false });
     setLoans(data || []);
     setLoadingLoans(false);
+
+    // Auto-expand loan from URL param
+    const loanParam = searchParams.get('loan');
+    if (loanParam && data?.some(l => l.id === loanParam)) {
+      toggleLoan(loanParam);
+    }
   };
 
   const toggleLoan = async (loanId: string) => {
