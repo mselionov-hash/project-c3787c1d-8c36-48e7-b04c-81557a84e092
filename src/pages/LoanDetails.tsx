@@ -88,6 +88,15 @@ const LoanDetails = () => {
   const toggle = (key: SectionKey) =>
     setExpanded(prev => ({ ...prev, [key]: !prev[key] }));
 
+  const refreshEdoAcceptance = async (loanData: Loan, userId: string) => {
+    const { data } = await supabase.rpc('get_loan_edo_acceptance', { p_loan_id: loanData.id });
+    if (!data || (data as any).error || (data as any).has_regulation === false) return;
+    const d = data as Record<string, unknown>;
+    const isL = loanData.lender_id === userId;
+    setEdoAcceptedByUser(isL ? !!d.lender_accepted : !!d.borrower_accepted);
+    setEdoAcceptedByCounterparty(isL ? !!d.borrower_accepted : !!d.lender_accepted);
+  };
+
   const fetchAll = async () => {
     const [loanRes, sigRes, trancheRes, schedRes, payRes] = await Promise.all([
       supabase.from('loans').select('*').eq('id', id!).single(),
@@ -104,35 +113,7 @@ const LoanDetails = () => {
     setLoading(false);
 
     if (loanRes.data?.signature_scheme_requested === 'UNEP_WITH_APPENDIX_6' && user) {
-      const { data: reg } = await supabase
-        .from('edo_regulations')
-        .select('id')
-        .eq('is_current', true)
-        .limit(1)
-        .single();
-
-      if (reg) {
-        const { data: userAcc } = await supabase
-          .from('edo_regulation_acceptances')
-          .select('id')
-          .eq('user_id', user.id)
-          .eq('regulation_id', reg.id)
-          .limit(1);
-        setEdoAcceptedByUser((userAcc?.length || 0) > 0);
-
-        const counterpartyId = loanRes.data.lender_id === user.id
-          ? loanRes.data.borrower_id
-          : loanRes.data.lender_id;
-        if (counterpartyId) {
-          const { data: cpAcc } = await supabase
-            .from('edo_regulation_acceptances')
-            .select('id')
-            .eq('user_id', counterpartyId)
-            .eq('regulation_id', reg.id)
-            .limit(1);
-          setEdoAcceptedByCounterparty((cpAcc?.length || 0) > 0);
-        }
-      }
+      await refreshEdoAcceptance(loanRes.data, user.id);
     }
 
     if (loanRes.data && loanRes.data.status === 'fully_signed') {
@@ -307,7 +288,7 @@ const LoanDetails = () => {
             <EdoRegulationAcceptance
               userId={user!.id}
               loanId={loan.id}
-              onAccepted={() => setEdoAcceptedByUser(true)}
+              onAccepted={() => loan && user && refreshEdoAcceptance(loan, user.id)}
             />
             <div className="rounded-lg border border-warning/30 bg-warning/5 p-3">
               <p className="text-xs text-warning font-medium mb-0.5">Подписание заблокировано</p>
