@@ -246,6 +246,36 @@ const CreateLoan = () => {
               </Select>
             </div>
 
+            {/* Signature scheme */}
+            <div className="space-y-2">
+              <Label className="text-xs text-muted-foreground">Схема подписания</Label>
+              <div className="space-y-2">
+                {SIGNATURE_SCHEMES.map(scheme => (
+                  <label
+                    key={scheme.value}
+                    className={`flex items-start gap-3 p-3 rounded-lg border cursor-pointer transition-colors ${
+                      signatureScheme === scheme.value
+                        ? 'border-primary/50 bg-primary/5'
+                        : 'border-border/50 hover:bg-muted/30'
+                    }`}
+                  >
+                    <input
+                      type="radio"
+                      name="signatureScheme"
+                      value={scheme.value}
+                      checked={signatureScheme === scheme.value}
+                      onChange={() => setSignatureScheme(scheme.value)}
+                      className="mt-0.5 accent-primary"
+                    />
+                    <div>
+                      <p className="text-sm font-medium">{scheme.label}</p>
+                      <p className="text-[10px] text-muted-foreground mt-0.5">{scheme.description}</p>
+                    </div>
+                  </label>
+                ))}
+              </div>
+            </div>
+
             <button
               onClick={() => setShowAdvanced(!showAdvanced)}
               className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors"
