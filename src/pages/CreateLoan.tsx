@@ -73,6 +73,7 @@ const CreateLoan = () => {
   const [city, setCity] = useState('Москва');
   const [issueDate, setIssueDate] = useState(new Date().toISOString().split('T')[0]);
   const [notes, setNotes] = useState('');
+  const [signatureScheme, setSignatureScheme] = useState('UKEP_ONLY');
   const [showAdvanced, setShowAdvanced] = useState(false);
   const [submitting, setSubmitting] = useState(false);
 
@@ -126,6 +127,7 @@ const CreateLoan = () => {
         interest_payment_schedule: interestMode === 'fixed_rate' ? interestPaymentSchedule : null,
         repayment_schedule_type: repaymentScheduleType,
         early_repayment_notice_days: parseInt(earlyRepaymentNoticeDays, 10) || 30,
+        signature_scheme_requested: signatureScheme,
       }).select().single();
 
       if (error) throw error;
