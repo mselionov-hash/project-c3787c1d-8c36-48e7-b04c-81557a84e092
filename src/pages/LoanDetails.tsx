@@ -204,7 +204,10 @@ const LoanDetails = () => {
   const borrowerSig = signatures.find(s => s.role === 'borrower');
   const isLender = user?.id === loan.lender_id;
   const isBorrower = user?.id === loan.borrower_id;
-  const canSign = (isLender && !lenderSig) || (isBorrower && !borrowerSig);
+  const isUnepFlow = loan.signature_scheme_requested === 'UNEP_WITH_APPENDIX_6';
+  const baseCanSign = (isLender && !lenderSig) || (isBorrower && !borrowerSig);
+  const unepReady = !isUnepFlow || (edoAcceptedByUser && edoAcceptedByCounterparty);
+  const canSign = baseCanSign && unepReady;
   const canSend = isLender && !loan.borrower_id;
   const isFullySigned = Boolean(lenderSig && borrowerSig) || ['fully_signed', 'active', 'repaid'].includes(loan.status);
   const hasSchedule = ['installments_fixed', 'installments_variable'].includes(loan.repayment_schedule_type);
