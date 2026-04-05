@@ -394,7 +394,7 @@ export async function resolveAppendixBankDetailsVariables(loanId: string): Promi
     ? safeJsonCast<AllowedBankDetailsSnapshotData>(bankDetailsSnap.snapshot_data).details
     : [];
 
-  return {
+  return applyAliases({
     CONTRACT_NUMBER: loan.contract_number || loan.id.slice(0, 8).toUpperCase(),
     APPENDIX_DATE: formatDateTimeRu(new Date().toISOString()),
     LENDER_DISBURSEMENT_ACCOUNTS: renderBankDetailsTable(bankDetails, 'disbursement', 'lender'),
@@ -402,7 +402,7 @@ export async function resolveAppendixBankDetailsVariables(loanId: string): Promi
     LENDER_REPAYMENT_ACCOUNTS: renderBankDetailsTable(bankDetails, 'repayment', 'lender'),
     BORROWER_REPAYMENT_ACCOUNTS: renderBankDetailsTable(bankDetails, 'repayment', 'borrower'),
     NOTICE_SNAPSHOT_TABLE: renderNoticeTable(lenderProfile, borrowerProfile),
-  };
+  });
 }
 
 /**
@@ -422,7 +422,7 @@ export async function resolveAppendixScheduleVariables(loanId: string): Promise<
     throw new Error('График платежей не сформирован. Создайте записи графика перед генерацией Приложения 2.');
   }
 
-  return {
+  return applyAliases({
     CONTRACT_NUMBER: loan.contract_number || loan.id.slice(0, 8).toUpperCase(),
     APPENDIX_DATE: formatDateTimeRu(new Date().toISOString()),
     SCHEDULE_TYPE_LABEL: SCHEDULE_TYPE_LABELS[loan.repayment_schedule_type] || loan.repayment_schedule_type,
@@ -433,7 +433,7 @@ export async function resolveAppendixScheduleVariables(loanId: string): Promise<
     INTEREST_RATE_ANNUAL: String(Number(loan.interest_rate)),
     FINAL_REPAYMENT_DEADLINE: formatDateRu(loan.repayment_date),
     SCHEDULE_TABLE: renderScheduleTable(scheduleItems),
-  };
+  });
 }
 
 /**
@@ -469,7 +469,7 @@ export async function resolvePartialRepaymentVariables(
   const totalRepaid = (allPaymentsRes.data || []).reduce((s, p) => s + Number(p.transfer_amount), 0);
   const remaining = Math.max(0, totalDisbursed - totalRepaid);
 
-  return {
+  return applyAliases({
     CONTRACT_NUMBER: loan.contract_number || loan.id.slice(0, 8).toUpperCase(),
     CONFIRMATION_DATE: formatDateTimeRu(new Date().toISOString()),
     LENDER_FULL_NAME: lenderProfile.full_name,
@@ -487,7 +487,7 @@ export async function resolvePartialRepaymentVariables(
     TOTAL_REPAID: totalRepaid.toLocaleString('ru-RU'),
     REMAINING_BALANCE: remaining.toLocaleString('ru-RU'),
     LENDER_CONFIRMATION_BLOCK: `Подтверждено на Платформе ${formatDateTimeRu(payment.confirmed_at)}\n(простая электронная подпись на Платформе; не является УКЭП)`,
-  };
+  });
 }
 
 /**
@@ -521,7 +521,7 @@ export async function resolveFullRepaymentVariables(loanId: string): Promise<Var
 
   const lastPayment = confirmedPayments[0];
 
-  return {
+  return applyAliases({
     CONTRACT_NUMBER: loan.contract_number || loan.id.slice(0, 8).toUpperCase(),
     CONFIRMATION_DATE: formatDateTimeRu(new Date().toISOString()),
     LENDER_FULL_NAME: lenderProfile.full_name,
@@ -539,5 +539,5 @@ export async function resolveFullRepaymentVariables(loanId: string): Promise<Var
     LOAN_CURRENCY: PLATFORM_CONFIG.LOAN_CURRENCY,
     LAST_REPAYMENT_DATE: lastPayment ? formatDateRu(lastPayment.transfer_date) : '___________',
     LENDER_CONFIRMATION_BLOCK: `Подтверждено на Платформе ${formatDateTimeRu(new Date().toISOString())}\n(простая электронная подпись на Платформе; не является УКЭП)`,
-  };
+  });
 }
