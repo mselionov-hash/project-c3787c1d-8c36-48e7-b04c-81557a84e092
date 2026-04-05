@@ -8,6 +8,7 @@ import { PLATFORM_CONFIG } from './platform-config';
 import { amountToWordsRu } from './number-to-words-ru';
 import type { VariableRecord } from './template-engine';
 import type { Tables, Json } from '@/integrations/supabase/types';
+import { applyAliases } from '../variables/aliases';
 
 type Loan = Tables<'loans'>;
 type Tranche = Tables<'loan_tranches'>;
