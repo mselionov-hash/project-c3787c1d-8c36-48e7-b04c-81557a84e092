@@ -1,6 +1,7 @@
 import { useNavigate } from 'react-router-dom';
 import { ArrowUpRight, ArrowDownLeft, ChevronRight } from 'lucide-react';
 import type { Tables } from '@/integrations/supabase/types';
+import { formatDateSafe } from '@/lib/date-utils';
 
 type Loan = Tables<'loans'>;
 
