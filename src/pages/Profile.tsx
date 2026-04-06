@@ -141,7 +141,7 @@ const Profile = () => {
         <div className="pt-2 pb-4">
           <Button
             variant="outline"
-            className="w-full gap-2 rounded-xl h-11 text-muted-foreground hover:text-foreground"
+            className="w-full gap-2 rounded-xl h-11 border-destructive/30 text-destructive hover:bg-destructive/10 hover:text-destructive"
             onClick={async () => {
               await supabase.auth.signOut();
               navigate('/auth');
