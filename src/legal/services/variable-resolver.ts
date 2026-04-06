@@ -175,19 +175,31 @@ async function calculateDebtSummary(loanId: string) {
  * Only considers tranches and payments up to and including the given payment.
  */
 async function calculateDebtSummaryAtPayment(loanId: string, paymentId: string) {
-  const [tranchesRes, paymentsRes] = await Promise.all([
+  const [tranchesRes, paymentsRes, targetPaymentRes] = await Promise.all([
     supabase.from('loan_tranches').select('amount, confirmed_at').eq('loan_id', loanId).eq('status', 'confirmed'),
-    supabase.from('loan_payments').select('id, transfer_amount, confirmed_at').eq('loan_id', loanId).eq('status', 'confirmed').order('confirmed_at'),
+    supabase.from('loan_payments').select('id, transfer_amount, confirmed_at, created_at').eq('loan_id', loanId).eq('status', 'confirmed').order('created_at'),
+    supabase.from('loan_payments').select('transfer_amount').eq('id', paymentId).single(),
   ]);
   
   const totalDisbursed = (tranchesRes.data || []).reduce((s, t) => s + Number(t.amount), 0);
+  const targetPayment = targetPaymentRes.data;
   
   // Sum payments up to and including the target payment
   const allPayments = paymentsRes.data || [];
   let totalRepaidAtEvent = 0;
+  let found = false;
   for (const p of allPayments) {
     totalRepaidAtEvent += Number(p.transfer_amount);
-    if (p.id === paymentId) break;
+    if (p.id === paymentId) {
+      found = true;
+      break;
+    }
+  }
+  
+  // Fallback: if target payment not found in the ordered list (shouldn't happen),
+  // use just the target payment amount
+  if (!found && targetPayment) {
+    totalRepaidAtEvent = Number(targetPayment.transfer_amount);
   }
   
   const outstandingPrincipal = Math.max(0, totalDisbursed - totalRepaidAtEvent);
