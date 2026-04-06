@@ -201,13 +201,12 @@ const Documents = () => {
                       ) : (
                         <>
                           {/* Document list */}
-                          {isFullySigned && (
+                           {isFullySigned && (
                             <div className="space-y-1.5">
-                              {/* Static document entries */}
-                              <DocRow label="Договор займа" type="loan_contract" loanId={loan.id} generating={generating} onGen={generate} />
-                              <DocRow label="Приложение 1: Банковские реквизиты" type="appendix_bank_details" loanId={loan.id} generating={generating} onGen={generate} />
+                              <DocRow label="Договор займа" type="loan_contract" loanId={loan.id} generating={generating} onGen={generate} docs={loanDocs} />
+                              <DocRow label="Приложение 1: Банковские реквизиты" type="appendix_bank_details" loanId={loan.id} generating={generating} onGen={generate} docs={loanDocs} />
                               {hasSchedule && loanSchedule.length > 0 && (
-                                <DocRow label="Приложение 2: График погашения" type="appendix_repayment_schedule" loanId={loan.id} generating={generating} onGen={generate} />
+                                <DocRow label="Приложение 2: График погашения" type="appendix_repayment_schedule" loanId={loan.id} generating={generating} onGen={generate} docs={loanDocs} />
                               )}
                               {loanTranches.map(t => (
                                 <DocRow
@@ -218,6 +217,7 @@ const Documents = () => {
                                   entityId={t.id}
                                   generating={generating}
                                   onGen={generate}
+                                  docs={loanDocs}
                                 />
                               ))}
                               {loanPayments.map(p => (
@@ -229,15 +229,16 @@ const Documents = () => {
                                   entityId={p.id}
                                   generating={generating}
                                   onGen={generate}
+                                  docs={loanDocs}
                                 />
                               ))}
                               {isLender && loan.status === 'repaid' && totalDisbursed >= Number(loan.amount) && totalRepaid >= totalDisbursed && (
-                                <DocRow label="Полное погашение" type="full_repayment_confirmation" loanId={loan.id} generating={generating} onGen={generate} />
+                                <DocRow label="Полное погашение" type="full_repayment_confirmation" loanId={loan.id} generating={generating} onGen={generate} docs={loanDocs} />
                               )}
                               {loan.signature_scheme_requested === 'UNEP_WITH_APPENDIX_6' && (
-                                <DocRow label="Приложение 6: Соглашение УНЭП" type="unep_agreement" loanId={loan.id} generating={generating} onGen={generate} />
+                                <DocRow label="Приложение 6: Соглашение УНЭП" type="unep_agreement" loanId={loan.id} generating={generating} onGen={generate} docs={loanDocs} />
                               )}
-                              <DocRow label="Регламент ЭДО" type="edo_regulation" loanId={loan.id} generating={generating} onGen={generate} />
+                              <DocRow label="Регламент ЭДО" type="edo_regulation" loanId={loan.id} generating={generating} onGen={generate} docs={loanDocs} />
                             </div>
                           )}
 
