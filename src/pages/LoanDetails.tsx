@@ -594,7 +594,7 @@ const NextActionBlock = ({ isLender, isBorrower, loanStatus, bankDetailsReady, r
           <p className="text-xs text-muted-foreground">
             Договор подписан. Прежде чем выдать транш, выберите банковские реквизиты — свои (для перечисления) и заёмщика (для получения).
           </p>
-          <Button size="sm" className="rounded-lg text-xs gap-1.5 mt-1" onClick={onOpenBankDetails}>
+          <Button size="sm" className="rounded-lg text-xs gap-1.5 mt-1 bg-warning text-warning-foreground hover:bg-warning/90" onClick={onOpenBankDetails}>
             <CreditCard className="w-3.5 h-3.5" />
             Выбрать реквизиты для выдачи
           </Button>
@@ -613,7 +613,7 @@ const NextActionBlock = ({ isLender, isBorrower, loanStatus, bankDetailsReady, r
             Реквизиты выбраны. Создайте транш и переведите средства заёмщику.
           </p>
           <div className="flex gap-2 pt-1">
-            <Button size="sm" className="rounded-lg text-xs gap-1.5" onClick={onCreateTranche}>
+            <Button size="sm" className="rounded-lg text-xs gap-1.5 bg-primary text-primary-foreground hover:bg-primary/90" onClick={onCreateTranche}>
               <Banknote className="w-3.5 h-3.5" />
               Выдать транш
             </Button>
@@ -634,15 +634,15 @@ const NextActionBlock = ({ isLender, isBorrower, loanStatus, bankDetailsReady, r
     // Signed phase: select requisites
     if (isSignedPhase) {
       return (
-        <div className="rounded-xl border border-border/50 bg-muted/30 p-4 space-y-2">
+        <div className="rounded-xl border-2 border-warning/30 bg-warning/5 p-4 space-y-2">
           <div className="flex items-center gap-2">
-            <CreditCard className="w-5 h-5 text-muted-foreground" />
+            <CreditCard className="w-5 h-5 text-warning" />
             <p className="text-sm font-semibold">Выберите реквизиты для получения</p>
           </div>
           <p className="text-xs text-muted-foreground">
             Договор подписан. Укажите реквизиты, на которые займодавец перечислит средства, и реквизиты для возврата.
           </p>
-          <Button size="sm" variant="outline" className="rounded-lg text-xs gap-1.5 mt-1" onClick={onOpenBankDetails}>
+          <Button size="sm" className="rounded-lg text-xs gap-1.5 mt-1 bg-warning text-warning-foreground hover:bg-warning/90" onClick={onOpenBankDetails}>
             <CreditCard className="w-3.5 h-3.5" />
             Выбрать реквизиты для получения и возврата
           </Button>

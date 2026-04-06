@@ -128,21 +128,41 @@ export const AllowedBankDetailsSelector = ({
     }
   };
 
-  const handleAdd = async (bankDetailId: string) => {
+  const handleAdd = async (bankDetailId: string, purpose?: string) => {
     setAdding(true);
     const { error } = await supabase.from('loan_allowed_bank_details').insert({
       loan_id: loanId,
       bank_detail_id: bankDetailId,
       party_role: myRole,
-      purpose: selectedPurpose,
+      purpose: purpose || selectedPurpose,
     });
     if (error) {
       toast.error('Ошибка добавления реквизитов');
     } else {
       toast.success('Реквизиты добавлены к договору');
+      // Remove confirmed suggestion(s)
+      setSuggestedBindings(prev => prev.filter(s => !(s.detailId === bankDetailId && s.purpose === (purpose || selectedPurpose))));
       fetchData();
       onUpdate?.();
     }
+    setAdding(false);
+  };
+
+  const handleConfirmAllSuggestions = async () => {
+    if (suggestedBindings.length === 0) return;
+    setAdding(true);
+    for (const s of suggestedBindings) {
+      await supabase.from('loan_allowed_bank_details').insert({
+        loan_id: loanId,
+        bank_detail_id: s.detailId,
+        party_role: myRole,
+        purpose: s.purpose,
+      });
+    }
+    toast.success('Рекомендованные реквизиты привязаны');
+    setSuggestedBindings([]);
+    fetchData();
+    onUpdate?.();
     setAdding(false);
   };
 
@@ -214,6 +234,57 @@ export const AllowedBankDetailsSelector = ({
               ? 'Добавьте реквизит в профиле, чтобы привязать его к договору'
               : 'Выберите реквизиты ниже'}
           </p>
+        )}
+
+        {/* Suggestions block — user must explicitly confirm */}
+        {canEdit && suggestedBindings.length > 0 && myAllowed.length === 0 && (
+          <div className="mt-3 rounded-xl border-2 border-warning/30 bg-warning/5 p-4 space-y-3">
+            <div className="flex items-center gap-2">
+              <CreditCard className="w-4 h-4 text-warning flex-shrink-0" />
+              <p className="text-sm font-semibold text-warning">Рекомендованные реквизиты</p>
+            </div>
+            <p className="text-xs text-muted-foreground">
+              {suggestedBindings.length === 1
+                ? 'Найден один совместимый реквизит. Подтвердите привязку:'
+                : `Найдено ${suggestedBindings.length} совместимых привязок. Подтвердите выбор:`}
+            </p>
+            <div className="space-y-2">
+              {suggestedBindings.map((s, i) => {
+                const detail = myDetails.find(d => d.id === s.detailId);
+                if (!detail) return null;
+                return (
+                  <div key={i} className="flex items-center gap-3 p-2.5 rounded-lg bg-card border border-border/50">
+                    <Check className="w-4 h-4 text-warning flex-shrink-0" />
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium truncate">
+                        {detail.bank_name}{detail.card_number && ` • *${detail.card_number.slice(-4)}`}
+                      </p>
+                      <p className="text-xs text-muted-foreground">{PURPOSE_LABELS[s.purpose] || s.purpose}</p>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+            <div className="flex gap-2 pt-1">
+              <Button
+                size="sm"
+                className="rounded-lg text-xs gap-1.5 bg-warning text-warning-foreground hover:bg-warning/90"
+                disabled={adding}
+                onClick={handleConfirmAllSuggestions}
+              >
+                {adding ? <Loader2 className="w-3 h-3 animate-spin" /> : <Check className="w-3 h-3" />}
+                Подтвердить
+              </Button>
+              <Button
+                size="sm"
+                variant="outline"
+                className="rounded-lg text-xs"
+                onClick={() => setSuggestedBindings([])}
+              >
+                Выбрать вручную
+              </Button>
+            </div>
+          </div>
         )}
       </div>
 
