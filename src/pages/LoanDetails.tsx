@@ -568,12 +568,13 @@ const Row = ({ label, value }: { label: string; value: string }) => (
   </div>
 );
 
-const NextActionBlock = ({ isLender, isBorrower, loanStatus, bankDetailsReady, repaymentDetailsReady, outstanding, canIssueMore, onOpenBankDetails, onCreateTranche, onNavigateRepay }: {
+const NextActionBlock = ({ isLender, isBorrower, loanStatus, mySideReady, counterpartySideReady, bankDetailsReady, outstanding, canIssueMore, onOpenBankDetails, onCreateTranche, onNavigateRepay }: {
   isLender: boolean;
   isBorrower: boolean;
   loanStatus: string;
+  mySideReady: boolean;
+  counterpartySideReady: boolean;
   bankDetailsReady: boolean;
-  repaymentDetailsReady: boolean;
   outstanding: number;
   canIssueMore: boolean;
   onOpenBankDetails: () => void;
@@ -585,8 +586,7 @@ const NextActionBlock = ({ isLender, isBorrower, loanStatus, bankDetailsReady, r
 
   // --- Lender ---
   if (isLender) {
-    // Signed phase: requisites first, then tranche
-    if (isSignedPhase && !bankDetailsReady) {
+    if (isSignedPhase && !mySideReady) {
       return (
         <div className="rounded-xl border-2 border-warning/30 bg-warning/5 p-4 space-y-2">
           <div className="flex items-center gap-2">
@@ -594,7 +594,7 @@ const NextActionBlock = ({ isLender, isBorrower, loanStatus, bankDetailsReady, r
             <p className="text-sm font-semibold">Выберите реквизиты для выдачи</p>
           </div>
           <p className="text-xs text-muted-foreground">
-            Договор подписан. Прежде чем выдать транш, выберите банковские реквизиты — свои (для перечисления) и заёмщика (для получения).
+            Договор подписан. Выберите свои реквизиты для перечисления и для получения возврата.
           </p>
           <Button size="sm" className="rounded-lg text-xs gap-1.5 mt-1 bg-warning text-warning-foreground hover:bg-warning/90" onClick={onOpenBankDetails}>
             <CreditCard className="w-3.5 h-3.5" />
@@ -604,7 +604,21 @@ const NextActionBlock = ({ isLender, isBorrower, loanStatus, bankDetailsReady, r
       );
     }
 
-    if ((isSignedPhase || isActive) && canIssueMore) {
+    if (isSignedPhase && mySideReady && !counterpartySideReady) {
+      return (
+        <div className="rounded-xl border border-border/50 bg-muted/30 p-4 space-y-2">
+          <div className="flex items-center gap-2">
+            <Clock className="w-5 h-5 text-muted-foreground" />
+            <p className="text-sm font-semibold text-muted-foreground">Ожидаем выбор реквизитов заёмщиком</p>
+          </div>
+          <p className="text-xs text-muted-foreground">
+            Ваши реквизиты выбраны. Дождитесь, пока заёмщик укажет свои реквизиты для получения средств.
+          </p>
+        </div>
+      );
+    }
+
+    if ((isSignedPhase || isActive) && canIssueMore && bankDetailsReady) {
       return (
         <div className="rounded-xl border-2 border-primary/30 bg-primary/5 p-4 space-y-2">
           <div className="flex items-center gap-2">
@@ -628,13 +642,26 @@ const NextActionBlock = ({ isLender, isBorrower, loanStatus, bankDetailsReady, r
       );
     }
 
+    if ((isSignedPhase || isActive) && canIssueMore && !bankDetailsReady) {
+      return (
+        <div className="rounded-xl border border-border/50 bg-muted/30 p-4 space-y-2">
+          <div className="flex items-center gap-2">
+            <Clock className="w-5 h-5 text-muted-foreground" />
+            <p className="text-sm font-semibold text-muted-foreground">Реквизиты не готовы</p>
+          </div>
+          <p className="text-xs text-muted-foreground">
+            Для выдачи транша необходимо, чтобы обе стороны выбрали реквизиты.
+          </p>
+        </div>
+      );
+    }
+
     return null;
   }
 
   // --- Borrower ---
   if (isBorrower) {
-    // Signed phase: select requisites
-    if (isSignedPhase) {
+    if (isSignedPhase && !mySideReady) {
       return (
         <div className="rounded-xl border-2 border-warning/30 bg-warning/5 p-4 space-y-2">
           <div className="flex items-center gap-2">
@@ -642,7 +669,7 @@ const NextActionBlock = ({ isLender, isBorrower, loanStatus, bankDetailsReady, r
             <p className="text-sm font-semibold">Выберите реквизиты для получения</p>
           </div>
           <p className="text-xs text-muted-foreground">
-            Договор подписан. Укажите реквизиты, на которые займодавец перечислит средства, и реквизиты для возврата.
+            Договор подписан. Укажите реквизиты, на которые займодавец перечислит средства.
           </p>
           <Button size="sm" className="rounded-lg text-xs gap-1.5 mt-1 bg-warning text-warning-foreground hover:bg-warning/90" onClick={onOpenBankDetails}>
             <CreditCard className="w-3.5 h-3.5" />
@@ -652,7 +679,20 @@ const NextActionBlock = ({ isLender, isBorrower, loanStatus, bankDetailsReady, r
       );
     }
 
-    // Active phase with outstanding debt: repay
+    if (isSignedPhase && mySideReady && !counterpartySideReady) {
+      return (
+        <div className="rounded-xl border border-border/50 bg-muted/30 p-4 space-y-2">
+          <div className="flex items-center gap-2">
+            <Clock className="w-5 h-5 text-muted-foreground" />
+            <p className="text-sm font-semibold text-muted-foreground">Ожидаем выбор реквизитов займодавцем</p>
+          </div>
+          <p className="text-xs text-muted-foreground">
+            Ваши реквизиты выбраны. Дождитесь, пока займодавец укажет свои реквизиты.
+          </p>
+        </div>
+      );
+    }
+
     if (isActive && outstanding > 0) {
       return (
         <div className="rounded-xl border-2 border-primary/30 bg-primary/5 p-4 space-y-2">
@@ -663,7 +703,7 @@ const NextActionBlock = ({ isLender, isBorrower, loanStatus, bankDetailsReady, r
           <p className="text-xs text-muted-foreground">
             Текущий остаток долга: {outstanding.toLocaleString('ru-RU')} ₽. Внесите платёж для погашения.
           </p>
-          <Button size="sm" className="rounded-lg text-xs gap-1.5 mt-1" onClick={onNavigateRepay}>
+          <Button size="sm" className="rounded-lg text-xs gap-1.5 mt-1 bg-primary text-primary-foreground hover:bg-primary/90" onClick={onNavigateRepay}>
             <CheckCircle2 className="w-3.5 h-3.5" />
             Погасить
           </Button>
