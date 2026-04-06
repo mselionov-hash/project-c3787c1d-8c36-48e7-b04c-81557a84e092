@@ -26,11 +26,13 @@ const AuthConfirm = () => {
     if (type === 'signup' || type === 'email') {
       if (accessToken && refreshToken) {
         supabase.auth.setSession({ access_token: accessToken, refresh_token: refreshToken })
-          .then(({ error }) => {
+          .then(async ({ error }) => {
             if (error) {
               setStatus('error');
               setErrorMsg(error.message);
             } else {
+              // Sign out so the user must log in manually
+              await supabase.auth.signOut();
               setStatus('success');
             }
           });
@@ -39,17 +41,16 @@ const AuthConfirm = () => {
         setErrorMsg('Недействительная ссылка подтверждения.');
       }
     } else if (type === 'recovery') {
-      // Redirect to reset-password page with the tokens
       navigate(`/reset-password${hash}`);
     } else {
-      // Try setting session anyway (covers magiclink etc.)
       if (accessToken && refreshToken) {
         supabase.auth.setSession({ access_token: accessToken, refresh_token: refreshToken })
-          .then(({ error }) => {
+          .then(async ({ error }) => {
             if (error) {
               setStatus('error');
               setErrorMsg(error.message);
             } else {
+              await supabase.auth.signOut();
               setStatus('success');
             }
           });
