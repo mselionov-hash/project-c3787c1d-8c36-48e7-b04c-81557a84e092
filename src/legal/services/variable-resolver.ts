@@ -415,9 +415,13 @@ export async function resolveTrancheReceiptVariables(
 
   // APP3: if actual_time not provided, use empty (optional field)
   const trancheTime = tranche.actual_time || '';
+  const trancheTimeProvided = trancheTime ? 'YES' : 'NO';
+  // APP3: pre-build the inline time clause for section 4.1
+  const trancheTimeClause = trancheTime ? ` в ${trancheTime} (${trancheTimezone})` : '';
   // APP3: bank document fields are optional — use empty string, not placeholders
   const trancheBankDocId = tranche.bank_document_id?.trim() || '';
   const trancheBankDocDate = tranche.bank_document_date ? formatDateOnlyRu(tranche.bank_document_date) : '';
+  const trancheBankDocProvided = (trancheBankDocId || trancheBankDocDate) ? 'YES' : 'NO';
 
   // APP3: sender/receiver displays — never use "см. Приложение" fallbacks
   const senderDisplay = tranche.sender_account_display?.trim() || '';
