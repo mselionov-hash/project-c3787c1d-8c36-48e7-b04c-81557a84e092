@@ -32,6 +32,7 @@
 
     --success: 145 65% 42%;
     --warning: 38 92% 50%;
+    --warning-foreground: 0 0% 100%;
     --info: 210 100% 56%;
 
     --border: 220 14% 16%;
