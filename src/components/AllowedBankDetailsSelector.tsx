@@ -44,6 +44,7 @@ export const AllowedBankDetailsSelector = ({
   const [loading, setLoading] = useState(true);
   const [adding, setAdding] = useState(false);
   const [selectedPurpose, setSelectedPurpose] = useState<string>('disbursement');
+  const [suggestedBindings, setSuggestedBindings] = useState<Array<{ detailId: string; purpose: string }>>([]);
 
   const PRE_SIGN_EDITABLE = new Set(['draft', 'awaiting_signatures', 'signed_by_lender', 'signed_by_borrower']);
   const POST_SIGN_SETUP = new Set(['fully_signed', 'signed_no_debt']);
@@ -93,22 +94,19 @@ export const AllowedBankDetailsSelector = ({
     setMyDetails(details);
     setLoading(false);
 
-    // Auto-suggest: ONLY if exactly 1 detail total AND no existing bindings for my role.
-    // If user has multiple details, always require manual choice — never auto-bind all.
-    if (canEdit && allowedData.filter(a => a.party_role === myRole).length === 0) {
-      if (details.length === 1) {
-        const detail = details[0];
-        const isBankTransferDetail = detail.detail_type === 'general' || detail.detail_type === 'bank_transfer';
-        const isSbpDetail = detail.detail_type === 'sbp';
+    // Compute suggestions for pre-selection (but never auto-bind)
+    if (canEdit && allowedData.filter(a => a.party_role === myRole).length === 0 && details.length > 0) {
+      const { data: loanData } = await supabase
+        .from('loans')
+        .select('borrower_disbursement_receipt_policy, lender_repayment_receipt_policy')
+        .eq('id', loanId)
+        .single();
 
-        const { data: loanData } = await supabase
-          .from('loans')
-          .select('borrower_disbursement_receipt_policy, lender_repayment_receipt_policy')
-          .eq('id', loanId)
-          .single();
-
-        if (loanData) {
-          const autoAttached: string[] = [];
+      if (loanData) {
+        const suggestions: Array<{ detailId: string; purpose: string }> = [];
+        for (const detail of details) {
+          const isBankTransferDetail = detail.detail_type === 'general' || detail.detail_type === 'bank_transfer';
+          const isSbpDetail = detail.detail_type === 'sbp';
 
           for (const purpose of ['disbursement', 'repayment'] as const) {
             const policy = purpose === 'disbursement'
@@ -121,27 +119,11 @@ export const AllowedBankDetailsSelector = ({
               (policy === 'BANK_TRANSFER_OR_SBP' && (isBankTransferDetail || isSbpDetail));
 
             if (compatible) {
-              await supabase.from('loan_allowed_bank_details').insert({
-                loan_id: loanId,
-                bank_detail_id: detail.id,
-                party_role: myRole,
-                purpose,
-              });
-              autoAttached.push(purpose === 'disbursement' ? 'выдачу' : 'погашение');
+              suggestions.push({ detailId: detail.id, purpose });
             }
           }
-
-          if (autoAttached.length > 0) {
-            toast.success(`Реквизит привязан для: ${autoAttached.join(', ')}`);
-            fetchData();
-            onUpdate?.();
-          } else {
-            toast.info('Реквизит не подходит для автоматической привязки. Выберите вручную.');
-          }
         }
-      } else if (details.length > 1) {
-        // Multiple details — never auto-bind, ask user to choose
-        toast.info('У вас несколько реквизитов. Выберите нужные вручную.');
+        setSuggestedBindings(suggestions);
       }
     }
   };
