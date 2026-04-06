@@ -110,8 +110,8 @@ const ResetPassword = () => {
               <h2 className="text-lg font-semibold mb-1">Пароль обновлён</h2>
               <p className="text-sm text-muted-foreground">Вы можете войти с новым паролем.</p>
             </div>
-            <Button onClick={() => navigate('/dashboard')} className="w-full rounded-xl h-11 gap-2">
-              Перейти в личный кабинет
+            <Button onClick={() => navigate('/auth')} className="w-full rounded-xl h-11 gap-2">
+              Перейти ко входу
             </Button>
           </div>
         )}
