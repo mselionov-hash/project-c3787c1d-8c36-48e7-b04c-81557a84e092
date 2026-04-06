@@ -52,13 +52,12 @@ async function generateDocument(
   // Mark all previous non-superseded versions of the same doc type + entity as superseded
   const { data: previousDocs } = await supabase
     .from('generated_documents')
-    .select('id')
+    .select('id, source_entity_id')
     .eq('loan_id', loanId)
     .eq('document_type', documentType as string)
     .is('superseded_by', null)
     .then(res => {
       if (sourceEntityId) {
-        // Filter client-side since .eq on nullable needs care
         return { ...res, data: (res.data || []).filter(d => d.source_entity_id === sourceEntityId) };
       }
       return { ...res, data: (res.data || []).filter(d => !d.source_entity_id) };
