@@ -1030,7 +1030,7 @@ export async function resolveApp6Variables(loanId: string): Promise<ResolverResu
     CONTRACT_PLACE: loan.city,
     CONTRACT_DATE: formatDateOnlyRu(loan.issue_date || loan.created_at),
     DEAL_ID: loan.id,
-    LAST_SIGNATURE_AT: lastSignatureAt ? formatDateTimeRu(lastSignatureAt) : 'ожидается подписание',
+    LAST_SIGNATURE_AT: lastSignatureAt ? formatDateTimeRu(lastSignatureAt) : '',
 
     LENDER_FULL_NAME: lenderProfile.full_name,
     LENDER_APP_ACCOUNT_ID: lenderProfile.user_id,
@@ -1055,8 +1055,8 @@ export async function resolveApp6Variables(loanId: string): Promise<ResolverResu
     APP6_CREATED_AT: unep ? formatDateTimeRu(unep.created_at) : formatDateTimeRu(new Date().toISOString()),
     APP6_SCOPE_TEXT: 'Настоящее Соглашение распространяется на все электронные документы, формируемые и подписываемые Сторонами в рамках Договора денежного займа, указанного в заголовке настоящего Соглашения, посредством Платформы.',
     APP6_COVERED_DOCUMENTS_TEXT: 'Договор денежного займа, Приложения к Договору, Расписки о получении траншей, Подтверждения частичного и полного погашения, а также иные документы, предусмотренные Договором.',
-    APP6_SIGNED_BY_LENDER_AT: unep?.lender_signed_at ? formatDateTimeRu(unep.lender_signed_at) : 'ожидается подписание',
-    APP6_SIGNED_BY_BORROWER_AT: unep?.borrower_signed_at ? formatDateTimeRu(unep.borrower_signed_at) : 'ожидается подписание',
+    APP6_SIGNED_BY_LENDER_AT: unep?.lender_signed_at ? formatDateTimeRu(unep.lender_signed_at) : '',
+    APP6_SIGNED_BY_BORROWER_AT: unep?.borrower_signed_at ? formatDateTimeRu(unep.borrower_signed_at) : '',
 
     LENDER_SIGNATURE_BLOCK: renderSignatureBlock(lenderSig, 'lender'),
     BORROWER_SIGNATURE_BLOCK: renderSignatureBlock(borrowerSig, 'borrower'),
