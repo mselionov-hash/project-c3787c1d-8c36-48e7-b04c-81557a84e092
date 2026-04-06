@@ -117,6 +117,10 @@ export function getLoanBankReadiness(loan: Loan, details: LoanBoundBankDetail[])
     missingMessages.push('Не выбран допустимый реквизит займодавца для получения возврата.');
   }
 
+  // Per-side readiness: lender needs disbursement + repayment details, borrower needs disbursement details
+  const lenderSideReady = lenderDisbursement.length > 0 && lenderRepayment.length > 0;
+  const borrowerSideReady = borrowerDisbursement.length > 0;
+
   return {
     lenderDisbursement,
     borrowerDisbursement,
@@ -124,6 +128,8 @@ export function getLoanBankReadiness(loan: Loan, details: LoanBoundBankDetail[])
     trancheReady: lenderDisbursement.length > 0 && borrowerDisbursement.length > 0,
     repaymentReady: lenderRepayment.length > 0,
     allRequiredReady: missingMessages.length === 0,
+    lenderSideReady,
+    borrowerSideReady,
     missingMessages,
   };
 }

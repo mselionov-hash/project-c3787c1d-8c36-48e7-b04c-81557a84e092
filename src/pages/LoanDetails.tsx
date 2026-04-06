@@ -256,7 +256,8 @@ const LoanDetails = () => {
   const isSignedPhase = ['fully_signed', 'signed_no_debt'].includes(loan.status);
   const isActivePhase = loan.status === 'active';
   const bankDetailsReady = bankReadiness.trancheReady;
-  const repaymentDetailsReady = bankReadiness.repaymentReady;
+  const mySideReady = isLender ? bankReadiness.lenderSideReady : bankReadiness.borrowerSideReady;
+  const counterpartySideReady = isLender ? bankReadiness.borrowerSideReady : bankReadiness.lenderSideReady;
   const loanLimit = Number(loan.amount);
   const canIssueMore = totalDisbursed < loanLimit;
   const showNextAction = isSignedPhase || (isActivePhase && (outstanding > 0 || canIssueMore));
