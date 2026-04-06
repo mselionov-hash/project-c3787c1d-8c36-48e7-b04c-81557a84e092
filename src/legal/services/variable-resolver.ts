@@ -813,7 +813,7 @@ export async function resolvePartialRepaymentVariables(
     LOAN_CURRENCY: PLATFORM_CONFIG.LOAN_CURRENCY,
     REPAYMENT_METHOD: methodKey,
     REPAYMENT_METHOD_LABEL: REPAYMENT_METHOD_LABELS[methodKey] || methodKey,
-    REPAYMENT_BANK_DOCUMENT_ID: payment.transaction_id?.trim() || 'не предоставлен',
+    REPAYMENT_BANK_DOCUMENT_ID: payment.transaction_id?.trim() || '',
     APP1_EFFECTIVE_DOCUMENT_ID: 'Приложение № 1 (текущая редакция)',
     LENDER_FULL_NAME: lenderProfile.full_name,
     BORROWER_FULL_NAME: borrowerProfile.full_name,
@@ -912,7 +912,7 @@ export async function resolveFullRepaymentVariables(loanId: string): Promise<Res
     LOAN_CURRENCY: PLATFORM_CONFIG.LOAN_CURRENCY,
     CLOSING_REPAYMENT_METHOD: closingMethodKey,
     CLOSING_REPAYMENT_METHOD_LABEL: REPAYMENT_METHOD_LABELS[closingMethodKey] || closingMethodKey,
-    CLOSING_REPAYMENT_BANK_DOCUMENT_ID: closingPayment?.transaction_id?.trim() || 'не предоставлен',
+    CLOSING_REPAYMENT_BANK_DOCUMENT_ID: closingPayment?.transaction_id?.trim() || '',
     APP1_EFFECTIVE_DOCUMENT_ID: 'Приложение № 1 (текущая редакция)',
     DEAL_CLOSED_AT: formatDateTimeRu(nowIso),
 
