@@ -1,6 +1,7 @@
 import { useNavigate } from 'react-router-dom';
 import { ArrowUpRight, ArrowDownLeft, ChevronRight } from 'lucide-react';
 import type { Tables } from '@/integrations/supabase/types';
+import { formatDateSafe, parseDateOnly } from '@/lib/date-utils';
 
 type Loan = Tables<'loans'>;
 
@@ -10,6 +11,7 @@ const statusLabels: Record<string, { label: string; class: string }> = {
   signed_by_lender: { label: 'Ждёт заёмщика', class: 'bg-info/15 text-info' },
   signed_by_borrower: { label: 'Ждёт займодавца', class: 'bg-info/15 text-info' },
   fully_signed: { label: 'Подписан', class: 'bg-primary/15 text-primary' },
+  signed_no_debt: { label: 'Нет долга', class: 'bg-primary/15 text-primary' },
   active: { label: 'Активный', class: 'bg-primary/15 text-primary' },
   repaid: { label: 'Погашён', class: 'bg-muted text-muted-foreground' },
   overdue: { label: 'Просрочен', class: 'bg-destructive/15 text-destructive' },
@@ -31,6 +33,7 @@ function getNextStep(loan: Loan, isLender: boolean): NextStep | null {
     case 'signed_by_borrower':
       return isLender ? { label: 'Подписать договор', urgent: true } : null;
     case 'fully_signed':
+    case 'signed_no_debt':
       return isLender ? { label: 'Выдать транш' } : null;
     case 'active':
       return isLender ? null : { label: 'Погасить' };
@@ -45,7 +48,7 @@ export const LoanCard = ({ loan, type }: { loan: Loan; type: 'issued' | 'taken' 
   const isLender = type === 'issued';
   const nextStep = getNextStep(loan, isLender);
   const daysLeft = Math.ceil(
-    (new Date(loan.repayment_date).getTime() - Date.now()) / (1000 * 60 * 60 * 24)
+    (parseDateOnly(loan.repayment_date).getTime() - Date.now()) / (1000 * 60 * 60 * 24)
   );
 
   return (
@@ -78,7 +81,7 @@ export const LoanCard = ({ loan, type }: { loan: Loan; type: 'issued' | 'taken' 
             {loan.interest_mode === 'fixed_rate' && (
               <span>{Number(loan.interest_rate)}%</span>
             )}
-            <span>до {new Date(loan.repayment_date).toLocaleDateString('ru-RU', { day: 'numeric', month: 'short' })}</span>
+            <span>до {formatDateSafe(loan.repayment_date, { day: 'numeric', month: 'short' })}</span>
             {daysLeft > 0 && daysLeft <= 30 && loan.status === 'active' && (
               <span className="text-warning">{daysLeft} дн.</span>
             )}

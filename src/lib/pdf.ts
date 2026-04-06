@@ -1,4 +1,5 @@
 import jsPDF from 'jspdf';
+import { formatDateSafe } from '@/lib/date-utils';
 
 interface SignatureData {
   role: string;
@@ -84,8 +85,8 @@ export function generateLoanPDF(loan: LoanPDFData) {
   checkPage();
   addSection('1. Предмет договора');
   addWrappedText(`1.1. Займодавец передает Заемщику денежные средства в размере ${Number(loan.amount).toLocaleString('ru-RU')} рублей.`);
-  addWrappedText(`1.2. Дата выдачи займа: ${new Date(loan.issue_date).toLocaleDateString('ru-RU')}.`);
-  addWrappedText(`1.3. Заемщик обязуется вернуть указанную сумму займа в срок до ${new Date(loan.repayment_date).toLocaleDateString('ru-RU')}.`);
+  addWrappedText(`1.2. Дата выдачи займа: ${formatDateSafe(loan.issue_date)}.`);
+  addWrappedText(`1.3. Заемщик обязуется вернуть указанную сумму займа в срок до ${formatDateSafe(loan.repayment_date)}.`);
 
   checkPage();
   addSection('2. Проценты по займу');

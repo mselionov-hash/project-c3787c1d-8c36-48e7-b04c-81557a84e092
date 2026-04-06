@@ -151,7 +151,7 @@ const Documents = () => {
               const type = isLender ? 'issued' : 'taken';
               const status = statusLabels[loan.status] || statusLabels.draft;
               const isExpanded = expandedLoanId === loan.id;
-              const isFullySigned = ['fully_signed', 'active', 'repaid'].includes(loan.status);
+              const isFullySigned = ['fully_signed', 'signed_no_debt', 'active', 'repaid'].includes(loan.status);
               const hasSchedule = ['installments_fixed', 'installments_variable'].includes(loan.repayment_schedule_type);
               const totalDisbursed = loanTranches.reduce((s, t) => s + Number(t.amount), 0);
               const totalRepaid = loanPayments.reduce((s, p) => s + Number(p.transfer_amount), 0);

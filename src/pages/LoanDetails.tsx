@@ -22,6 +22,7 @@ import {
   CreditCard, ChevronDown, ChevronUp, Banknote,
 } from 'lucide-react';
 import type { Tables } from '@/integrations/supabase/types';
+import { formatDateSafe } from '@/lib/date-utils';
 
 type Loan = Tables<'loans'>;
 type Signature = Tables<'loan_signatures'>;
@@ -35,6 +36,7 @@ const statusConfig: Record<string, { label: string; icon: React.ElementType; cla
   signed_by_lender: { label: 'Подписан займодавцем', icon: PenTool, class: 'bg-info/15 text-info' },
   signed_by_borrower: { label: 'Подписан заёмщиком', icon: PenTool, class: 'bg-info/15 text-info' },
   fully_signed: { label: 'Подписан', icon: CheckCircle2, class: 'bg-primary/15 text-primary' },
+  signed_no_debt: { label: 'Подписан (нет долга)', icon: CheckCircle2, class: 'bg-primary/15 text-primary' },
   active: { label: 'Активный', icon: CheckCircle2, class: 'bg-primary/15 text-primary' },
   repaid: { label: 'Погашён', icon: CheckCircle2, class: 'bg-muted text-muted-foreground' },
   overdue: { label: 'Просрочен', icon: AlertTriangle, class: 'bg-destructive/15 text-destructive' },
@@ -134,9 +136,18 @@ const LoanDetails = () => {
       const td = ct.reduce((s, t) => s + Number(t.amount), 0);
       const cp = (payRes.data || []).filter(p => p.status === 'confirmed');
       const tr = cp.reduce((s, p) => s + Number(p.transfer_amount), 0);
+      const loanLimit = Number(loanRes.data.amount);
       if (td > 0 && tr >= td) {
-        await supabase.from('loans').update({ status: 'repaid' }).eq('id', id!);
-        setLoan(prev => prev ? { ...prev, status: 'repaid' } : prev);
+        // Outstanding debt is zero — but is the loan fully disbursed?
+        if (td >= loanLimit) {
+          // Fully disbursed AND fully repaid → truly closed
+          await supabase.from('loans').update({ status: 'repaid' }).eq('id', id!);
+          setLoan(prev => prev ? { ...prev, status: 'repaid' } : prev);
+        } else {
+          // Zero debt but more tranches can be issued → return to signed_no_debt
+          await supabase.from('loans').update({ status: 'signed_no_debt' }).eq('id', id!);
+          setLoan(prev => prev ? { ...prev, status: 'signed_no_debt' } : prev);
+        }
       }
     }
   };
@@ -240,10 +251,9 @@ const LoanDetails = () => {
   const totalRepaid = confirmedPayments.reduce((s, p) => s + Number(p.transfer_amount), 0);
   const outstanding = Math.max(0, totalDisbursed - totalRepaid);
 
-  // Next-action logic
+  // Next-action logic: show post-sign CTA when signed and no outstanding debt
   const isSignedPhase = ['fully_signed', 'signed_no_debt'].includes(loan.status);
-  const hasNoConfirmedTranches = confirmedTranches.length === 0;
-  const showPostSignAction = isSignedPhase && hasNoConfirmedTranches;
+  const showPostSignAction = isSignedPhase && outstanding === 0;
   // Lender needs disbursement details from both sides to create a tranche
   const lenderHasDisbursement = allowedDetails.some(d => d.party_role === 'lender' && d.purpose === 'disbursement');
   const borrowerHasDisbursement = allowedDetails.some(d => d.party_role === 'borrower' && d.purpose === 'disbursement');
@@ -277,7 +287,7 @@ const LoanDetails = () => {
             <p className="text-xs text-muted-foreground">
               {loan.interest_mode === 'fixed_rate' ? `${Number(loan.interest_rate)}%` : 'Без %'}
               {' · до '}
-              {new Date(loan.repayment_date).toLocaleDateString('ru-RU')}
+              {formatDateSafe(loan.repayment_date)}
             </p>
           </div>
           {totalDisbursed > 0 && (
@@ -434,8 +444,8 @@ const LoanDetails = () => {
             {loan.interest_mode === 'fixed_rate' && <Row label="Ставка" value={`${Number(loan.interest_rate)}% годовых`} />}
             <Row label="Неустойка" value={`${Number(loan.penalty_rate)}%/день`} />
             <Row label="График" value={SCHEDULE_TYPE_LABELS[loan.repayment_schedule_type] || loan.repayment_schedule_type} />
-            <Row label="Дата выдачи" value={new Date(loan.issue_date).toLocaleDateString('ru-RU')} />
-            <Row label="Срок возврата" value={new Date(loan.repayment_date).toLocaleDateString('ru-RU')} />
+            <Row label="Дата выдачи" value={formatDateSafe(loan.issue_date)} />
+            <Row label="Срок возврата" value={formatDateSafe(loan.repayment_date)} />
             <Row label="Город" value={loan.city} />
             <Row label="Займодавец" value={loan.lender_name} />
             <Row label="Заёмщик" value={loan.borrower_name} />

@@ -9,6 +9,7 @@ import { useAuth } from '@/hooks/useAuth';
 import { toast } from 'sonner';
 import { AppLayout } from '@/components/AppLayout';
 import { ArrowLeft, ArrowRight, Loader2, ChevronDown, ChevronUp } from 'lucide-react';
+import { formatDateSafe } from '@/lib/date-utils';
 import {
   Select,
   SelectContent,
@@ -390,7 +391,7 @@ const CreateLoan = () => {
               </div>
               <div className="flex justify-between text-sm">
                 <span className="text-muted-foreground">Возврат до</span>
-                <span className="font-medium">{new Date(repaymentDate).toLocaleDateString('ru-RU')}</span>
+                <span className="font-medium">{formatDateSafe(repaymentDate)}</span>
               </div>
               <div className="flex justify-between text-sm">
                 <span className="text-muted-foreground">Проценты</span>
