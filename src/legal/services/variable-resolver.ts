@@ -807,7 +807,7 @@ export async function resolvePartialRepaymentVariables(
     SIGNATURE_SCHEME_EFFECTIVE: schemeEffective,
     REPAYMENT_ID: payment.id,
     REPAYMENT_DATE: formatDateOnlyRu(payment.transfer_date),
-    REPAYMENT_TIME: payment.confirmed_at ? new Date(payment.confirmed_at).toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' }) : 'время не зафиксировано',
+    REPAYMENT_TIME: payment.confirmed_at ? new Date(payment.confirmed_at).toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' }) : '',
     REPAYMENT_AMOUNT: fmtMoney(paymentAmount),
     REPAYMENT_AMOUNT_IN_WORDS: amountToWordsRu(paymentAmount),
     LOAN_CURRENCY: PLATFORM_CONFIG.LOAN_CURRENCY,
@@ -906,7 +906,7 @@ export async function resolveFullRepaymentVariables(loanId: string): Promise<Res
     CLOSING_REPAYMENT_DATE: closingPayment ? formatDateOnlyRu(closingPayment.transfer_date) : '',
     CLOSING_REPAYMENT_TIME: closingPayment?.confirmed_at
       ? new Date(closingPayment.confirmed_at).toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' })
-      : 'время не зафиксировано',
+      : '',
     CLOSING_REPAYMENT_AMOUNT: fmtMoney(closingAmount),
     CLOSING_REPAYMENT_AMOUNT_IN_WORDS: amountToWordsRu(closingAmount),
     LOAN_CURRENCY: PLATFORM_CONFIG.LOAN_CURRENCY,
