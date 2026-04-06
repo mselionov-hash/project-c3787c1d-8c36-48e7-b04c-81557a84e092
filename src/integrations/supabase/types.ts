@@ -146,6 +146,7 @@ export type Database = {
           loan_id: string
           render_data_snapshot: Json
           source_entity_id: string | null
+          superseded_by: string | null
           template_version: string
         }
         Insert: {
@@ -157,6 +158,7 @@ export type Database = {
           loan_id: string
           render_data_snapshot: Json
           source_entity_id?: string | null
+          superseded_by?: string | null
           template_version?: string
         }
         Update: {
@@ -168,6 +170,7 @@ export type Database = {
           loan_id?: string
           render_data_snapshot?: Json
           source_entity_id?: string | null
+          superseded_by?: string | null
           template_version?: string
         }
         Relationships: [
