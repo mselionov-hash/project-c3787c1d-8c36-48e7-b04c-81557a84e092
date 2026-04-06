@@ -476,6 +476,8 @@ export async function resolveTrancheReceiptVariables(
     TRANCHE_CURRENCY: tranche.currency || 'руб.',
     TRANCHE_DATE: formatDateOnlyRu(tranche.actual_date || tranche.planned_date),
     TRANCHE_TIME: trancheTime,
+    TRANCHE_TIME_PROVIDED: trancheTimeProvided,
+    TRANCHE_TIME_CLAUSE: trancheTimeClause,
     TRANCHE_TIMEZONE: trancheTimezone,
     TRANCHE_METHOD: methodKey,
     TRANCHE_METHOD_LABEL: methodKey === 'SBP' ? 'Перевод через СБП' : 'Банковский перевод',
@@ -484,6 +486,7 @@ export async function resolveTrancheReceiptVariables(
     TRANCHE_REFERENCE_TEXT: tranche.reference_text || `По договору займа № ${loan.contract_number || loan.id.slice(0, 8).toUpperCase()}`,
     TRANCHE_BANK_DOCUMENT_ID: trancheBankDocId,
     TRANCHE_BANK_DOCUMENT_DATE: trancheBankDocDate,
+    TRANCHE_BANK_DOC_PROVIDED: trancheBankDocProvided,
     TRANCHE_TRANSFER_SOURCE: tranche.transfer_source || 'MANUAL',
 
     // TZ v2.2 printable requisite fields
