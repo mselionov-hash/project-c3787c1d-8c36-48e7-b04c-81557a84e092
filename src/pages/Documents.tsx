@@ -263,7 +263,7 @@ const Documents = () => {
 };
 
 const DocRow = ({
-  label, type, loanId, entityId, generating, onGen,
+  label, type, loanId, entityId, generating, onGen, docs,
 }: {
   label: string;
   type: string;
@@ -271,24 +271,45 @@ const DocRow = ({
   entityId?: string;
   generating: string | null;
   onGen: (type: string, loanId: string, entityId?: string) => void;
+  docs: Doc[];
 }) => {
   const key = type + (entityId || '');
   const isLoading = generating === key;
+
+  // Count how many versions exist for this doc type + entity
+  const matchingDocs = docs.filter(d => {
+    if (d.document_type !== type) return false;
+    if (entityId) return d.source_entity_id === entityId;
+    return !d.source_entity_id;
+  });
+  const currentCount = matchingDocs.filter(d => !(d as any).superseded_by).length;
+  const totalCount = matchingDocs.length;
+  const hasExisting = totalCount > 0;
+
   return (
     <div
       className="flex items-center gap-3 p-2.5 rounded-lg bg-muted/20 border border-border/20 hover:bg-muted/40 transition-colors cursor-pointer"
       onClick={() => onGen(type, loanId, entityId)}
     >
       <FileText className="w-4 h-4 text-primary flex-shrink-0" />
-      <p className="text-sm font-medium truncate flex-1">{label}</p>
+      <div className="flex-1 min-w-0">
+        <p className="text-sm font-medium truncate">{label}</p>
+        {hasExisting && (
+          <p className="text-xs text-muted-foreground flex items-center gap-1">
+            <History className="w-3 h-3" />
+            {totalCount > 1 ? `${totalCount} версий` : '1 версия'}
+          </p>
+        )}
+      </div>
       <Button
         variant="ghost"
         size="icon"
         className="h-8 w-8 flex-shrink-0 rounded-lg text-muted-foreground hover:text-primary-foreground hover:bg-primary/80"
         disabled={generating !== null}
         onClick={(e) => { e.stopPropagation(); onGen(type, loanId, entityId); }}
+        title={hasExisting ? 'Перегенерировать (новая версия)' : 'Сгенерировать'}
       >
-        {isLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
+        {isLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : hasExisting ? <RotateCw className="w-4 h-4" /> : <Download className="w-4 h-4" />}
       </Button>
     </div>
   );
