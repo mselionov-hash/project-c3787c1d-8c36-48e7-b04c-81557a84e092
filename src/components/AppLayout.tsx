@@ -3,6 +3,7 @@ import { NavLink, useNavigate } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
 import { Home, Wallet, FileText, UserCircle, LogOut, Plus } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import logoTransparent from '@/assets/logo-transparent.png';
 
 const navItems = [
   { to: '/dashboard', icon: Home, label: 'Главная' },
@@ -21,11 +22,9 @@ export const AppLayout = ({ children }: { children: ReactNode }) => {
       {/* Desktop sidebar */}
       <aside className="hidden md:flex flex-col w-56 border-r border-border/50 bg-card/50 sticky top-0 h-screen">
         <div className="p-4 border-b border-border/50">
-          <div className="flex items-center gap-2">
-            <div className="w-7 h-7 rounded-lg bg-primary flex items-center justify-center">
-              <Wallet className="w-3.5 h-3.5 text-primary-foreground" />
-            </div>
-            <span className="font-bold text-sm font-display">P2P Займы</span>
+          <div className="flex items-center gap-2.5">
+            <img src={logoTransparent} alt="ГдеДеньги" className="w-7 h-7 object-contain" />
+            <span className="font-bold text-sm font-display tracking-tight">ГдеДеньги</span>
           </div>
         </div>
 

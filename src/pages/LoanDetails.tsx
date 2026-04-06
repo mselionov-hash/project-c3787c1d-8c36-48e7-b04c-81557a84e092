@@ -552,7 +552,9 @@ const SigBox = ({ label, sig }: { label: string; sig?: Signature | null }) => (
     <p className="text-[10px] text-muted-foreground uppercase mb-1">{label}</p>
     {sig ? (
       <>
-        <img src={sig.signature_data} alt="" className="h-8 mb-0.5" />
+        <div className="rounded-md bg-white/90 p-1.5 inline-block mb-1">
+          <img src={sig.signature_data} alt="" className="h-8 invert" />
+        </div>
         <p className="text-[10px] text-muted-foreground">{new Date(sig.signed_at).toLocaleDateString('ru-RU')}</p>
       </>
     ) : (
