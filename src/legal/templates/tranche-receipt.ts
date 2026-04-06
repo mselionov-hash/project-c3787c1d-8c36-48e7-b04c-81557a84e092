@@ -36,7 +36,11 @@ export const TRANCHE_RECEIPT_TEMPLATE = `{RECEIPT_TITLE} № {TRANCHE_RECEIPT_NU
 
 3.2. Сумма Транша: {TRANCHE_AMOUNT} ({TRANCHE_AMOUNT_IN_WORDS}) {TRANCHE_CURRENCY}.
 
-3.3. Дата и время фактического перечисления Транша: {TRANCHE_DATE}, {TRANCHE_TIME} ({TRANCHE_TIMEZONE}).
+3.3. Дата фактического перечисления Транша: {TRANCHE_DATE}.
+
+[[IF {TRANCHE_TIME_PROVIDED} == YES]]
+Время фактического перечисления: {TRANCHE_TIME} ({TRANCHE_TIMEZONE}).
+[[ENDIF]]
 
 [[IF {TRANCHE_METHOD} == BANK_TRANSFER]]
 3.4. Способ перечисления: безналичный перевод со счета / реквизита Займодавца {TRANCHE_SENDER_ACCOUNT_DISPLAY} на счет / реквизит Заемщика {TRANCHE_RECEIVER_ACCOUNT_DISPLAY}.
@@ -48,13 +52,15 @@ export const TRANCHE_RECEIPT_TEMPLATE = `{RECEIPT_TITLE} № {TRANCHE_RECEIPT_NU
 
 3.5. Назначение платежа: {TRANCHE_REFERENCE_TEXT}.
 
+[[IF {TRANCHE_BANK_DOC_PROVIDED} == YES]]
 3.6. Банковский документ / идентификатор платежного подтверждения: {TRANCHE_BANK_DOCUMENT_ID}.
 
 3.7. Дата банковского документа: {TRANCHE_BANK_DOCUMENT_DATE}.
+[[ENDIF]]
 
 4. Подтверждение получения конкретного Транша
 
-4.1. Настоящим Заемщик подтверждает получение от Займодавца по указанному выше Траншу денежных средств в размере {TRANCHE_AMOUNT} ({TRANCHE_AMOUNT_IN_WORDS}) {TRANCHE_CURRENCY}, перечисленных {TRANCHE_DATE} в {TRANCHE_TIME} ({TRANCHE_TIMEZONE}) на реквизит {TRANCHE_RECEIVER_ACCOUNT_DISPLAY}, в рамках Договора.
+4.1. Настоящим Заемщик подтверждает получение от Займодавца по указанному выше Траншу денежных средств в размере {TRANCHE_AMOUNT} ({TRANCHE_AMOUNT_IN_WORDS}) {TRANCHE_CURRENCY}, перечисленных {TRANCHE_DATE}{TRANCHE_TIME_CLAUSE} на реквизит {TRANCHE_RECEIVER_ACCOUNT_DISPLAY}, в рамках Договора.
 
 4.2. Настоящая Расписка подтверждает исключительно получение указанного в ней Транша и не означает подтверждения получения иных денежных средств по Договору, не изменяет условия Договора, не подменяет банковский документ и не является признанием общего размера задолженности, процентов или иных сумм по Договору сверх сведений о данном Транше.
 
