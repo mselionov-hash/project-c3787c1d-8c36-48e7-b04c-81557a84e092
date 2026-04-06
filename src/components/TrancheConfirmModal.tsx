@@ -33,17 +33,20 @@ export const TrancheConfirmModal = ({ tranche, userId, loanLimit, onClose, onSuc
   const handleConfirm = async () => {
     setSaving(true);
     try {
-      // CRITICAL GUARD: re-check cumulative disbursed at confirmation time
-      const { data: confirmedTranches } = await supabase
+      // CRITICAL GUARD: re-check cumulative disbursed across ALL active statuses
+      const { data: activeTranches } = await supabase
         .from('loan_tranches')
-        .select('amount')
+        .select('id, amount, status')
         .eq('loan_id', tranche.loan_id)
-        .eq('status', 'confirmed');
-      const alreadyConfirmed = (confirmedTranches || []).reduce((s, t) => s + Number(t.amount), 0);
-      const wouldBeTotal = alreadyConfirmed + Number(tranche.amount);
+        .in('status', ['planned', 'sent', 'confirmed']);
+      // Sum all tranches except the one being confirmed (it's already counted)
+      const otherTotal = (activeTranches || [])
+        .filter(t => t.id !== tranche.id)
+        .reduce((s, t) => s + Number(t.amount), 0);
+      const wouldBeTotal = otherTotal + Number(tranche.amount);
       
       if (wouldBeTotal > loanLimit) {
-        toast.error(`Подтверждение невозможно: общая сумма подтверждённых траншей (${wouldBeTotal.toLocaleString('ru-RU')} ₽) превысит лимит договора (${loanLimit.toLocaleString('ru-RU')} ₽)`);
+        toast.error(`Подтверждение невозможно: общая сумма траншей (${wouldBeTotal.toLocaleString('ru-RU')} ₽) превысит лимит договора (${loanLimit.toLocaleString('ru-RU')} ₽)`);
         setSaving(false);
         return;
       }
