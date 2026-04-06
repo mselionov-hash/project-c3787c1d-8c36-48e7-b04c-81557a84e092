@@ -9,6 +9,7 @@ import { useAuth } from '@/hooks/useAuth';
 import { toast } from 'sonner';
 import { AppLayout } from '@/components/AppLayout';
 import { ArrowLeft, ArrowRight, Loader2, ChevronDown, ChevronUp } from 'lucide-react';
+import { formatDateSafe } from '@/lib/date-utils';
 import {
   Select,
   SelectContent,
