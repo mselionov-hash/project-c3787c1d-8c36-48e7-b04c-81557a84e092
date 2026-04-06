@@ -428,7 +428,7 @@ const LoanDetails = () => {
             icon={<CreditCard className="w-3.5 h-3.5" />}
             open={expanded.bank}
             onToggle={() => toggle('bank')}
-            highlight={isSignedPhase && !bankDetailsReady}
+            highlight={isSignedPhase && !mySideReady}
           >
             <AllowedBankDetailsSelector
               loanId={loan.id}
