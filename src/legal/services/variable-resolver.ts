@@ -100,7 +100,7 @@ function renderSignatureBlock(sig: Signature | undefined, role: string): string 
 
 function renderBankDetailsTable(details: BankDetailSnapshotItem[], purpose: string, partyRole: string): string {
   const filtered = details.filter(d => d.purpose === purpose && d.party_role === partyRole);
-  if (filtered.length === 0) return 'Реквизиты не согласованы';
+  if (filtered.length === 0) return '';
 
   return filtered.map((d, i) => {
     const parts = [`${i + 1}. ${d.bank_name}`];
