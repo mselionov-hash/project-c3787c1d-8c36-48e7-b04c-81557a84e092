@@ -362,6 +362,7 @@ const LoanDetails = () => {
             isLender={isLender}
             isBorrower={isBorrower}
             loanStatus={loan.status}
+            loanLimit={Number(loan.amount)}
             contractNumber={loan.contract_number}
             onRefresh={fetchAll}
           />
@@ -486,6 +487,7 @@ const LoanDetails = () => {
           borrowerId={loan.borrower_id}
           nextTrancheNumber={tranches.length > 0 ? Math.max(...tranches.map(t => t.tranche_number)) + 1 : 1}
           contractNumber={loan.contract_number}
+          loanLimit={Number(loan.amount)}
           onClose={() => setShowCreateTranche(false)}
           onSuccess={fetchAll}
         />
