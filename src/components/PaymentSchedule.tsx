@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { formatDateSafe } from '@/lib/date-utils';
 import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -127,7 +128,7 @@ export const PaymentSchedule = ({
                   {items.map(item => (
                     <tr key={item.id} className="border-b border-border/20">
                       <td className="py-2.5 px-3">{item.item_number}</td>
-                      <td className="py-2.5 px-3">{new Date(item.due_date).toLocaleDateString('ru-RU')}</td>
+                      <td className="py-2.5 px-3">{formatDateSafe(item.due_date)}</td>
                       <td className="py-2.5 px-3 text-right">{Number(item.principal_amount).toLocaleString('ru-RU')} ₽</td>
                       <td className="py-2.5 px-3 text-right">{Number(item.interest_amount).toLocaleString('ru-RU')} ₽</td>
                       <td className="py-2.5 px-3 text-right font-medium">{Number(item.total_amount).toLocaleString('ru-RU')} ₽</td>

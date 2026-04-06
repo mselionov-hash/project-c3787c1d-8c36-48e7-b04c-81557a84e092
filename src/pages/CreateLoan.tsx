@@ -390,7 +390,7 @@ const CreateLoan = () => {
               </div>
               <div className="flex justify-between text-sm">
                 <span className="text-muted-foreground">Возврат до</span>
-                <span className="font-medium">{new Date(repaymentDate).toLocaleDateString('ru-RU')}</span>
+                <span className="font-medium">{formatDateSafe(repaymentDate)}</span>
               </div>
               <div className="flex justify-between text-sm">
                 <span className="text-muted-foreground">Проценты</span>
