@@ -44,6 +44,7 @@ const statusLabels: Record<string, { label: string; class: string }> = {
   signed_by_lender: { label: 'Ждёт заёмщика', class: 'bg-info/15 text-info' },
   signed_by_borrower: { label: 'Ждёт займодавца', class: 'bg-info/15 text-info' },
   fully_signed: { label: 'Подписан', class: 'bg-primary/15 text-primary' },
+  signed_no_debt: { label: 'Подписан (нет долга)', class: 'bg-primary/15 text-primary' },
   active: { label: 'Активный', class: 'bg-primary/15 text-primary' },
   repaid: { label: 'Погашён', class: 'bg-muted text-muted-foreground' },
   overdue: { label: 'Просрочен', class: 'bg-destructive/15 text-destructive' },
@@ -230,7 +231,7 @@ const Documents = () => {
                                   onGen={generate}
                                 />
                               ))}
-                              {isLender && totalDisbursed > 0 && totalRepaid >= totalDisbursed && (
+                              {isLender && loan.status === 'repaid' && totalDisbursed >= Number(loan.amount) && totalRepaid >= totalDisbursed && (
                                 <DocRow label="Полное погашение" type="full_repayment_confirmation" loanId={loan.id} generating={generating} onGen={generate} />
                               )}
                               {loan.signature_scheme_requested === 'UNEP_WITH_APPENDIX_6' && (
