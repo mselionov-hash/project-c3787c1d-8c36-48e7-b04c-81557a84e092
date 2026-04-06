@@ -20,6 +20,7 @@ interface CreateTrancheModalProps {
   borrowerId: string | null;
   nextTrancheNumber: number;
   contractNumber: string | null;
+  loanLimit: number;
   onClose: () => void;
   onSuccess: () => void;
 }
@@ -40,6 +41,7 @@ export const CreateTrancheModal = ({
   borrowerId,
   nextTrancheNumber,
   contractNumber,
+  loanLimit,
   onClose,
   onSuccess,
 }: CreateTrancheModalProps) => {
@@ -54,6 +56,7 @@ export const CreateTrancheModal = ({
   const [referenceText, setReferenceText] = useState(defaultReference);
   const [saving, setSaving] = useState(false);
   const [proofFiles, setProofFiles] = useState<string[]>([]);
+  const [cumulativeDisbursed, setCumulativeDisbursed] = useState(0);
 
   const [senderBankDetails, setSenderBankDetails] = useState<BankDetail[]>([]);
   const [receiverBankDetails, setReceiverBankDetails] = useState<BankDetail[]>([]);
@@ -63,7 +66,16 @@ export const CreateTrancheModal = ({
   const inputClass = 'h-11 rounded-xl bg-muted/50 border-border/50 focus:bg-card';
 
   useEffect(() => {
-    const fetchBankDetails = async () => {
+    const fetchData = async () => {
+      // Fetch cumulative confirmed + planned/sent tranches
+      const { data: existingTranches } = await supabase
+        .from('loan_tranches')
+        .select('amount, status')
+        .eq('loan_id', loanId)
+        .in('status', ['planned', 'sent', 'confirmed']);
+      const total = (existingTranches || []).reduce((s, t) => s + Number(t.amount), 0);
+      setCumulativeDisbursed(total);
+
       const { data: senderData } = await supabase
         .from('bank_details')
         .select('*')
@@ -72,7 +84,6 @@ export const CreateTrancheModal = ({
       const senderList = senderData || [];
       setSenderBankDetails(senderList);
       
-      // Auto-select if only one or default
       const defaultSender = senderList.find(b => b.is_default) || (senderList.length === 1 ? senderList[0] : null);
       if (defaultSender) {
         setSelectedSenderId(defaultSender.id);
@@ -95,8 +106,8 @@ export const CreateTrancheModal = ({
         }
       }
     };
-    fetchBankDetails();
-  }, [lenderId, borrowerId]);
+    fetchData();
+  }, [loanId, lenderId, borrowerId]);
 
   const handleSenderSelect = (bdId: string) => {
     setSelectedSenderId(bdId);
@@ -110,13 +121,23 @@ export const CreateTrancheModal = ({
     if (bd) setReceiverDisplay(formatBankLabel(bd));
   };
 
+  const remaining = loanLimit - cumulativeDisbursed;
+  const parsedAmount = parseFloat(amount) || 0;
+  const wouldExceed = parsedAmount > 0 && (cumulativeDisbursed + parsedAmount) > loanLimit;
+
   const handleSave = async () => {
-    if (!amount || parseFloat(amount) <= 0) {
+    if (!amount || parsedAmount <= 0) {
       toast.error('Укажите сумму транша');
       return;
     }
     if (!plannedDate) {
       toast.error('Укажите дату');
+      return;
+    }
+
+    // CRITICAL GUARD: over-limit check
+    if (wouldExceed) {
+      toast.error(`Сумма транша превышает остаток лимита. Максимум: ${remaining.toLocaleString('ru-RU')} ₽`);
       return;
     }
 
@@ -126,7 +147,7 @@ export const CreateTrancheModal = ({
         loan_id: loanId,
         created_by: userId,
         tranche_number: nextTrancheNumber,
-        amount: parseFloat(amount),
+        amount: parsedAmount,
         planned_date: plannedDate,
         method,
         sender_account_display: senderDisplay.trim() || null,
@@ -166,10 +187,20 @@ export const CreateTrancheModal = ({
           </button>
         </div>
 
+        {/* Limit info */}
+        <div className="rounded-lg bg-muted/50 border border-border/40 p-3 mb-4 text-xs space-y-0.5">
+          <div className="flex justify-between"><span className="text-muted-foreground">Лимит договора</span><span className="font-medium">{loanLimit.toLocaleString('ru-RU')} ₽</span></div>
+          <div className="flex justify-between"><span className="text-muted-foreground">Уже выдано / в процессе</span><span className="font-medium">{cumulativeDisbursed.toLocaleString('ru-RU')} ₽</span></div>
+          <div className="flex justify-between"><span className="text-muted-foreground">Доступный остаток</span><span className={`font-semibold ${remaining <= 0 ? 'text-destructive' : 'text-primary'}`}>{remaining.toLocaleString('ru-RU')} ₽</span></div>
+        </div>
+
         <div className="space-y-4">
           <div className="space-y-2">
             <Label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Сумма (₽) *</Label>
             <Input type="number" min="0" step="0.01" value={amount} onChange={e => setAmount(e.target.value)} className={inputClass} />
+            {wouldExceed && (
+              <p className="text-xs text-destructive">Превышение лимита! Максимум: {remaining.toLocaleString('ru-RU')} ₽</p>
+            )}
           </div>
           <div className="space-y-2">
             <Label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Планируемая дата *</Label>
@@ -238,7 +269,7 @@ export const CreateTrancheModal = ({
 
           <div className="flex gap-3 pt-2">
             <Button variant="outline" onClick={onClose} className="flex-1 rounded-xl h-11">Отмена</Button>
-            <Button onClick={handleSave} disabled={saving} className="flex-1 rounded-xl h-11 gap-2">
+            <Button onClick={handleSave} disabled={saving || wouldExceed || remaining <= 0} className="flex-1 rounded-xl h-11 gap-2">
               {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Banknote className="w-4 h-4" />}
               Создать
             </Button>
