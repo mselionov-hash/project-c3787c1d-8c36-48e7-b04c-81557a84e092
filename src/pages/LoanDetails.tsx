@@ -7,6 +7,7 @@ import SignaturePad from '@/components/SignaturePad';
 import SendLoanModal from '@/components/SendLoanModal';
 import { AllowedBankDetailsSelector } from '@/components/AllowedBankDetailsSelector';
 import { TrancheList } from '@/components/TrancheList';
+import { CreateTrancheModal } from '@/components/CreateTrancheModal';
 import { PaymentSchedule } from '@/components/PaymentSchedule';
 import { RepaymentList } from '@/components/RepaymentList';
 import { TransferEvidence } from '@/components/TransferEvidence';
@@ -62,9 +63,11 @@ const LoanDetails = () => {
   const [tranches, setTranches] = useState<Tranche[]>([]);
   const [scheduleItems, setScheduleItems] = useState<ScheduleItem[]>([]);
   const [payments, setPayments] = useState<Payment[]>([]);
+  const [allowedDetails, setAllowedDetails] = useState<{ party_role: string; purpose: string }[]>([]);
   const [loading, setLoading] = useState(true);
   const [showSignature, setShowSignature] = useState(false);
   const [showSend, setShowSend] = useState(false);
+  const [showCreateTranche, setShowCreateTranche] = useState(false);
   const [edoAcceptedByUser, setEdoAcceptedByUser] = useState(false);
   const [edoAcceptedByCounterparty, setEdoAcceptedByCounterparty] = useState(false);
   const [expanded, setExpanded] = useState<Record<SectionKey, boolean>>({
@@ -98,18 +101,20 @@ const LoanDetails = () => {
   };
 
   const fetchAll = async () => {
-    const [loanRes, sigRes, trancheRes, schedRes, payRes] = await Promise.all([
+    const [loanRes, sigRes, trancheRes, schedRes, payRes, allowedRes] = await Promise.all([
       supabase.from('loans').select('*').eq('id', id!).single(),
       supabase.from('loan_signatures').select('*').eq('loan_id', id!),
       supabase.from('loan_tranches').select('*').eq('loan_id', id!).order('tranche_number'),
       supabase.from('payment_schedule_items').select('*').eq('loan_id', id!).order('item_number'),
       supabase.from('loan_payments').select('*').eq('loan_id', id!).order('transfer_date', { ascending: false }),
+      supabase.from('loan_allowed_bank_details').select('party_role, purpose').eq('loan_id', id!),
     ]);
     setLoan(loanRes.data);
     setSignatures(sigRes.data || []);
     setTranches(trancheRes.data || []);
     setScheduleItems(schedRes.data || []);
     setPayments(payRes.data || []);
+    setAllowedDetails(allowedRes.data || []);
     setLoading(false);
 
     if (loanRes.data?.signature_scheme_requested === 'UNEP_WITH_APPENDIX_6' && user) {
@@ -238,8 +243,11 @@ const LoanDetails = () => {
   // Next-action logic
   const isSignedPhase = ['fully_signed', 'signed_no_debt'].includes(loan.status);
   const hasNoConfirmedTranches = confirmedTranches.length === 0;
-  const pendingTranches = tranches.filter(t => t.status === 'planned' || t.status === 'sent');
   const showPostSignAction = isSignedPhase && hasNoConfirmedTranches;
+  // Lender needs disbursement details from both sides to create a tranche
+  const lenderHasDisbursement = allowedDetails.some(d => d.party_role === 'lender' && d.purpose === 'disbursement');
+  const borrowerHasDisbursement = allowedDetails.some(d => d.party_role === 'borrower' && d.purpose === 'disbursement');
+  const bankDetailsReady = lenderHasDisbursement && borrowerHasDisbursement;
 
   return (
     <AppLayout>
@@ -316,8 +324,9 @@ const LoanDetails = () => {
         {showPostSignAction && (
           <NextActionBlock
             isLender={isLender}
-            hasPendingTranches={pendingTranches.length > 0}
+            bankDetailsReady={bankDetailsReady}
             onOpenBankDetails={() => setExpanded(prev => ({ ...prev, bank: true }))}
+            onCreateTranche={() => setShowCreateTranche(true)}
           />
         )}
 
@@ -459,6 +468,18 @@ const LoanDetails = () => {
           onSuccess={fetchAll}
         />
       )}
+      {showCreateTranche && isLender && loan && (
+        <CreateTrancheModal
+          loanId={loan.id}
+          userId={user!.id}
+          lenderId={loan.lender_id}
+          borrowerId={loan.borrower_id}
+          nextTrancheNumber={tranches.length > 0 ? Math.max(...tranches.map(t => t.tranche_number)) + 1 : 1}
+          contractNumber={loan.contract_number}
+          onClose={() => setShowCreateTranche(false)}
+          onSuccess={fetchAll}
+        />
+      )}
     </AppLayout>
   );
 };
@@ -514,10 +535,11 @@ const Row = ({ label, value }: { label: string; value: string }) => (
   </div>
 );
 
-const NextActionBlock = ({ isLender, hasPendingTranches, onOpenBankDetails }: {
+const NextActionBlock = ({ isLender, bankDetailsReady, onOpenBankDetails, onCreateTranche }: {
   isLender: boolean;
-  hasPendingTranches: boolean;
+  bankDetailsReady: boolean;
   onOpenBankDetails: () => void;
+  onCreateTranche: () => void;
 }) => {
   if (isLender) {
     return (
@@ -527,15 +549,28 @@ const NextActionBlock = ({ isLender, hasPendingTranches, onOpenBankDetails }: {
           <p className="text-sm font-semibold">Договор подписан — пора перевести деньги</p>
         </div>
         <p className="text-xs text-muted-foreground">
-          {hasPendingTranches
-            ? 'У вас есть запланированные транши. Переведите средства и подтвердите.'
-            : 'Создайте транш и переведите средства заёмщику.'}
+          {bankDetailsReady
+            ? 'Реквизиты выбраны. Создайте транш и переведите средства заёмщику.'
+            : 'Сначала выберите реквизиты для перевода, затем создайте транш.'}
         </p>
         <div className="flex gap-2 pt-1">
-          <Button size="sm" variant="outline" className="rounded-lg text-xs gap-1" onClick={onOpenBankDetails}>
-            <CreditCard className="w-3.5 h-3.5" />
-            Реквизиты
-          </Button>
+          {bankDetailsReady ? (
+            <>
+              <Button size="sm" className="rounded-lg text-xs gap-1.5" onClick={onCreateTranche}>
+                <Banknote className="w-3.5 h-3.5" />
+                Выдать транш
+              </Button>
+              <Button size="sm" variant="outline" className="rounded-lg text-xs gap-1" onClick={onOpenBankDetails}>
+                <CreditCard className="w-3.5 h-3.5" />
+                Реквизиты
+              </Button>
+            </>
+          ) : (
+            <Button size="sm" className="rounded-lg text-xs gap-1.5" onClick={onOpenBankDetails}>
+              <CreditCard className="w-3.5 h-3.5" />
+              Выбрать реквизиты для перевода
+            </Button>
+          )}
         </div>
       </div>
     );
