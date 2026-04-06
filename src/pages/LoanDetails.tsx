@@ -100,18 +100,20 @@ const LoanDetails = () => {
   };
 
   const fetchAll = async () => {
-    const [loanRes, sigRes, trancheRes, schedRes, payRes] = await Promise.all([
+    const [loanRes, sigRes, trancheRes, schedRes, payRes, allowedRes] = await Promise.all([
       supabase.from('loans').select('*').eq('id', id!).single(),
       supabase.from('loan_signatures').select('*').eq('loan_id', id!),
       supabase.from('loan_tranches').select('*').eq('loan_id', id!).order('tranche_number'),
       supabase.from('payment_schedule_items').select('*').eq('loan_id', id!).order('item_number'),
       supabase.from('loan_payments').select('*').eq('loan_id', id!).order('transfer_date', { ascending: false }),
+      supabase.from('loan_allowed_bank_details').select('party_role, purpose').eq('loan_id', id!),
     ]);
     setLoan(loanRes.data);
     setSignatures(sigRes.data || []);
     setTranches(trancheRes.data || []);
     setScheduleItems(schedRes.data || []);
     setPayments(payRes.data || []);
+    setAllowedDetails(allowedRes.data || []);
     setLoading(false);
 
     if (loanRes.data?.signature_scheme_requested === 'UNEP_WITH_APPENDIX_6' && user) {
