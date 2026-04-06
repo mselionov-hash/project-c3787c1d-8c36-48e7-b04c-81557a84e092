@@ -17,6 +17,7 @@ interface TrancheListProps {
   isLender: boolean;
   isBorrower: boolean;
   loanStatus: string;
+  bankDetailsReady?: boolean;
   loanLimit: number;
   contractNumber: string | null;
   onRefresh: () => void;
