@@ -8,7 +8,7 @@ import { Label } from '@/components/ui/label';
 import { toast } from 'sonner';
 import { AppLayout } from '@/components/AppLayout';
 import { BankDetailsManager } from '@/components/BankDetailsManager';
-import { Save, Loader2 } from 'lucide-react';
+import { Save, Loader2, LogOut } from 'lucide-react';
 
 const Profile = () => {
   const navigate = useNavigate();
@@ -136,6 +136,21 @@ const Profile = () => {
           <h2 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-4">Банковские реквизиты</h2>
           <BankDetailsManager />
         </section>
+
+        {/* Logout */}
+        <div className="pt-2 pb-4">
+          <Button
+            variant="outline"
+            className="w-full gap-2 rounded-xl h-11 text-muted-foreground hover:text-foreground"
+            onClick={async () => {
+              await supabase.auth.signOut();
+              navigate('/auth');
+            }}
+          >
+            <LogOut className="w-4 h-4" />
+            Выйти
+          </Button>
+        </div>
       </div>
     </AppLayout>
   );
