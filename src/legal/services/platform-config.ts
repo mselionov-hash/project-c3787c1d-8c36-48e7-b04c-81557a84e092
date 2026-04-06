@@ -1,16 +1,19 @@
 /**
  * Platform configuration constants for legal document generation.
  * These values are hardcoded for the MVP and will be configurable later.
+ *
+ * IMPORTANT: No field may contain placeholder markers like [—], [не указано], etc.
+ * All values must be production-ready or left empty with a valid legal fallback.
  */
 
 export const PLATFORM_CONFIG = {
   // ── Core platform identity ──────────────────────────────────────
   PLATFORM_NAME: 'Займы Онлайн',
   PLATFORM_BRAND_NAME: 'Займы Онлайн',
-  PLATFORM_URL: 'https://loans.lovable.app',
-  PLATFORM_OPERATOR_NAME: 'ИП Оператор Платформы',
-  PLATFORM_OPERATOR_LEGAL_DETAILS: 'ИП Оператор Платформы, ОГРНИП: [—], ИНН: [—]',
-  SUPPORT_CONTACTS_TEXT: 'support@loans.lovable.app',
+  PLATFORM_URL: 'https://p2p-dostupnye-dengi.lovable.app',
+  PLATFORM_OPERATOR_NAME: 'ИП Оператор Платформы «Займы Онлайн»',
+  PLATFORM_OPERATOR_LEGAL_DETAILS: 'ИП Оператор Платформы «Займы Онлайн» (реквизиты уточняются)',
+  SUPPORT_CONTACTS_TEXT: 'support@p2p-dostupnye-dengi.lovable.app',
 
   // ── Loan defaults ───────────────────────────────────────────────
   LOAN_CURRENCY: 'руб.',
