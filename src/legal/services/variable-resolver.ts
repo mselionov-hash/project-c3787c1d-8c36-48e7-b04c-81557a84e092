@@ -388,7 +388,6 @@ export async function resolveTrancheReceiptVariables(
   const borrowerSig = signatures.find(s => s.role === 'borrower');
   const receiptNumber = existingDocs.length + 1;
 
-  const methodKey = tranche.method === 'sbp' ? 'SBP' : 'BANK_TRANSFER';
 
   // Validate required tranche fields
   if (!tranche.actual_date && !tranche.planned_date) {
