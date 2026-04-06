@@ -8,6 +8,8 @@ import { useAuth } from '@/hooks/useAuth';
 import { toast } from 'sonner';
 import { ArrowRight, Shield, TrendingUp, Users, Loader2, CheckCircle2 } from 'lucide-react';
 import { useEffect } from 'react';
+import logoSquare from '@/assets/logo-square.png';
+import logoTransparent from '@/assets/logo-transparent.png';
 
 const Auth = () => {
   const [isLogin, setIsLogin] = useState(true);
@@ -91,7 +93,10 @@ const Auth = () => {
           <div className="absolute bottom-20 right-20 w-96 h-96 rounded-full bg-primary-foreground blur-3xl" />
         </div>
         <div className="relative z-10 max-w-md">
-          <h1 className="text-4xl font-bold text-primary-foreground mb-4 font-display">P2P Займы</h1>
+          <div className="flex items-center gap-3 mb-4">
+            <img src={logoTransparent} alt="ГдеДеньги" className="w-12 h-12 object-contain" />
+            <h1 className="text-4xl font-bold text-primary-foreground font-display">ГдеДеньги</h1>
+          </div>
           <p className="text-primary-foreground/70 text-lg mb-10 leading-relaxed">
             Современная платформа для оформления займов между физическими лицами с электронными подписями и автоматической генерацией документов.
           </p>
@@ -116,10 +121,8 @@ const Auth = () => {
       <div className="flex-1 flex items-center justify-center p-6">
         <div className="w-full max-w-[420px]">
           <div className="lg:hidden text-center mb-10">
-            <div className="inline-flex items-center justify-center w-14 h-14 rounded-2xl bg-primary mb-4">
-              <Shield className="w-7 h-7 text-primary-foreground" />
-            </div>
-            <h1 className="text-2xl font-bold tracking-tight font-display">P2P Займы</h1>
+            <img src={logoSquare} alt="ГдеДеньги" className="w-16 h-16 rounded-2xl mx-auto mb-4" />
+            <h1 className="text-2xl font-bold tracking-tight font-display">ГдеДеньги</h1>
             <p className="text-muted-foreground mt-1">Займы между физическими лицами</p>
           </div>
 

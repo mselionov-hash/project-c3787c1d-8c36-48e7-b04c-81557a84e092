@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
-import { Shield, CheckCircle2, AlertTriangle, Loader2 } from 'lucide-react';
+import { CheckCircle2, AlertTriangle, Loader2 } from 'lucide-react';
+import logoSquare from '@/assets/logo-square.png';
 import { Button } from '@/components/ui/button';
 
 const AuthConfirm = () => {
@@ -62,10 +63,8 @@ const AuthConfirm = () => {
   return (
     <div className="min-h-screen flex items-center justify-center bg-background p-6">
       <div className="w-full max-w-md text-center space-y-6">
-        <div className="inline-flex items-center justify-center w-14 h-14 rounded-2xl bg-primary mb-2">
-          <Shield className="w-7 h-7 text-primary-foreground" />
-        </div>
-        <h1 className="text-2xl font-bold font-display">P2P Займы</h1>
+        <img src={logoSquare} alt="ГдеДеньги" className="w-16 h-16 rounded-2xl mx-auto mb-2" />
+        <h1 className="text-2xl font-bold font-display">ГдеДеньги</h1>
 
         {status === 'loading' && (
           <div className="card-elevated p-8 space-y-4">
