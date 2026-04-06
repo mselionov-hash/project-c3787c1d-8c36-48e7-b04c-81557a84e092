@@ -38,6 +38,7 @@ export const TrancheList = ({
   isLender,
   isBorrower,
   loanStatus,
+  bankDetailsReady,
   loanLimit,
   contractNumber,
   onRefresh,
@@ -45,7 +46,7 @@ export const TrancheList = ({
   const [showCreate, setShowCreate] = useState(false);
   const [confirmTranche, setConfirmTranche] = useState<Tranche | null>(null);
 
-  const canCreateTranche = isLender && ['fully_signed', 'signed_no_debt', 'active'].includes(loanStatus);
+  const canCreateTranche = isLender && ['fully_signed', 'signed_no_debt', 'active'].includes(loanStatus) && (bankDetailsReady !== false);
   const nextNumber = tranches.length > 0 ? Math.max(...tranches.map(t => t.tranche_number)) + 1 : 1;
   const totalConfirmed = tranches
     .filter(t => t.status === 'confirmed')
