@@ -6,7 +6,7 @@ import { Label } from '@/components/ui/label';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 import { toast } from 'sonner';
-import { ArrowRight, Shield, TrendingUp, Users, Loader2 } from 'lucide-react';
+import { ArrowRight, Shield, TrendingUp, Users, Loader2, CheckCircle2 } from 'lucide-react';
 import { useEffect } from 'react';
 
 const Auth = () => {
