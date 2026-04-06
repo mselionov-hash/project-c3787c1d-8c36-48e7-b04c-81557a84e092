@@ -62,9 +62,11 @@ const LoanDetails = () => {
   const [tranches, setTranches] = useState<Tranche[]>([]);
   const [scheduleItems, setScheduleItems] = useState<ScheduleItem[]>([]);
   const [payments, setPayments] = useState<Payment[]>([]);
+  const [allowedDetails, setAllowedDetails] = useState<{ party_role: string; purpose: string }[]>([]);
   const [loading, setLoading] = useState(true);
   const [showSignature, setShowSignature] = useState(false);
   const [showSend, setShowSend] = useState(false);
+  const [showCreateTranche, setShowCreateTranche] = useState(false);
   const [edoAcceptedByUser, setEdoAcceptedByUser] = useState(false);
   const [edoAcceptedByCounterparty, setEdoAcceptedByCounterparty] = useState(false);
   const [expanded, setExpanded] = useState<Record<SectionKey, boolean>>({
