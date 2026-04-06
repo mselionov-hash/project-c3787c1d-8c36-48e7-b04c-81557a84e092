@@ -21,10 +21,10 @@ export const AppLayout = ({ children }: { children: ReactNode }) => {
     <div className="min-h-screen bg-background flex">
       {/* Desktop sidebar */}
       <aside className="hidden md:flex flex-col w-56 border-r border-border/50 bg-card/50 sticky top-0 h-screen">
-        <div className="p-4 border-b border-border/50">
+        <div className="px-4 py-5 border-b border-border/50">
           <div className="flex items-center gap-3">
-            <img src={logoTransparent} alt="ГдеДеньги" className="w-9 h-9 object-contain" />
-            <span className="font-bold text-base font-display tracking-tight">ГдеДеньги</span>
+            <img src={logoTransparent} alt="ГдеДеньги" className="w-11 h-11 object-contain" />
+            <span className="font-bold text-lg font-display tracking-tight">ГдеДеньги</span>
           </div>
         </div>
 

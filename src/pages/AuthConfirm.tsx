@@ -63,7 +63,7 @@ const AuthConfirm = () => {
   return (
     <div className="min-h-screen flex items-center justify-center bg-background p-6">
       <div className="w-full max-w-md text-center space-y-6">
-        <img src={logoSquare} alt="ГдеДеньги" className="w-20 h-20 rounded-2xl mx-auto mb-2" />
+        <img src={logoSquare} alt="ГдеДеньги" className="w-24 h-24 rounded-2xl mx-auto mb-2" />
         <h1 className="text-2xl font-bold font-display">ГдеДеньги</h1>
 
         {status === 'loading' && (
