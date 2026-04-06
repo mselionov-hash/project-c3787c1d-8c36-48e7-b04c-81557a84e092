@@ -242,8 +242,11 @@ const LoanDetails = () => {
   // Next-action logic
   const isSignedPhase = ['fully_signed', 'signed_no_debt'].includes(loan.status);
   const hasNoConfirmedTranches = confirmedTranches.length === 0;
-  const pendingTranches = tranches.filter(t => t.status === 'planned' || t.status === 'sent');
   const showPostSignAction = isSignedPhase && hasNoConfirmedTranches;
+  // Lender needs disbursement details from both sides to create a tranche
+  const lenderHasDisbursement = allowedDetails.some(d => d.party_role === 'lender' && d.purpose === 'disbursement');
+  const borrowerHasDisbursement = allowedDetails.some(d => d.party_role === 'borrower' && d.purpose === 'disbursement');
+  const bankDetailsReady = lenderHasDisbursement && borrowerHasDisbursement;
 
   return (
     <AppLayout>
