@@ -17,6 +17,7 @@ interface TrancheListProps {
   isLender: boolean;
   isBorrower: boolean;
   loanStatus: string;
+  loanLimit: number;
   contractNumber: string | null;
   onRefresh: () => void;
 }
@@ -36,6 +37,7 @@ export const TrancheList = ({
   isLender,
   isBorrower,
   loanStatus,
+  loanLimit,
   contractNumber,
   onRefresh,
 }: TrancheListProps) => {
@@ -48,6 +50,12 @@ export const TrancheList = ({
     .filter(t => t.status === 'confirmed')
     .reduce((s, t) => s + Number(t.amount), 0);
 
+  // Check if limit is already reached (all statuses count)
+  const totalAllTranches = tranches
+    .filter(t => ['planned', 'sent', 'confirmed'].includes(t.status))
+    .reduce((s, t) => s + Number(t.amount), 0);
+  const limitReached = totalAllTranches >= loanLimit;
+
   return (
     <div>
       <div className="flex items-center justify-between mb-4">
@@ -59,12 +67,12 @@ export const TrancheList = ({
             <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">Транши</h3>
             <p className="text-xs text-muted-foreground">
               {tranches.length > 0
-                ? `${tranches.length} шт. • Подтверждено: ${totalConfirmed.toLocaleString('ru-RU')} ₽`
+                ? `${tranches.length} шт. • Подтверждено: ${totalConfirmed.toLocaleString('ru-RU')} ₽ из ${loanLimit.toLocaleString('ru-RU')} ₽`
                 : 'Выданные средства по договору'}
             </p>
           </div>
         </div>
-        {canCreateTranche && (
+        {canCreateTranche && !limitReached && (
           <Button size="sm" className="rounded-xl gap-1.5 text-xs" onClick={() => setShowCreate(true)}>
             <Plus className="w-4 h-4" />
             Транш
@@ -123,6 +131,7 @@ export const TrancheList = ({
           borrowerId={borrowerId}
           nextTrancheNumber={nextNumber}
           contractNumber={contractNumber}
+          loanLimit={loanLimit}
           onClose={() => setShowCreate(false)}
           onSuccess={onRefresh}
         />
@@ -132,6 +141,7 @@ export const TrancheList = ({
         <TrancheConfirmModal
           tranche={confirmTranche}
           userId={userId}
+          loanLimit={loanLimit}
           onClose={() => setConfirmTranche(null)}
           onSuccess={onRefresh}
         />

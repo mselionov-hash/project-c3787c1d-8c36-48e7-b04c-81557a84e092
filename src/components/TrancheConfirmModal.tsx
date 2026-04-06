@@ -13,11 +13,12 @@ type Tranche = Tables<'loan_tranches'>;
 interface TrancheConfirmModalProps {
   tranche: Tranche;
   userId: string;
+  loanLimit: number;
   onClose: () => void;
   onSuccess: () => void;
 }
 
-export const TrancheConfirmModal = ({ tranche, userId, onClose, onSuccess }: TrancheConfirmModalProps) => {
+export const TrancheConfirmModal = ({ tranche, userId, loanLimit, onClose, onSuccess }: TrancheConfirmModalProps) => {
   const [actualDate, setActualDate] = useState(tranche.actual_date || new Date().toISOString().split('T')[0]);
   const [actualTime, setActualTime] = useState(tranche.actual_time || '');
   const [bankDocId, setBankDocId] = useState(tranche.bank_document_id || '');
@@ -32,6 +33,21 @@ export const TrancheConfirmModal = ({ tranche, userId, onClose, onSuccess }: Tra
   const handleConfirm = async () => {
     setSaving(true);
     try {
+      // CRITICAL GUARD: re-check cumulative disbursed at confirmation time
+      const { data: confirmedTranches } = await supabase
+        .from('loan_tranches')
+        .select('amount')
+        .eq('loan_id', tranche.loan_id)
+        .eq('status', 'confirmed');
+      const alreadyConfirmed = (confirmedTranches || []).reduce((s, t) => s + Number(t.amount), 0);
+      const wouldBeTotal = alreadyConfirmed + Number(tranche.amount);
+      
+      if (wouldBeTotal > loanLimit) {
+        toast.error(`Подтверждение невозможно: общая сумма подтверждённых траншей (${wouldBeTotal.toLocaleString('ru-RU')} ₽) превысит лимит договора (${loanLimit.toLocaleString('ru-RU')} ₽)`);
+        setSaving(false);
+        return;
+      }
+
       const { error } = await supabase
         .from('loan_tranches')
         .update({

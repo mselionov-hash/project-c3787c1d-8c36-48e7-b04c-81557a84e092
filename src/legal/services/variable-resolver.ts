@@ -100,7 +100,7 @@ function renderSignatureBlock(sig: Signature | undefined, role: string): string 
 
 function renderBankDetailsTable(details: BankDetailSnapshotItem[], purpose: string, partyRole: string): string {
   const filtered = details.filter(d => d.purpose === purpose && d.party_role === partyRole);
-  if (filtered.length === 0) return 'Реквизиты не согласованы';
+  if (filtered.length === 0) return '';
 
   return filtered.map((d, i) => {
     const parts = [`${i + 1}. ${d.bank_name}`];
@@ -117,9 +117,9 @@ function renderNoticeTable(lenderProfile: ProfileSnapshot, borrowerProfile: Prof
   const rows = [
     'Канал связи | Займодавец | Заемщик',
     '---|---|---',
-    `Email | ${lenderProfile.email || 'не указан'} | ${borrowerProfile.email || 'не указан'}`,
-    `Телефон | ${lenderProfile.phone || 'не указан'} | ${borrowerProfile.phone || 'не указан'}`,
-    `Адрес | ${lenderProfile.address || 'не указан'} | ${borrowerProfile.address || 'не указан'}`,
+    `Email | ${lenderProfile.email || ''} | ${borrowerProfile.email || ''}`,
+    `Телефон | ${lenderProfile.phone || ''} | ${borrowerProfile.phone || ''}`,
+    `Адрес | ${lenderProfile.address || ''} | ${borrowerProfile.address || ''}`,
     `ID на Платформе | ${lenderProfile.user_id} | ${borrowerProfile.user_id}`,
   ];
   return rows.join('\n');
@@ -175,19 +175,31 @@ async function calculateDebtSummary(loanId: string) {
  * Only considers tranches and payments up to and including the given payment.
  */
 async function calculateDebtSummaryAtPayment(loanId: string, paymentId: string) {
-  const [tranchesRes, paymentsRes] = await Promise.all([
+  const [tranchesRes, paymentsRes, targetPaymentRes] = await Promise.all([
     supabase.from('loan_tranches').select('amount, confirmed_at').eq('loan_id', loanId).eq('status', 'confirmed'),
-    supabase.from('loan_payments').select('id, transfer_amount, confirmed_at').eq('loan_id', loanId).eq('status', 'confirmed').order('confirmed_at'),
+    supabase.from('loan_payments').select('id, transfer_amount, confirmed_at, created_at').eq('loan_id', loanId).eq('status', 'confirmed').order('created_at'),
+    supabase.from('loan_payments').select('transfer_amount').eq('id', paymentId).single(),
   ]);
   
   const totalDisbursed = (tranchesRes.data || []).reduce((s, t) => s + Number(t.amount), 0);
+  const targetPayment = targetPaymentRes.data;
   
   // Sum payments up to and including the target payment
   const allPayments = paymentsRes.data || [];
   let totalRepaidAtEvent = 0;
+  let found = false;
   for (const p of allPayments) {
     totalRepaidAtEvent += Number(p.transfer_amount);
-    if (p.id === paymentId) break;
+    if (p.id === paymentId) {
+      found = true;
+      break;
+    }
+  }
+  
+  // Fallback: if target payment not found in the ordered list (shouldn't happen),
+  // use just the target payment amount
+  if (!found && targetPayment) {
+    totalRepaidAtEvent = Number(targetPayment.transfer_amount);
   }
   
   const outstandingPrincipal = Math.max(0, totalDisbursed - totalRepaidAtEvent);
@@ -388,19 +400,35 @@ export async function resolveTrancheReceiptVariables(
   const borrowerSig = signatures.find(s => s.role === 'borrower');
   const receiptNumber = existingDocs.length + 1;
 
-  const methodKey = tranche.method === 'sbp' ? 'SBP' : 'BANK_TRANSFER';
 
   // Validate required tranche fields
   if (!tranche.actual_date && !tranche.planned_date) {
     throw new Error('Дата перечисления транша не указана.');
   }
 
+  const methodKey = tranche.method === 'sbp' ? 'SBP' : 'BANK_TRANSFER';
+
+  // Safely format tranche timezone — never leak raw IANA identifiers
+  const trancheTimezone = tranche.timezone
+    ? tranche.timezone.replace(/Europe\/Moscow/g, 'МСК').replace(/^МСК$/, 'МСК')
+    : 'МСК';
+
+  // APP3: if actual_time not provided, use empty (optional field)
+  const trancheTime = tranche.actual_time || '';
+  // APP3: bank document fields are optional — use empty string, not placeholders
+  const trancheBankDocId = tranche.bank_document_id?.trim() || '';
+  const trancheBankDocDate = tranche.bank_document_date ? formatDateOnlyRu(tranche.bank_document_date) : '';
+
+  // APP3: sender/receiver displays — never use "см. Приложение" fallbacks
+  const senderDisplay = tranche.sender_account_display?.trim() || '';
+  const receiverDisplay = tranche.receiver_account_display?.trim() || '';
+
   const vars: VariableRecord = {
     RECEIPT_TITLE: PLATFORM_CONFIG.RECEIPT_TITLE,
     TRANCHE_RECEIPT_NUMBER: String(receiptNumber),
     CONTRACT_NUMBER: loan.contract_number || loan.id.slice(0, 8).toUpperCase(),
     TRANCHE_RECEIPT_DRAFT_CREATED_AT: formatDateTimeRu(new Date().toISOString()),
-    TRANCHE_RECEIPT_SIGNED_AT: tranche.confirmed_at ? formatDateTimeRu(tranche.confirmed_at) : 'ожидается подписание',
+    TRANCHE_RECEIPT_SIGNED_AT: tranche.confirmed_at ? formatDateTimeRu(tranche.confirmed_at) : '',
 
     // Lender
     LENDER_FULL_NAME: lenderProfile.full_name,
@@ -437,29 +465,27 @@ export async function resolveTrancheReceiptVariables(
     CONTRACT_DATE: formatDateOnlyRu(loan.issue_date || loan.created_at),
     LAST_SIGNATURE_AT: lastSignatureAt ? formatDateTimeRu(lastSignatureAt) : '',
 
-    // Tranche fields
+    // Tranche fields — no forbidden markers
     TRANCHE_ID: tranche.id,
     TRANCHE_AMOUNT: Number(tranche.amount).toLocaleString('ru-RU'),
     TRANCHE_AMOUNT_IN_WORDS: amountToWordsRu(Number(tranche.amount)),
     TRANCHE_CURRENCY: tranche.currency || 'руб.',
     TRANCHE_DATE: formatDateOnlyRu(tranche.actual_date || tranche.planned_date),
-    TRANCHE_TIME: tranche.actual_time || 'время не зафиксировано',
-    TRANCHE_TIMEZONE: tranche.timezone ? tranche.timezone.replace('Europe/Moscow', 'МСК') : 'МСК',
+    TRANCHE_TIME: trancheTime,
+    TRANCHE_TIMEZONE: trancheTimezone,
     TRANCHE_METHOD: methodKey,
     TRANCHE_METHOD_LABEL: methodKey === 'SBP' ? 'Перевод через СБП' : 'Банковский перевод',
-    TRANCHE_SENDER_ACCOUNT_DISPLAY: tranche.sender_account_display || 'реквизит Займодавца (см. Приложение № 1)',
-    TRANCHE_RECEIVER_ACCOUNT_DISPLAY: tranche.receiver_account_display || 'реквизит Заёмщика (см. Приложение № 1)',
+    TRANCHE_SENDER_ACCOUNT_DISPLAY: senderDisplay,
+    TRANCHE_RECEIVER_ACCOUNT_DISPLAY: receiverDisplay,
     TRANCHE_REFERENCE_TEXT: tranche.reference_text || `По договору займа № ${loan.contract_number || loan.id.slice(0, 8).toUpperCase()}`,
-    TRANCHE_BANK_DOCUMENT_ID: tranche.bank_document_id || 'не предоставлен',
-    TRANCHE_BANK_DOCUMENT_DATE: formatDateOnlyRu(tranche.bank_document_date) || 'не указана',
+    TRANCHE_BANK_DOCUMENT_ID: trancheBankDocId,
+    TRANCHE_BANK_DOCUMENT_DATE: trancheBankDocDate,
     TRANCHE_TRANSFER_SOURCE: tranche.transfer_source || 'MANUAL',
 
     // TZ v2.2 printable requisite fields
-    TRANCHE_SENDER_REQUISITE_PRINTABLE: formatRequisitePrintable(tranche, 'sender') || 'см. Приложение № 1',
-    TRANCHE_RECEIVER_REQUISITE_PRINTABLE: formatRequisitePrintable(tranche, 'receiver') || 'см. Приложение № 1',
-    TRANCHE_RECEIVER_SBP_ROUTE_PRINTABLE: methodKey === 'SBP'
-      ? (tranche.receiver_account_display || 'см. Приложение № 1')
-      : '',
+    TRANCHE_SENDER_REQUISITE_PRINTABLE: senderDisplay,
+    TRANCHE_RECEIVER_REQUISITE_PRINTABLE: receiverDisplay,
+    TRANCHE_RECEIVER_SBP_ROUTE_PRINTABLE: methodKey === 'SBP' ? receiverDisplay : '',
 
     // Conditional flags
     LENDER_CO_SIGNATURE_ENABLED: PLATFORM_CONFIG.LENDER_CO_SIGNATURE_ENABLED,
@@ -467,7 +493,7 @@ export async function resolveTrancheReceiptVariables(
 
     // Signature blocks
     BORROWER_SIGNATURE_BLOCK: renderSignatureBlock(borrowerSig, 'borrower'),
-    LENDER_SIGNATURE_BLOCK_OPTIONAL: 'не требуется',
+    LENDER_SIGNATURE_BLOCK_OPTIONAL: '',
   };
 
   return { variables: applyAliases(vars), repeatSections: {} };
@@ -605,8 +631,8 @@ export async function resolveAppendixBankDetailsVariables(loanId: string): Promi
       APPENDIX_6_REFERENCE: isAppendix6Required(loan.signature_scheme_requested ?? 'UKEP_ONLY')
         ? 'Приложение № 6 (Соглашение об использовании УНЭП)'
         : '',
-      APP1_SIGNED_BY_LENDER_AT: lenderSig ? formatDateTimeRu(lenderSig.signed_at) : 'ожидается подписание',
-      APP1_SIGNED_BY_BORROWER_AT: borrowerSig ? formatDateTimeRu(borrowerSig.signed_at) : 'ожидается подписание',
+      APP1_SIGNED_BY_LENDER_AT: lenderSig ? formatDateTimeRu(lenderSig.signed_at) : '',
+      APP1_SIGNED_BY_BORROWER_AT: borrowerSig ? formatDateTimeRu(borrowerSig.signed_at) : '',
     }),
     repeatSections,
   };
@@ -715,8 +741,8 @@ export async function resolveAppendixScheduleVariables(loanId: string): Promise<
 
       LENDER_FULL_NAME: lenderProfile.full_name,
       BORROWER_FULL_NAME: borrowerProfile.full_name,
-      APP2_LENDER_SIGNED_AT: lenderSig ? formatDateTimeRu(lenderSig.signed_at) : 'ожидается подписание',
-      APP2_BORROWER_SIGNED_AT: borrowerSig ? formatDateTimeRu(borrowerSig.signed_at) : 'ожидается подписание',
+      APP2_LENDER_SIGNED_AT: lenderSig ? formatDateTimeRu(lenderSig.signed_at) : '',
+      APP2_BORROWER_SIGNED_AT: borrowerSig ? formatDateTimeRu(borrowerSig.signed_at) : '',
     }),
     repeatSections,
   };
@@ -781,18 +807,18 @@ export async function resolvePartialRepaymentVariables(
     SIGNATURE_SCHEME_EFFECTIVE: schemeEffective,
     REPAYMENT_ID: payment.id,
     REPAYMENT_DATE: formatDateOnlyRu(payment.transfer_date),
-    REPAYMENT_TIME: payment.confirmed_at ? new Date(payment.confirmed_at).toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' }) : 'время не зафиксировано',
+    REPAYMENT_TIME: payment.confirmed_at ? new Date(payment.confirmed_at).toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' }) : '',
     REPAYMENT_AMOUNT: fmtMoney(paymentAmount),
     REPAYMENT_AMOUNT_IN_WORDS: amountToWordsRu(paymentAmount),
     LOAN_CURRENCY: PLATFORM_CONFIG.LOAN_CURRENCY,
     REPAYMENT_METHOD: methodKey,
     REPAYMENT_METHOD_LABEL: REPAYMENT_METHOD_LABELS[methodKey] || methodKey,
-    REPAYMENT_BANK_DOCUMENT_ID: payment.transaction_id?.trim() || 'не предоставлен',
+    REPAYMENT_BANK_DOCUMENT_ID: payment.transaction_id?.trim() || '',
     APP1_EFFECTIVE_DOCUMENT_ID: 'Приложение № 1 (текущая редакция)',
     LENDER_FULL_NAME: lenderProfile.full_name,
     BORROWER_FULL_NAME: borrowerProfile.full_name,
     REPAYMENT_RECEIVER_BANK_ACCOUNT_DISPLAY: 'согласно Приложению № 1',
-    REPAYMENT_RECEIVER_BANK_NAME: payment.bank_name?.trim() || 'не указан',
+    REPAYMENT_RECEIVER_BANK_NAME: payment.bank_name?.trim() || '',
     REPAYMENT_RECEIVER_BANK_REQUISITE_DETAILS: 'согласно Приложению № 1',
     REPAYMENT_RECEIVER_SBP_ID: '',
     REPAYMENT_RECEIVER_SBP_BANK: '',
@@ -880,13 +906,13 @@ export async function resolveFullRepaymentVariables(loanId: string): Promise<Res
     CLOSING_REPAYMENT_DATE: closingPayment ? formatDateOnlyRu(closingPayment.transfer_date) : '',
     CLOSING_REPAYMENT_TIME: closingPayment?.confirmed_at
       ? new Date(closingPayment.confirmed_at).toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' })
-      : 'время не зафиксировано',
+      : '',
     CLOSING_REPAYMENT_AMOUNT: fmtMoney(closingAmount),
     CLOSING_REPAYMENT_AMOUNT_IN_WORDS: amountToWordsRu(closingAmount),
     LOAN_CURRENCY: PLATFORM_CONFIG.LOAN_CURRENCY,
     CLOSING_REPAYMENT_METHOD: closingMethodKey,
     CLOSING_REPAYMENT_METHOD_LABEL: REPAYMENT_METHOD_LABELS[closingMethodKey] || closingMethodKey,
-    CLOSING_REPAYMENT_BANK_DOCUMENT_ID: closingPayment?.transaction_id?.trim() || 'не предоставлен',
+    CLOSING_REPAYMENT_BANK_DOCUMENT_ID: closingPayment?.transaction_id?.trim() || '',
     APP1_EFFECTIVE_DOCUMENT_ID: 'Приложение № 1 (текущая редакция)',
     DEAL_CLOSED_AT: formatDateTimeRu(nowIso),
 
@@ -894,7 +920,7 @@ export async function resolveFullRepaymentVariables(loanId: string): Promise<Res
     BORROWER_FULL_NAME: borrowerProfile.full_name,
 
     CLOSING_REPAYMENT_RECEIVER_BANK_ACCOUNT_DISPLAY: 'согласно Приложению № 1',
-    CLOSING_REPAYMENT_RECEIVER_BANK_NAME: closingPayment?.bank_name?.trim() || 'не указан',
+    CLOSING_REPAYMENT_RECEIVER_BANK_NAME: closingPayment?.bank_name?.trim() || '',
     CLOSING_REPAYMENT_RECEIVER_BANK_REQUISITE_DETAILS: 'согласно Приложению № 1',
 
     CLOSING_REPAYMENT_RECEIVER_SBP_ID: '',
@@ -1004,7 +1030,7 @@ export async function resolveApp6Variables(loanId: string): Promise<ResolverResu
     CONTRACT_PLACE: loan.city,
     CONTRACT_DATE: formatDateOnlyRu(loan.issue_date || loan.created_at),
     DEAL_ID: loan.id,
-    LAST_SIGNATURE_AT: lastSignatureAt ? formatDateTimeRu(lastSignatureAt) : 'ожидается подписание',
+    LAST_SIGNATURE_AT: lastSignatureAt ? formatDateTimeRu(lastSignatureAt) : '',
 
     LENDER_FULL_NAME: lenderProfile.full_name,
     LENDER_APP_ACCOUNT_ID: lenderProfile.user_id,
@@ -1029,8 +1055,8 @@ export async function resolveApp6Variables(loanId: string): Promise<ResolverResu
     APP6_CREATED_AT: unep ? formatDateTimeRu(unep.created_at) : formatDateTimeRu(new Date().toISOString()),
     APP6_SCOPE_TEXT: 'Настоящее Соглашение распространяется на все электронные документы, формируемые и подписываемые Сторонами в рамках Договора денежного займа, указанного в заголовке настоящего Соглашения, посредством Платформы.',
     APP6_COVERED_DOCUMENTS_TEXT: 'Договор денежного займа, Приложения к Договору, Расписки о получении траншей, Подтверждения частичного и полного погашения, а также иные документы, предусмотренные Договором.',
-    APP6_SIGNED_BY_LENDER_AT: unep?.lender_signed_at ? formatDateTimeRu(unep.lender_signed_at) : 'ожидается подписание',
-    APP6_SIGNED_BY_BORROWER_AT: unep?.borrower_signed_at ? formatDateTimeRu(unep.borrower_signed_at) : 'ожидается подписание',
+    APP6_SIGNED_BY_LENDER_AT: unep?.lender_signed_at ? formatDateTimeRu(unep.lender_signed_at) : '',
+    APP6_SIGNED_BY_BORROWER_AT: unep?.borrower_signed_at ? formatDateTimeRu(unep.borrower_signed_at) : '',
 
     LENDER_SIGNATURE_BLOCK: renderSignatureBlock(lenderSig, 'lender'),
     BORROWER_SIGNATURE_BLOCK: renderSignatureBlock(borrowerSig, 'borrower'),
