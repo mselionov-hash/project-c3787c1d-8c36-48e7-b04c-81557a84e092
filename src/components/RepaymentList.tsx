@@ -57,6 +57,25 @@ export const RepaymentList = ({
         })
         .eq('id', paymentId);
       if (error) throw error;
+
+      const [loanRes, tranchesRes, paymentsRes] = await Promise.all([
+        supabase.from('loans').select('amount').eq('id', loanId).single(),
+        supabase.from('loan_tranches').select('amount').eq('loan_id', loanId).eq('status', 'confirmed'),
+        supabase.from('loan_payments').select('transfer_amount').eq('loan_id', loanId).eq('status', 'confirmed'),
+      ]);
+
+      const loanLimit = Number(loanRes.data?.amount || 0);
+      const totalDisbursed = (tranchesRes.data || []).reduce((sum, tranche) => sum + Number(tranche.amount), 0);
+      const totalRepaidNow = (paymentsRes.data || []).reduce((sum, payment) => sum + Number(payment.transfer_amount), 0);
+
+      if (totalDisbursed > 0) {
+        const nextStatus = totalRepaidNow >= totalDisbursed
+          ? (totalDisbursed >= loanLimit ? 'repaid' : 'signed_no_debt')
+          : 'active';
+
+        await supabase.from('loans').update({ status: nextStatus }).eq('id', loanId);
+      }
+
       toast.success('Погашение подтверждено');
       onRefresh();
     } catch (err: unknown) {

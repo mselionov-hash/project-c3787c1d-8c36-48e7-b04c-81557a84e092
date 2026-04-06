@@ -9,9 +9,17 @@ import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from '@/components/ui/select';
 import { ProofUpload } from '@/components/ProofUpload';
-import type { Tables } from '@/integrations/supabase/types';
+import {
+  fetchCurrentAllowedBankDetails,
+  filterCompatibleLoanBoundBankDetails,
+  formatLoanBoundBankLabel,
+  formatPrintableBankDetail,
+  supportsBankTransfer,
+  supportsSbp,
+  type LoanBoundBankDetail,
+} from '@/lib/loan-bank-details';
 
-type BankDetail = Tables<'bank_details'>;
+type BankDetail = LoanBoundBankDetail;
 
 interface CreateTrancheModalProps {
   loanId: string;
@@ -25,14 +33,7 @@ interface CreateTrancheModalProps {
   onSuccess: () => void;
 }
 
-const formatBankLabel = (bd: BankDetail) => {
-  const parts = [bd.bank_name];
-  if (bd.card_number) parts.push(`•••• ${bd.card_number.slice(-4)}`);
-  else if (bd.phone) parts.push(bd.phone);
-  else if (bd.account_number) parts.push(`р/с •••${bd.account_number.slice(-4)}`);
-  if (bd.label) parts.push(`(${bd.label})`);
-  return parts.join(' ');
-};
+const formatBankLabel = (bd: BankDetail) => formatLoanBoundBankLabel(bd);
 
 export const CreateTrancheModal = ({
   loanId,
@@ -57,6 +58,7 @@ export const CreateTrancheModal = ({
   const [saving, setSaving] = useState(false);
   const [proofFiles, setProofFiles] = useState<string[]>([]);
   const [cumulativeDisbursed, setCumulativeDisbursed] = useState(0);
+  const [loadingDetails, setLoadingDetails] = useState(true);
 
   const [senderBankDetails, setSenderBankDetails] = useState<BankDetail[]>([]);
   const [receiverBankDetails, setReceiverBankDetails] = useState<BankDetail[]>([]);
@@ -67,44 +69,45 @@ export const CreateTrancheModal = ({
 
   useEffect(() => {
     const fetchData = async () => {
-      // Fetch cumulative confirmed + planned/sent tranches
-      const { data: existingTranches } = await supabase
-        .from('loan_tranches')
-        .select('amount, status')
-        .eq('loan_id', loanId)
-        .in('status', ['planned', 'sent', 'confirmed']);
-      const total = (existingTranches || []).reduce((s, t) => s + Number(t.amount), 0);
+      setLoadingDetails(true);
+
+      const [loanRes, tranchesRes, allowedDetails] = await Promise.all([
+        supabase.from('loans').select('*').eq('id', loanId).single(),
+        supabase
+          .from('loan_tranches')
+          .select('amount')
+          .eq('loan_id', loanId)
+          .in('status', ['planned', 'sent', 'confirmed']),
+        fetchCurrentAllowedBankDetails(loanId),
+      ]);
+
+      const total = (tranchesRes.data || []).reduce((s, t) => s + Number(t.amount), 0);
       setCumulativeDisbursed(total);
 
-      const { data: senderData } = await supabase
-        .from('bank_details')
-        .select('*')
-        .eq('user_id', lenderId);
-      
-      const senderList = senderData || [];
+      const loanData = loanRes.data;
+      const senderList = loanData
+        ? filterCompatibleLoanBoundBankDetails(loanData, allowedDetails, 'lender', 'disbursement')
+        : [];
       setSenderBankDetails(senderList);
-      
-      const defaultSender = senderList.find(b => b.is_default) || (senderList.length === 1 ? senderList[0] : null);
+
+      const defaultSender = senderList.length === 1 ? senderList[0] : senderList.find(b => b.is_default) || null;
       if (defaultSender) {
         setSelectedSenderId(defaultSender.id);
         setSenderDisplay(formatBankLabel(defaultSender));
       }
 
-      if (borrowerId) {
-        const { data: receiverData } = await supabase
-          .from('bank_details')
-          .select('*')
-          .eq('user_id', borrowerId);
-        
-        const receiverList = receiverData || [];
-        setReceiverBankDetails(receiverList);
-        
-        const defaultReceiver = receiverList.find(b => b.is_default) || (receiverList.length === 1 ? receiverList[0] : null);
-        if (defaultReceiver) {
-          setSelectedReceiverId(defaultReceiver.id);
-          setReceiverDisplay(formatBankLabel(defaultReceiver));
-        }
+      const receiverList = loanData
+        ? filterCompatibleLoanBoundBankDetails(loanData, allowedDetails, 'borrower', 'disbursement')
+        : [];
+      setReceiverBankDetails(receiverList);
+
+      const defaultReceiver = receiverList.length === 1 ? receiverList[0] : receiverList.find(b => b.is_default) || null;
+      if (defaultReceiver) {
+        setSelectedReceiverId(defaultReceiver.id);
+        setReceiverDisplay(formatBankLabel(defaultReceiver));
       }
+
+      setLoadingDetails(false);
     };
     fetchData();
   }, [loanId, lenderId, borrowerId]);
@@ -124,6 +127,15 @@ export const CreateTrancheModal = ({
   const remaining = loanLimit - cumulativeDisbursed;
   const parsedAmount = parseFloat(amount) || 0;
   const wouldExceed = parsedAmount > 0 && (cumulativeDisbursed + parsedAmount) > loanLimit;
+  const selectedSender = senderBankDetails.find(detail => detail.id === selectedSenderId);
+  const selectedReceiver = receiverBankDetails.find(detail => detail.id === selectedReceiverId);
+  const selectedMethodSupported = Boolean(
+    selectedSender
+    && selectedReceiver
+    && (method === 'sbp'
+      ? supportsSbp(selectedSender) && supportsSbp(selectedReceiver)
+      : supportsBankTransfer(selectedSender) && supportsBankTransfer(selectedReceiver))
+  );
 
   const handleSave = async () => {
     if (!amount || parsedAmount <= 0) {
@@ -135,9 +147,47 @@ export const CreateTrancheModal = ({
       return;
     }
 
-    // CRITICAL GUARD: over-limit check
-    if (wouldExceed) {
-      toast.error(`Сумма транша превышает остаток лимита. Максимум: ${remaining.toLocaleString('ru-RU')} ₽`);
+    if (!selectedSender || !selectedReceiver) {
+      toast.error('Сначала выберите согласованные реквизиты займодавца и заёмщика из Приложения № 1');
+      return;
+    }
+
+    if (!selectedMethodSupported) {
+      toast.error('Выбранные реквизиты не поддерживают указанный способ перевода');
+      return;
+    }
+
+    const [{ data: freshTranches }, loanRes, allowedDetails] = await Promise.all([
+      supabase
+        .from('loan_tranches')
+        .select('amount')
+        .eq('loan_id', loanId)
+        .in('status', ['planned', 'sent', 'confirmed']),
+      supabase.from('loans').select('*').eq('id', loanId).single(),
+      fetchCurrentAllowedBankDetails(loanId),
+    ]);
+
+    const freshLoan = loanRes.data;
+    const currentTotal = (freshTranches || []).reduce((s, t) => s + Number(t.amount), 0);
+
+    if (!freshLoan) {
+      toast.error('Не удалось проверить актуальные условия займа');
+      return;
+    }
+
+    const senderStillAllowed = filterCompatibleLoanBoundBankDetails(freshLoan, allowedDetails, 'lender', 'disbursement')
+      .find(detail => detail.id === selectedSender.id);
+    const receiverStillAllowed = filterCompatibleLoanBoundBankDetails(freshLoan, allowedDetails, 'borrower', 'disbursement')
+      .find(detail => detail.id === selectedReceiver.id);
+
+    if (!senderStillAllowed || !receiverStillAllowed) {
+      toast.error('Согласованные реквизиты для выдачи транша отсутствуют или больше неактуальны');
+      return;
+    }
+
+    if (currentTotal + parsedAmount > Number(freshLoan.amount)) {
+      const freshRemaining = Math.max(0, Number(freshLoan.amount) - currentTotal);
+      toast.error(`Сумма транша превышает остаток лимита. Максимум: ${freshRemaining.toLocaleString('ru-RU')} ₽`);
       return;
     }
 
@@ -150,10 +200,10 @@ export const CreateTrancheModal = ({
         amount: parsedAmount,
         planned_date: plannedDate,
         method,
-        sender_account_display: senderDisplay.trim() || null,
-        receiver_account_display: receiverDisplay.trim() || null,
-        sender_bank_detail_id: selectedSenderId || null,
-        receiver_bank_detail_id: selectedReceiverId || null,
+        sender_account_display: formatPrintableBankDetail(senderStillAllowed),
+        receiver_account_display: formatPrintableBankDetail(receiverStillAllowed),
+        sender_bank_detail_id: senderStillAllowed.id,
+        receiver_bank_detail_id: receiverStillAllowed.id,
         reference_text: referenceText.trim() || null,
         transfer_source: proofFiles.length > 0 ? proofFiles.join(',') : null,
         status: 'planned',
@@ -230,7 +280,7 @@ export const CreateTrancheModal = ({
                 </SelectContent>
               </Select>
             ) : (
-              <Input value={senderDisplay} onChange={e => setSenderDisplay(e.target.value)} placeholder="Номер карты / счёт" className={inputClass} />
+              <p className="text-xs text-destructive">Для выдачи транша займодавец должен выбрать согласованный реквизит в Приложении № 1.</p>
             )}
           </div>
 
@@ -247,7 +297,7 @@ export const CreateTrancheModal = ({
                 </SelectContent>
               </Select>
             ) : (
-              <Input value={receiverDisplay} onChange={e => setReceiverDisplay(e.target.value)} placeholder="Номер карты / счёт" className={inputClass} />
+              <p className="text-xs text-destructive">Для выдачи транша заёмщик должен выбрать согласованный реквизит в Приложении № 1.</p>
             )}
           </div>
 
@@ -269,7 +319,7 @@ export const CreateTrancheModal = ({
 
           <div className="flex gap-3 pt-2">
             <Button variant="outline" onClick={onClose} className="flex-1 rounded-xl h-11">Отмена</Button>
-            <Button onClick={handleSave} disabled={saving || wouldExceed || remaining <= 0} className="flex-1 rounded-xl h-11 gap-2">
+            <Button onClick={handleSave} disabled={saving || loadingDetails || wouldExceed || remaining <= 0 || !selectedSenderId || !selectedReceiverId || !selectedMethodSupported} className="flex-1 rounded-xl h-11 gap-2">
               {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Banknote className="w-4 h-4" />}
               Создать
             </Button>

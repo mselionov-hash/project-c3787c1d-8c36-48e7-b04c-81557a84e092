@@ -10,8 +10,15 @@ import {
 } from '@/components/ui/select';
 import { ProofUpload } from '@/components/ProofUpload';
 import type { Tables } from '@/integrations/supabase/types';
+import {
+  fetchCurrentAllowedBankDetails,
+  filterCompatibleLoanBoundBankDetails,
+  formatLoanBoundBankLabel,
+  type LoanBoundBankDetail,
+} from '@/lib/loan-bank-details';
 
 type BankDetail = Tables<'bank_details'>;
+type AllowedBankDetail = LoanBoundBankDetail;
 
 interface CreateRepaymentModalProps {
   loanId: string;
@@ -52,7 +59,7 @@ export const CreateRepaymentModal = ({
   const [proofFiles, setProofFiles] = useState<string[]>([]);
 
   const [payerBankDetails, setPayerBankDetails] = useState<BankDetail[]>([]);
-  const [lenderBankDetails, setLenderBankDetails] = useState<BankDetail[]>([]);
+  const [lenderBankDetails, setLenderBankDetails] = useState<AllowedBankDetail[]>([]);
   const [selectedPayerBdId, setSelectedPayerBdId] = useState<string>('');
   const [selectedLenderBdId, setSelectedLenderBdId] = useState<string>('');
 
@@ -60,11 +67,14 @@ export const CreateRepaymentModal = ({
 
   useEffect(() => {
     const fetchBankDetails = async () => {
-      // Borrower's (payer) bank details
-      const { data: payerData } = await supabase
-        .from('bank_details')
-        .select('*')
-        .eq('user_id', payerId);
+      const [{ data: payerData }, loanRes, allowedDetails] = await Promise.all([
+        supabase
+          .from('bank_details')
+          .select('*')
+          .eq('user_id', payerId),
+        supabase.from('loans').select('*').eq('id', loanId).single(),
+        fetchCurrentAllowedBankDetails(loanId),
+      ]);
 
       const payerList = payerData || [];
       setPayerBankDetails(payerList);
@@ -72,35 +82,46 @@ export const CreateRepaymentModal = ({
       const defaultPayer = payerList.find(b => b.is_default) || (payerList.length === 1 ? payerList[0] : null);
       if (defaultPayer) {
         setSelectedPayerBdId(defaultPayer.id);
-        setBankName(defaultPayer.bank_name);
       }
 
-      // Lender's bank details (where to send repayment)
-      const { data: lenderData } = await supabase
-        .from('bank_details')
-        .select('*')
-        .eq('user_id', lenderId);
-
-      const lenderList = lenderData || [];
+      const lenderList = loanRes.data
+        ? filterCompatibleLoanBoundBankDetails(loanRes.data, allowedDetails, 'lender', 'repayment')
+        : [];
       setLenderBankDetails(lenderList);
 
-      const defaultLender = lenderList.find(b => b.is_default) || (lenderList.length === 1 ? lenderList[0] : null);
+      const defaultLender = lenderList.length === 1 ? lenderList[0] : lenderList.find(b => b.is_default) || null;
       if (defaultLender) {
         setSelectedLenderBdId(defaultLender.id);
+        setBankName(defaultLender.bank_name);
       }
     };
     fetchBankDetails();
-  }, [payerId, lenderId]);
+  }, [payerId, lenderId, loanId]);
 
   const handlePayerSelect = (bdId: string) => {
     setSelectedPayerBdId(bdId);
-    const bd = payerBankDetails.find(b => b.id === bdId);
+  };
+
+  const handleLenderSelect = (bdId: string) => {
+    setSelectedLenderBdId(bdId);
+    const bd = lenderBankDetails.find(b => b.id === bdId);
     if (bd) setBankName(bd.bank_name);
   };
 
   const handleSave = async () => {
     if (!amount || parseFloat(amount) <= 0) {
       toast.error('Укажите сумму');
+      return;
+    }
+
+    if (!selectedLenderBdId) {
+      toast.error('Сначала выберите согласованный реквизит займодавца для возврата');
+      return;
+    }
+
+    const selectedLender = lenderBankDetails.find(detail => detail.id === selectedLenderBdId);
+    if (!selectedLender) {
+      toast.error('Согласованный реквизит займодавца для возврата не найден');
       return;
     }
 
@@ -112,7 +133,7 @@ export const CreateRepaymentModal = ({
         transfer_amount: parseFloat(amount),
         transfer_date: transferDate,
         transfer_method: transferMethod,
-        bank_name: bankName.trim() || null,
+        bank_name: selectedLender.bank_name.trim() || null,
         transaction_id: transactionId.trim() || null,
         payment_reference: paymentReference.trim() || null,
         screenshot_url: proofFiles.length > 0 ? proofFiles.join(',') : null,
@@ -188,16 +209,16 @@ export const CreateRepaymentModal = ({
           <div className="space-y-2">
             <Label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Куда отправлено (реквизиты займодавца)</Label>
             {lenderBankDetails.length > 0 ? (
-              <Select value={selectedLenderBdId} onValueChange={setSelectedLenderBdId}>
+              <Select value={selectedLenderBdId} onValueChange={handleLenderSelect}>
                 <SelectTrigger className={inputClass}><SelectValue placeholder="Выберите реквизит" /></SelectTrigger>
                 <SelectContent>
                   {lenderBankDetails.map(bd => (
-                    <SelectItem key={bd.id} value={bd.id}>{formatBankLabel(bd)}</SelectItem>
+                    <SelectItem key={bd.id} value={bd.id}>{formatLoanBoundBankLabel(bd)}</SelectItem>
                   ))}
                 </SelectContent>
               </Select>
             ) : (
-              <p className="text-xs text-muted-foreground">Реквизиты займодавца не добавлены</p>
+              <p className="text-xs text-destructive">Реквизиты займодавца для возврата не согласованы в Приложении № 1</p>
             )}
           </div>
 
@@ -223,7 +244,7 @@ export const CreateRepaymentModal = ({
 
           <div className="flex gap-3 pt-2">
             <Button variant="outline" onClick={onClose} className="flex-1 rounded-xl h-11">Отмена</Button>
-            <Button onClick={handleSave} disabled={saving} className="flex-1 rounded-xl h-11 gap-2">
+            <Button onClick={handleSave} disabled={saving || !selectedLenderBdId} className="flex-1 rounded-xl h-11 gap-2">
               {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <ArrowDownLeft className="w-4 h-4" />}
               Записать
             </Button>

@@ -12,7 +12,7 @@ export const PLATFORM_CONFIG = {
   PLATFORM_BRAND_NAME: 'Займы Онлайн',
   PLATFORM_URL: 'https://p2p-dostupnye-dengi.lovable.app',
   PLATFORM_OPERATOR_NAME: 'ИП Оператор Платформы «Займы Онлайн»',
-  PLATFORM_OPERATOR_LEGAL_DETAILS: 'ИП Оператор Платформы «Займы Онлайн» (реквизиты уточняются)',
+  PLATFORM_OPERATOR_LEGAL_DETAILS: 'ИП Оператор Платформы «Займы Онлайн»',
   SUPPORT_CONTACTS_TEXT: 'support@p2p-dostupnye-dengi.lovable.app',
 
   // ── Loan defaults ───────────────────────────────────────────────

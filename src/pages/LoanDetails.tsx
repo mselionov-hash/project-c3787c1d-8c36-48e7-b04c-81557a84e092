@@ -16,6 +16,7 @@ import { EdoRegulationAcceptance } from '@/components/EdoRegulationAcceptance';
 import { AppLayout } from '@/components/AppLayout';
 import { Button } from '@/components/ui/button';
 import { toast } from 'sonner';
+import { fetchCurrentAllowedBankDetails, getLoanBankReadiness, type LoanBoundBankDetail } from '@/lib/loan-bank-details';
 import {
   ArrowLeft, PenTool, CheckCircle2, Clock,
   AlertTriangle, Shield, Send, FileText,
@@ -65,7 +66,7 @@ const LoanDetails = () => {
   const [tranches, setTranches] = useState<Tranche[]>([]);
   const [scheduleItems, setScheduleItems] = useState<ScheduleItem[]>([]);
   const [payments, setPayments] = useState<Payment[]>([]);
-  const [allowedDetails, setAllowedDetails] = useState<{ party_role: string; purpose: string }[]>([]);
+  const [allowedDetails, setAllowedDetails] = useState<LoanBoundBankDetail[]>([]);
   const [loading, setLoading] = useState(true);
   const [showSignature, setShowSignature] = useState(false);
   const [showSend, setShowSend] = useState(false);
@@ -103,27 +104,27 @@ const LoanDetails = () => {
   };
 
   const fetchAll = async () => {
-    const [loanRes, sigRes, trancheRes, schedRes, payRes, allowedRes] = await Promise.all([
+    const [loanRes, sigRes, trancheRes, schedRes, payRes] = await Promise.all([
       supabase.from('loans').select('*').eq('id', id!).single(),
       supabase.from('loan_signatures').select('*').eq('loan_id', id!),
       supabase.from('loan_tranches').select('*').eq('loan_id', id!).order('tranche_number'),
       supabase.from('payment_schedule_items').select('*').eq('loan_id', id!).order('item_number'),
       supabase.from('loan_payments').select('*').eq('loan_id', id!).order('transfer_date', { ascending: false }),
-      supabase.from('loan_allowed_bank_details').select('party_role, purpose').eq('loan_id', id!),
     ]);
+    const currentAllowedDetails = await fetchCurrentAllowedBankDetails(id!);
     setLoan(loanRes.data);
     setSignatures(sigRes.data || []);
     setTranches(trancheRes.data || []);
     setScheduleItems(schedRes.data || []);
     setPayments(payRes.data || []);
-    setAllowedDetails(allowedRes.data || []);
+    setAllowedDetails(currentAllowedDetails);
     setLoading(false);
 
     if (loanRes.data?.signature_scheme_requested === 'UNEP_WITH_APPENDIX_6' && user) {
       await refreshEdoAcceptance(loanRes.data, user.id);
     }
 
-    if (loanRes.data && loanRes.data.status === 'fully_signed') {
+    if (loanRes.data && ['fully_signed', 'signed_no_debt'].includes(loanRes.data.status)) {
       const hasConfirmedTranche = (trancheRes.data || []).some(t => t.status === 'confirmed');
       if (hasConfirmedTranche) {
         await supabase.from('loans').update({ status: 'active' }).eq('id', id!);
@@ -131,7 +132,7 @@ const LoanDetails = () => {
       }
     }
 
-    if (loanRes.data && loanRes.data.status === 'active') {
+    if (loanRes.data && ['active', 'signed_no_debt'].includes(loanRes.data.status)) {
       const ct = (trancheRes.data || []).filter(t => t.status === 'confirmed');
       const td = ct.reduce((s, t) => s + Number(t.amount), 0);
       const cp = (payRes.data || []).filter(p => p.status === 'confirmed');
@@ -250,14 +251,12 @@ const LoanDetails = () => {
   const confirmedPayments = payments.filter(p => p.status === 'confirmed');
   const totalRepaid = confirmedPayments.reduce((s, p) => s + Number(p.transfer_amount), 0);
   const outstanding = Math.max(0, totalDisbursed - totalRepaid);
+  const bankReadiness = getLoanBankReadiness(loan, allowedDetails);
 
   // Next-action logic: show post-sign CTA when signed and no outstanding debt
   const isSignedPhase = ['fully_signed', 'signed_no_debt'].includes(loan.status);
   const showPostSignAction = isSignedPhase && outstanding === 0;
-  // Lender needs disbursement details from both sides to create a tranche
-  const lenderHasDisbursement = allowedDetails.some(d => d.party_role === 'lender' && d.purpose === 'disbursement');
-  const borrowerHasDisbursement = allowedDetails.some(d => d.party_role === 'borrower' && d.purpose === 'disbursement');
-  const bankDetailsReady = lenderHasDisbursement && borrowerHasDisbursement;
+  const bankDetailsReady = bankReadiness.trancheReady;
 
   return (
     <AppLayout>
@@ -362,6 +361,7 @@ const LoanDetails = () => {
             isLender={isLender}
             isBorrower={isBorrower}
             loanStatus={loan.status}
+            bankDetailsReady={bankDetailsReady}
             loanLimit={Number(loan.amount)}
             contractNumber={loan.contract_number}
             onRefresh={fetchAll}
