@@ -323,8 +323,9 @@ const LoanDetails = () => {
         {showPostSignAction && (
           <NextActionBlock
             isLender={isLender}
-            hasPendingTranches={pendingTranches.length > 0}
+            bankDetailsReady={bankDetailsReady}
             onOpenBankDetails={() => setExpanded(prev => ({ ...prev, bank: true }))}
+            onCreateTranche={() => setShowCreateTranche(true)}
           />
         )}
 
