@@ -44,6 +44,7 @@ export const AllowedBankDetailsSelector = ({
   const [loading, setLoading] = useState(true);
   const [adding, setAdding] = useState(false);
   const [selectedPurpose, setSelectedPurpose] = useState<string>('disbursement');
+  const [suggestedBindings, setSuggestedBindings] = useState<Array<{ detailId: string; purpose: string }>>([]);
 
   const PRE_SIGN_EDITABLE = new Set(['draft', 'awaiting_signatures', 'signed_by_lender', 'signed_by_borrower']);
   const POST_SIGN_SETUP = new Set(['fully_signed', 'signed_no_debt']);
@@ -93,22 +94,19 @@ export const AllowedBankDetailsSelector = ({
     setMyDetails(details);
     setLoading(false);
 
-    // Auto-suggest: ONLY if exactly 1 detail total AND no existing bindings for my role.
-    // If user has multiple details, always require manual choice — never auto-bind all.
-    if (canEdit && allowedData.filter(a => a.party_role === myRole).length === 0) {
-      if (details.length === 1) {
-        const detail = details[0];
-        const isBankTransferDetail = detail.detail_type === 'general' || detail.detail_type === 'bank_transfer';
-        const isSbpDetail = detail.detail_type === 'sbp';
+    // Compute suggestions for pre-selection (but never auto-bind)
+    if (canEdit && allowedData.filter(a => a.party_role === myRole).length === 0 && details.length > 0) {
+      const { data: loanData } = await supabase
+        .from('loans')
+        .select('borrower_disbursement_receipt_policy, lender_repayment_receipt_policy')
+        .eq('id', loanId)
+        .single();
 
-        const { data: loanData } = await supabase
-          .from('loans')
-          .select('borrower_disbursement_receipt_policy, lender_repayment_receipt_policy')
-          .eq('id', loanId)
-          .single();
-
-        if (loanData) {
-          const autoAttached: string[] = [];
+      if (loanData) {
+        const suggestions: Array<{ detailId: string; purpose: string }> = [];
+        for (const detail of details) {
+          const isBankTransferDetail = detail.detail_type === 'general' || detail.detail_type === 'bank_transfer';
+          const isSbpDetail = detail.detail_type === 'sbp';
 
           for (const purpose of ['disbursement', 'repayment'] as const) {
             const policy = purpose === 'disbursement'
@@ -121,46 +119,50 @@ export const AllowedBankDetailsSelector = ({
               (policy === 'BANK_TRANSFER_OR_SBP' && (isBankTransferDetail || isSbpDetail));
 
             if (compatible) {
-              await supabase.from('loan_allowed_bank_details').insert({
-                loan_id: loanId,
-                bank_detail_id: detail.id,
-                party_role: myRole,
-                purpose,
-              });
-              autoAttached.push(purpose === 'disbursement' ? 'выдачу' : 'погашение');
+              suggestions.push({ detailId: detail.id, purpose });
             }
           }
-
-          if (autoAttached.length > 0) {
-            toast.success(`Реквизит привязан для: ${autoAttached.join(', ')}`);
-            fetchData();
-            onUpdate?.();
-          } else {
-            toast.info('Реквизит не подходит для автоматической привязки. Выберите вручную.');
-          }
         }
-      } else if (details.length > 1) {
-        // Multiple details — never auto-bind, ask user to choose
-        toast.info('У вас несколько реквизитов. Выберите нужные вручную.');
+        setSuggestedBindings(suggestions);
       }
     }
   };
 
-  const handleAdd = async (bankDetailId: string) => {
+  const handleAdd = async (bankDetailId: string, purpose?: string) => {
     setAdding(true);
     const { error } = await supabase.from('loan_allowed_bank_details').insert({
       loan_id: loanId,
       bank_detail_id: bankDetailId,
       party_role: myRole,
-      purpose: selectedPurpose,
+      purpose: purpose || selectedPurpose,
     });
     if (error) {
       toast.error('Ошибка добавления реквизитов');
     } else {
       toast.success('Реквизиты добавлены к договору');
+      // Remove confirmed suggestion(s)
+      setSuggestedBindings(prev => prev.filter(s => !(s.detailId === bankDetailId && s.purpose === (purpose || selectedPurpose))));
       fetchData();
       onUpdate?.();
     }
+    setAdding(false);
+  };
+
+  const handleConfirmAllSuggestions = async () => {
+    if (suggestedBindings.length === 0) return;
+    setAdding(true);
+    for (const s of suggestedBindings) {
+      await supabase.from('loan_allowed_bank_details').insert({
+        loan_id: loanId,
+        bank_detail_id: s.detailId,
+        party_role: myRole,
+        purpose: s.purpose,
+      });
+    }
+    toast.success('Рекомендованные реквизиты привязаны');
+    setSuggestedBindings([]);
+    fetchData();
+    onUpdate?.();
     setAdding(false);
   };
 
@@ -232,6 +234,57 @@ export const AllowedBankDetailsSelector = ({
               ? 'Добавьте реквизит в профиле, чтобы привязать его к договору'
               : 'Выберите реквизиты ниже'}
           </p>
+        )}
+
+        {/* Suggestions block — user must explicitly confirm */}
+        {canEdit && suggestedBindings.length > 0 && myAllowed.length === 0 && (
+          <div className="mt-3 rounded-xl border-2 border-warning/30 bg-warning/5 p-4 space-y-3">
+            <div className="flex items-center gap-2">
+              <CreditCard className="w-4 h-4 text-warning flex-shrink-0" />
+              <p className="text-sm font-semibold text-warning">Рекомендованные реквизиты</p>
+            </div>
+            <p className="text-xs text-muted-foreground">
+              {suggestedBindings.length === 1
+                ? 'Найден один совместимый реквизит. Подтвердите привязку:'
+                : `Найдено ${suggestedBindings.length} совместимых привязок. Подтвердите выбор:`}
+            </p>
+            <div className="space-y-2">
+              {suggestedBindings.map((s, i) => {
+                const detail = myDetails.find(d => d.id === s.detailId);
+                if (!detail) return null;
+                return (
+                  <div key={i} className="flex items-center gap-3 p-2.5 rounded-lg bg-card border border-border/50">
+                    <Check className="w-4 h-4 text-warning flex-shrink-0" />
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium truncate">
+                        {detail.bank_name}{detail.card_number && ` • *${detail.card_number.slice(-4)}`}
+                      </p>
+                      <p className="text-xs text-muted-foreground">{PURPOSE_LABELS[s.purpose] || s.purpose}</p>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+            <div className="flex gap-2 pt-1">
+              <Button
+                size="sm"
+                className="rounded-lg text-xs gap-1.5 bg-warning text-warning-foreground hover:bg-warning/90"
+                disabled={adding}
+                onClick={handleConfirmAllSuggestions}
+              >
+                {adding ? <Loader2 className="w-3 h-3 animate-spin" /> : <Check className="w-3 h-3" />}
+                Подтвердить
+              </Button>
+              <Button
+                size="sm"
+                variant="outline"
+                className="rounded-lg text-xs"
+                onClick={() => setSuggestedBindings([])}
+              >
+                Выбрать вручную
+              </Button>
+            </div>
+          </div>
         )}
       </div>
 
