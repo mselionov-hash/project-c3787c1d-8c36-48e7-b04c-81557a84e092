@@ -631,8 +631,8 @@ export async function resolveAppendixBankDetailsVariables(loanId: string): Promi
       APPENDIX_6_REFERENCE: isAppendix6Required(loan.signature_scheme_requested ?? 'UKEP_ONLY')
         ? 'Приложение № 6 (Соглашение об использовании УНЭП)'
         : '',
-      APP1_SIGNED_BY_LENDER_AT: lenderSig ? formatDateTimeRu(lenderSig.signed_at) : 'ожидается подписание',
-      APP1_SIGNED_BY_BORROWER_AT: borrowerSig ? formatDateTimeRu(borrowerSig.signed_at) : 'ожидается подписание',
+      APP1_SIGNED_BY_LENDER_AT: lenderSig ? formatDateTimeRu(lenderSig.signed_at) : '',
+      APP1_SIGNED_BY_BORROWER_AT: borrowerSig ? formatDateTimeRu(borrowerSig.signed_at) : '',
     }),
     repeatSections,
   };
@@ -741,8 +741,8 @@ export async function resolveAppendixScheduleVariables(loanId: string): Promise<
 
       LENDER_FULL_NAME: lenderProfile.full_name,
       BORROWER_FULL_NAME: borrowerProfile.full_name,
-      APP2_LENDER_SIGNED_AT: lenderSig ? formatDateTimeRu(lenderSig.signed_at) : 'ожидается подписание',
-      APP2_BORROWER_SIGNED_AT: borrowerSig ? formatDateTimeRu(borrowerSig.signed_at) : 'ожидается подписание',
+      APP2_LENDER_SIGNED_AT: lenderSig ? formatDateTimeRu(lenderSig.signed_at) : '',
+      APP2_BORROWER_SIGNED_AT: borrowerSig ? formatDateTimeRu(borrowerSig.signed_at) : '',
     }),
     repeatSections,
   };
