@@ -26,11 +26,13 @@ const AuthConfirm = () => {
     if (type === 'signup' || type === 'email') {
       if (accessToken && refreshToken) {
         supabase.auth.setSession({ access_token: accessToken, refresh_token: refreshToken })
-          .then(({ error }) => {
+          .then(async ({ error }) => {
             if (error) {
               setStatus('error');
               setErrorMsg(error.message);
             } else {
+              // Sign out so the user must log in manually
+              await supabase.auth.signOut();
               setStatus('success');
             }
           });
@@ -39,17 +41,16 @@ const AuthConfirm = () => {
         setErrorMsg('Недействительная ссылка подтверждения.');
       }
     } else if (type === 'recovery') {
-      // Redirect to reset-password page with the tokens
       navigate(`/reset-password${hash}`);
     } else {
-      // Try setting session anyway (covers magiclink etc.)
       if (accessToken && refreshToken) {
         supabase.auth.setSession({ access_token: accessToken, refresh_token: refreshToken })
-          .then(({ error }) => {
+          .then(async ({ error }) => {
             if (error) {
               setStatus('error');
               setErrorMsg(error.message);
             } else {
+              await supabase.auth.signOut();
               setStatus('success');
             }
           });
@@ -79,11 +80,11 @@ const AuthConfirm = () => {
             <div>
               <h2 className="text-lg font-semibold mb-1">Email подтверждён</h2>
               <p className="text-sm text-muted-foreground">
-                Ваш аккаунт активирован. Добро пожаловать!
+                Ваш аккаунт успешно подтверждён. Теперь вы можете войти в сервис.
               </p>
             </div>
-            <Button onClick={() => navigate('/dashboard')} className="w-full rounded-xl h-11 gap-2">
-              Перейти в личный кабинет
+            <Button onClick={() => navigate('/auth')} className="w-full rounded-xl h-11 gap-2">
+              Войти в аккаунт
             </Button>
           </div>
         )}
