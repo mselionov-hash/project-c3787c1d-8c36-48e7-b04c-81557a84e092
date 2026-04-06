@@ -49,6 +49,20 @@ async function generateDocument(
 
   const contractNumber = variables['CONTRACT_NUMBER'] || loanId.slice(0, 8);
 
+  // Mark all previous non-superseded versions of the same doc type + entity as superseded
+  const { data: previousDocs } = await supabase
+    .from('generated_documents')
+    .select('id, source_entity_id')
+    .eq('loan_id', loanId)
+    .eq('document_type', documentType as string)
+    .is('superseded_by', null)
+    .then(res => {
+      if (sourceEntityId) {
+        return { ...res, data: (res.data || []).filter(d => d.source_entity_id === sourceEntityId) };
+      }
+      return { ...res, data: (res.data || []).filter(d => !d.source_entity_id) };
+    });
+
   const { data, error } = await supabase
     .from('generated_documents')
     .insert({
@@ -63,6 +77,15 @@ async function generateDocument(
     .single();
 
   if (error) throw new Error(`Failed to save document metadata: ${error.message}`);
+
+  // Now mark old versions as superseded by the new one
+  if (previousDocs && previousDocs.length > 0) {
+    const oldIds = previousDocs.map(d => d.id);
+    await supabase
+      .from('generated_documents')
+      .update({ superseded_by: data.id } as any)
+      .in('id', oldIds);
+  }
 
   renderDocumentToPdf(resolvedText, {
     title: `${pdfOptions.title} ${contractNumber}`,
