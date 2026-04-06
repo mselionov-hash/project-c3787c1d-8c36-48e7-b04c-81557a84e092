@@ -22,9 +22,9 @@ export const AppLayout = ({ children }: { children: ReactNode }) => {
       {/* Desktop sidebar */}
       <aside className="hidden md:flex flex-col w-56 border-r border-border/50 bg-card/50 sticky top-0 h-screen">
         <div className="p-4 border-b border-border/50">
-          <div className="flex items-center gap-2.5">
-            <img src={logoTransparent} alt="ГдеДеньги" className="w-7 h-7 object-contain" />
-            <span className="font-bold text-sm font-display tracking-tight">ГдеДеньги</span>
+          <div className="flex items-center gap-3">
+            <img src={logoTransparent} alt="ГдеДеньги" className="w-9 h-9 object-contain" />
+            <span className="font-bold text-base font-display tracking-tight">ГдеДеньги</span>
           </div>
         </div>
 
