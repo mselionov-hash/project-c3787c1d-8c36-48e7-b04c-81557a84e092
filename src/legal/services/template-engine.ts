@@ -103,30 +103,19 @@ function evaluateCondition(condition: string, variables: VariableRecord): boolea
 
 /**
  * Resolve [[AUTO_NUM]] markers with sequential numbering.
- * Each [[AUTO_NUM]] in the final text gets replaced with the next number
- * in sequence. Supports dotted notation for sub-levels.
- *
- * Format: [[AUTO_NUM:LEVEL]] where LEVEL is 1, 2, or 3
- * Simple [[AUTO_NUM]] defaults to level 1.
  */
 function resolveAutoNumbering(template: string): string {
-  const counters: number[] = [0, 0, 0]; // level 1, 2, 3
+  const counters: number[] = [0, 0, 0];
 
   return template.replace(
     /\[\[AUTO_NUM(?::(\d))?\]\]/g,
     (_match, levelStr?: string) => {
       const level = levelStr ? parseInt(levelStr, 10) : 1;
       const idx = Math.min(level, 3) - 1;
-
-      // Increment this level
       counters[idx]++;
-
-      // Reset deeper levels
       for (let i = idx + 1; i < counters.length; i++) {
         counters[i] = 0;
       }
-
-      // Build dotted number
       return counters.slice(0, idx + 1).join('.');
     }
   );
@@ -134,26 +123,18 @@ function resolveAutoNumbering(template: string): string {
 
 /**
  * Resolve [[REF:ANCHOR_ID]] cross-references.
- * Looks for [[ANCHOR:ID]] markers that were placed alongside [[AUTO_NUM]],
- * and replaces [[REF:ID]] with the resolved number.
- *
- * This is a two-pass operation:
- * 1. First pass: collect anchor→number mappings from [[ANCHOR:ID=NUMBER]]
- * 2. Second pass: replace [[REF:ID]] with the collected number
  */
 function resolveReferences(template: string): string {
   const anchors: Record<string, string> = {};
 
-  // Pass 1: collect anchors — format [[ANCHOR:ID=3.2]]
   const withAnchors = template.replace(
     /\[\[ANCHOR:(\w+)=([^\]]+)\]\]/g,
     (_match, id: string, number: string) => {
       anchors[id] = number;
-      return ''; // Remove the anchor marker
+      return '';
     }
   );
 
-  // Pass 2: resolve references
   return withAnchors.replace(
     /\[\[REF:(\w+)\]\]/g,
     (_match, id: string) => {
@@ -167,10 +148,8 @@ function resolveReferences(template: string): string {
  * For each section, iterates the corresponding row array from repeatSections,
  * substituting row-level {PLACEHOLDER} values per iteration.
  *
- * Format:
- *   [[REPEAT:SECTION_NAME]]
- *   row template with {FIELD_NAME} placeholders
- *   [[END_REPEAT]]
+ * CRITICAL: If a section has no rows, the entire section header + table block
+ * is removed cleanly. No debug markers are emitted.
  */
 function renderRepeatedRows(template: string, repeatSections: RepeatData): string {
   return template.replace(
@@ -178,14 +157,9 @@ function renderRepeatedRows(template: string, repeatSections: RepeatData): strin
     (_match, sectionName: string, bodyTemplate: string) => {
       const rows = repeatSections[sectionName];
 
-      // If section not provided at all, render explicit empty marker
-      if (!rows) {
-        return `[данные секции ${sectionName} не предоставлены]`;
-      }
-
-      // If array is empty, render a clean "no data" message
-      if (rows.length === 0) {
-        return `[нет записей в секции ${sectionName}]`;
+      // If section not provided or empty, remove entirely (no markers)
+      if (!rows || rows.length === 0) {
+        return '';
       }
 
       // For each row object, substitute all {PLACEHOLDER} in the body template
@@ -209,6 +183,24 @@ function substituteVariables(template: string, variables: VariableRecord): strin
 }
 
 /**
+ * Forbidden output markers that must never appear in final documents.
+ */
+const FORBIDDEN_MARKERS = [
+  /\[нет записей в секции\s+\w+\]/g,
+  /\[данные секции\s+\w+\s+не предоставлены\]/g,
+  /\[реквизит[ы]?\s+.*?из APP1\]/g,
+  /\[см\.\s*Приложение\s*№?\s*\d+\]/g,
+  /\[не указано\]/g,
+  /\[не опубликован\]/g,
+  /\[ожидается подписание\]/g,
+  /___________/g,
+  /—\s*\(Europe\/Moscow\)/g,
+  /\[реквизиты не указаны\]/g,
+  /\[график платежей не сформирован\]/g,
+  /\[подпись не проставлена\]/g,
+];
+
+/**
  * After rendering, check for any leftover template artifacts that should not appear in final output.
  * Returns a list of issues found (empty = clean).
  */
@@ -218,55 +210,63 @@ export function validateRenderedOutput(text: string): string[] {
   // Leftover block conditionals
   const conditionalMatch = text.match(/\[\[(?:IF|ENDIF)[^\]]*\]\]/g);
   if (conditionalMatch) {
-    issues.push(`Unresolved conditional blocks: ${conditionalMatch.join(', ')}`);
+    issues.push(`Нерезолвленные условные блоки: ${conditionalMatch.join(', ')}`);
   }
 
   // Leftover inline prefix conditionals
   const inlineCondMatch = text.match(/^\s*\[При \{[A-Z_]+\}=\S+\]/gm);
   if (inlineCondMatch) {
-    issues.push(`Unresolved inline conditionals: ${inlineCondMatch.map(s => s.trim()).join(', ')}`);
+    issues.push(`Нерезолвленные inline-условия: ${inlineCondMatch.map(s => s.trim()).join(', ')}`);
   }
 
   // Leftover unresolved variable references {VAR_NAME}
   const varMatch = text.match(/\{[A-Z_]+(?:\[\])?\}/g);
   if (varMatch) {
-    issues.push(`Unresolved variables: ${varMatch.join(', ')}`);
+    issues.push(`Нерезолвленные переменные: ${varMatch.join(', ')}`);
   }
 
   // Leftover AUTO_NUM markers
   const autoNumMatch = text.match(/\[\[AUTO_NUM(?::\d)?\]\]/g);
   if (autoNumMatch) {
-    issues.push(`Unresolved auto-numbering markers: ${autoNumMatch.join(', ')}`);
+    issues.push(`Нерезолвленные маркеры нумерации: ${autoNumMatch.join(', ')}`);
   }
 
   // Leftover REF markers
   const refMatch = text.match(/\[\[REF:\w+\]\]/g);
   if (refMatch) {
-    issues.push(`Unresolved references: ${refMatch.join(', ')}`);
+    issues.push(`Нерезолвленные ссылки: ${refMatch.join(', ')}`);
   }
 
   // Leftover REPEAT markers
   const repeatMatch = text.match(/\[\[(?:REPEAT|END_REPEAT)[^\]]*\]\]/g);
   if (repeatMatch) {
-    issues.push(`Unresolved repeat blocks: ${repeatMatch.join(', ')}`);
+    issues.push(`Нерезолвленные блоки повтора: ${repeatMatch.join(', ')}`);
   }
 
-  // Leftover repeat placeholder text from old engine
+  // Leftover legacy repeat placeholders
   const oldRepeatMatch = text.match(/\[REPEAT:\w+ — н[её] реализован\]/g);
   if (oldRepeatMatch) {
-    issues.push(`Unresolved legacy repeat placeholders: ${oldRepeatMatch.join(', ')}`);
+    issues.push(`Устаревшие маркеры повтора: ${oldRepeatMatch.join(', ')}`);
   }
 
-  // Missing repeat section data
+  // Missing repeat section data markers (should no longer appear)
   const missingRepeatMatch = text.match(/\[данные секции \w+ не предоставлены\]/g);
   if (missingRepeatMatch) {
-    issues.push(`Missing repeat section data: ${missingRepeatMatch.join(', ')}`);
+    issues.push(`Отсутствуют данные секций: ${missingRepeatMatch.join(', ')}`);
   }
 
   // Leftover ANCHOR markers
   const anchorMatch = text.match(/\[\[ANCHOR:[^\]]+\]\]/g);
   if (anchorMatch) {
-    issues.push(`Unresolved anchor markers: ${anchorMatch.join(', ')}`);
+    issues.push(`Нерезолвленные маркеры якорей: ${anchorMatch.join(', ')}`);
+  }
+
+  // Forbidden output markers
+  for (const pattern of FORBIDDEN_MARKERS) {
+    const matches = text.match(pattern);
+    if (matches) {
+      issues.push(`Запрещённые маркеры в документе: ${matches.join(', ')}`);
+    }
   }
 
   return issues;
@@ -274,9 +274,17 @@ export function validateRenderedOutput(text: string): string[] {
 
 /**
  * Clean up excessive blank lines left after conditional removal.
+ * Also removes orphaned section headers that precede empty REPEAT blocks.
  */
 function cleanWhitespace(text: string): string {
-  return text.replace(/\n{3,}/g, '\n\n').trim();
+  // Remove lines that are just "---" surrounded by blank lines (orphaned separators)
+  let result = text.replace(/\n{3,}/g, '\n\n');
+
+  // Remove empty table header lines (lines with only pipes and dashes/spaces)
+  // that were left after empty REPEAT blocks removed their data rows
+  result = result.replace(/^### .+\n\n(?=### |\n*$)/gm, '');
+
+  return result.trim();
 }
 
 /**

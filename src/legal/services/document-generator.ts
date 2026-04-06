@@ -188,11 +188,23 @@ export async function generatePartialRepaymentConfirmation(
 
 /**
  * Generate full repayment confirmation.
+ * GUARD: Only allowed when loan is truly closed (status === 'repaid').
  */
 export async function generateFullRepaymentConfirmation(
   loanId: string,
   userId: string
 ): Promise<GenerateResult> {
+  // Verify loan is truly closed
+  const { data: loan } = await supabase
+    .from('loans')
+    .select('status, amount')
+    .eq('id', loanId)
+    .single();
+
+  if (!loan || loan.status !== 'repaid') {
+    throw new Error('Подтверждение полного исполнения можно сформировать только для полностью закрытого займа (статус «Погашён»).');
+  }
+
   return generateDocument(
     loanId, userId, 'full_repayment_confirmation',
     () => resolveFullRepaymentVariables(loanId),
