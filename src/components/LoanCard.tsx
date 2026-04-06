@@ -1,7 +1,7 @@
 import { useNavigate } from 'react-router-dom';
 import { ArrowUpRight, ArrowDownLeft, ChevronRight } from 'lucide-react';
 import type { Tables } from '@/integrations/supabase/types';
-import { formatDateSafe } from '@/lib/date-utils';
+import { formatDateSafe, parseDateOnly } from '@/lib/date-utils';
 
 type Loan = Tables<'loans'>;
 
@@ -47,7 +47,6 @@ export const LoanCard = ({ loan, type }: { loan: Loan; type: 'issued' | 'taken' 
   const status = statusLabels[loan.status] || statusLabels.draft;
   const isLender = type === 'issued';
   const nextStep = getNextStep(loan, isLender);
-  const { parseDateOnly } = require('@/lib/date-utils');
   const daysLeft = Math.ceil(
     (parseDateOnly(loan.repayment_date).getTime() - Date.now()) / (1000 * 60 * 60 * 24)
   );
