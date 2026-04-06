@@ -339,8 +339,9 @@ const LoanDetails = () => {
             isLender={isLender}
             isBorrower={isBorrower}
             loanStatus={loan.status}
+            mySideReady={mySideReady}
+            counterpartySideReady={counterpartySideReady}
             bankDetailsReady={bankDetailsReady}
-            repaymentDetailsReady={repaymentDetailsReady}
             outstanding={outstanding}
             canIssueMore={canIssueMore}
             onOpenBankDetails={() => {
