@@ -7,6 +7,7 @@ import SignaturePad from '@/components/SignaturePad';
 import SendLoanModal from '@/components/SendLoanModal';
 import { AllowedBankDetailsSelector } from '@/components/AllowedBankDetailsSelector';
 import { TrancheList } from '@/components/TrancheList';
+import { CreateTrancheModal } from '@/components/CreateTrancheModal';
 import { PaymentSchedule } from '@/components/PaymentSchedule';
 import { RepaymentList } from '@/components/RepaymentList';
 import { TransferEvidence } from '@/components/TransferEvidence';
@@ -467,6 +468,18 @@ const LoanDetails = () => {
           onSuccess={fetchAll}
         />
       )}
+      {showCreateTranche && isLender && loan && (
+        <CreateTrancheModal
+          loanId={loan.id}
+          userId={user!.id}
+          lenderId={loan.lender_id}
+          borrowerId={loan.borrower_id}
+          nextTrancheNumber={tranches.length > 0 ? Math.max(...tranches.map(t => t.tranche_number)) + 1 : 1}
+          contractNumber={loan.contract_number}
+          onClose={() => setShowCreateTranche(false)}
+          onSuccess={fetchAll}
+        />
+      )}
     </AppLayout>
   );
 };
@@ -522,10 +535,11 @@ const Row = ({ label, value }: { label: string; value: string }) => (
   </div>
 );
 
-const NextActionBlock = ({ isLender, hasPendingTranches, onOpenBankDetails }: {
+const NextActionBlock = ({ isLender, bankDetailsReady, onOpenBankDetails, onCreateTranche }: {
   isLender: boolean;
-  hasPendingTranches: boolean;
+  bankDetailsReady: boolean;
   onOpenBankDetails: () => void;
+  onCreateTranche: () => void;
 }) => {
   if (isLender) {
     return (
@@ -535,15 +549,28 @@ const NextActionBlock = ({ isLender, hasPendingTranches, onOpenBankDetails }: {
           <p className="text-sm font-semibold">Договор подписан — пора перевести деньги</p>
         </div>
         <p className="text-xs text-muted-foreground">
-          {hasPendingTranches
-            ? 'У вас есть запланированные транши. Переведите средства и подтвердите.'
-            : 'Создайте транш и переведите средства заёмщику.'}
+          {bankDetailsReady
+            ? 'Реквизиты выбраны. Создайте транш и переведите средства заёмщику.'
+            : 'Сначала выберите реквизиты для перевода, затем создайте транш.'}
         </p>
         <div className="flex gap-2 pt-1">
-          <Button size="sm" variant="outline" className="rounded-lg text-xs gap-1" onClick={onOpenBankDetails}>
-            <CreditCard className="w-3.5 h-3.5" />
-            Реквизиты
-          </Button>
+          {bankDetailsReady ? (
+            <>
+              <Button size="sm" className="rounded-lg text-xs gap-1.5" onClick={onCreateTranche}>
+                <Banknote className="w-3.5 h-3.5" />
+                Выдать транш
+              </Button>
+              <Button size="sm" variant="outline" className="rounded-lg text-xs gap-1" onClick={onOpenBankDetails}>
+                <CreditCard className="w-3.5 h-3.5" />
+                Реквизиты
+              </Button>
+            </>
+          ) : (
+            <Button size="sm" className="rounded-lg text-xs gap-1.5" onClick={onOpenBankDetails}>
+              <CreditCard className="w-3.5 h-3.5" />
+              Выбрать реквизиты для перевода
+            </Button>
+          )}
         </div>
       </div>
     );
