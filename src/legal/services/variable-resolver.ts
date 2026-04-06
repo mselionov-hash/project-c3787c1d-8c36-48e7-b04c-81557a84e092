@@ -395,12 +395,29 @@ export async function resolveTrancheReceiptVariables(
     throw new Error('Дата перечисления транша не указана.');
   }
 
+  const methodKey = tranche.method === 'sbp' ? 'SBP' : 'BANK_TRANSFER';
+
+  // Safely format tranche timezone — never leak raw IANA identifiers
+  const trancheTimezone = tranche.timezone
+    ? tranche.timezone.replace(/Europe\/Moscow/g, 'МСК').replace(/^МСК$/, 'МСК')
+    : 'МСК';
+
+  // APP3: if actual_time not provided, use empty (optional field)
+  const trancheTime = tranche.actual_time || '';
+  // APP3: bank document fields are optional — use empty string, not placeholders
+  const trancheBankDocId = tranche.bank_document_id?.trim() || '';
+  const trancheBankDocDate = tranche.bank_document_date ? formatDateOnlyRu(tranche.bank_document_date) : '';
+
+  // APP3: sender/receiver displays — never use "см. Приложение" fallbacks
+  const senderDisplay = tranche.sender_account_display?.trim() || '';
+  const receiverDisplay = tranche.receiver_account_display?.trim() || '';
+
   const vars: VariableRecord = {
     RECEIPT_TITLE: PLATFORM_CONFIG.RECEIPT_TITLE,
     TRANCHE_RECEIPT_NUMBER: String(receiptNumber),
     CONTRACT_NUMBER: loan.contract_number || loan.id.slice(0, 8).toUpperCase(),
     TRANCHE_RECEIPT_DRAFT_CREATED_AT: formatDateTimeRu(new Date().toISOString()),
-    TRANCHE_RECEIPT_SIGNED_AT: tranche.confirmed_at ? formatDateTimeRu(tranche.confirmed_at) : 'ожидается подписание',
+    TRANCHE_RECEIPT_SIGNED_AT: tranche.confirmed_at ? formatDateTimeRu(tranche.confirmed_at) : '',
 
     // Lender
     LENDER_FULL_NAME: lenderProfile.full_name,
@@ -437,29 +454,27 @@ export async function resolveTrancheReceiptVariables(
     CONTRACT_DATE: formatDateOnlyRu(loan.issue_date || loan.created_at),
     LAST_SIGNATURE_AT: lastSignatureAt ? formatDateTimeRu(lastSignatureAt) : '',
 
-    // Tranche fields
+    // Tranche fields — no forbidden markers
     TRANCHE_ID: tranche.id,
     TRANCHE_AMOUNT: Number(tranche.amount).toLocaleString('ru-RU'),
     TRANCHE_AMOUNT_IN_WORDS: amountToWordsRu(Number(tranche.amount)),
     TRANCHE_CURRENCY: tranche.currency || 'руб.',
     TRANCHE_DATE: formatDateOnlyRu(tranche.actual_date || tranche.planned_date),
-    TRANCHE_TIME: tranche.actual_time || 'время не зафиксировано',
-    TRANCHE_TIMEZONE: tranche.timezone ? tranche.timezone.replace('Europe/Moscow', 'МСК') : 'МСК',
+    TRANCHE_TIME: trancheTime,
+    TRANCHE_TIMEZONE: trancheTimezone,
     TRANCHE_METHOD: methodKey,
     TRANCHE_METHOD_LABEL: methodKey === 'SBP' ? 'Перевод через СБП' : 'Банковский перевод',
-    TRANCHE_SENDER_ACCOUNT_DISPLAY: tranche.sender_account_display || 'реквизит Займодавца (см. Приложение № 1)',
-    TRANCHE_RECEIVER_ACCOUNT_DISPLAY: tranche.receiver_account_display || 'реквизит Заёмщика (см. Приложение № 1)',
+    TRANCHE_SENDER_ACCOUNT_DISPLAY: senderDisplay,
+    TRANCHE_RECEIVER_ACCOUNT_DISPLAY: receiverDisplay,
     TRANCHE_REFERENCE_TEXT: tranche.reference_text || `По договору займа № ${loan.contract_number || loan.id.slice(0, 8).toUpperCase()}`,
-    TRANCHE_BANK_DOCUMENT_ID: tranche.bank_document_id || 'не предоставлен',
-    TRANCHE_BANK_DOCUMENT_DATE: formatDateOnlyRu(tranche.bank_document_date) || 'не указана',
+    TRANCHE_BANK_DOCUMENT_ID: trancheBankDocId,
+    TRANCHE_BANK_DOCUMENT_DATE: trancheBankDocDate,
     TRANCHE_TRANSFER_SOURCE: tranche.transfer_source || 'MANUAL',
 
     // TZ v2.2 printable requisite fields
-    TRANCHE_SENDER_REQUISITE_PRINTABLE: formatRequisitePrintable(tranche, 'sender') || 'см. Приложение № 1',
-    TRANCHE_RECEIVER_REQUISITE_PRINTABLE: formatRequisitePrintable(tranche, 'receiver') || 'см. Приложение № 1',
-    TRANCHE_RECEIVER_SBP_ROUTE_PRINTABLE: methodKey === 'SBP'
-      ? (tranche.receiver_account_display || 'см. Приложение № 1')
-      : '',
+    TRANCHE_SENDER_REQUISITE_PRINTABLE: senderDisplay,
+    TRANCHE_RECEIVER_REQUISITE_PRINTABLE: receiverDisplay,
+    TRANCHE_RECEIVER_SBP_ROUTE_PRINTABLE: methodKey === 'SBP' ? receiverDisplay : '',
 
     // Conditional flags
     LENDER_CO_SIGNATURE_ENABLED: PLATFORM_CONFIG.LENDER_CO_SIGNATURE_ENABLED,
@@ -467,7 +482,7 @@ export async function resolveTrancheReceiptVariables(
 
     // Signature blocks
     BORROWER_SIGNATURE_BLOCK: renderSignatureBlock(borrowerSig, 'borrower'),
-    LENDER_SIGNATURE_BLOCK_OPTIONAL: 'не требуется',
+    LENDER_SIGNATURE_BLOCK_OPTIONAL: '',
   };
 
   return { variables: applyAliases(vars), repeatSections: {} };
