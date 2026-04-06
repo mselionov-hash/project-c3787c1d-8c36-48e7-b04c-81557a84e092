@@ -45,8 +45,9 @@ export const AllowedBankDetailsSelector = ({
   const [adding, setAdding] = useState(false);
   const [selectedPurpose, setSelectedPurpose] = useState<string>('disbursement');
 
-  const EDITABLE_STATUSES = new Set(['draft', 'awaiting_signatures', 'signed_by_lender', 'signed_by_borrower']);
-  const canEdit = EDITABLE_STATUSES.has(loanStatus);
+  const PRE_SIGN_EDITABLE = new Set(['draft', 'awaiting_signatures', 'signed_by_lender', 'signed_by_borrower']);
+  const POST_SIGN_SETUP = new Set(['fully_signed', 'signed_no_debt']);
+  const canEdit = PRE_SIGN_EDITABLE.has(loanStatus) || POST_SIGN_SETUP.has(loanStatus);
   const isParty = user?.id === lenderId || user?.id === borrowerId;
   const myRole = user?.id === lenderId ? 'lender' : 'borrower';
 
