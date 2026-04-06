@@ -286,7 +286,7 @@ const LoanDetails = () => {
             <p className="text-xs text-muted-foreground">
               {loan.interest_mode === 'fixed_rate' ? `${Number(loan.interest_rate)}%` : 'Без %'}
               {' · до '}
-              {new Date(loan.repayment_date).toLocaleDateString('ru-RU')}
+              {formatDateSafe(loan.repayment_date)}
             </p>
           </div>
           {totalDisbursed > 0 && (
