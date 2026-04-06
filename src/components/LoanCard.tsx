@@ -47,8 +47,9 @@ export const LoanCard = ({ loan, type }: { loan: Loan; type: 'issued' | 'taken' 
   const status = statusLabels[loan.status] || statusLabels.draft;
   const isLender = type === 'issued';
   const nextStep = getNextStep(loan, isLender);
+  const { parseDateOnly } = require('@/lib/date-utils');
   const daysLeft = Math.ceil(
-    (new Date(loan.repayment_date).getTime() - Date.now()) / (1000 * 60 * 60 * 24)
+    (parseDateOnly(loan.repayment_date).getTime() - Date.now()) / (1000 * 60 * 60 * 24)
   );
 
   return (
