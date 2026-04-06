@@ -117,9 +117,9 @@ function renderNoticeTable(lenderProfile: ProfileSnapshot, borrowerProfile: Prof
   const rows = [
     'Канал связи | Займодавец | Заемщик',
     '---|---|---',
-    `Email | ${lenderProfile.email || 'не указан'} | ${borrowerProfile.email || 'не указан'}`,
-    `Телефон | ${lenderProfile.phone || 'не указан'} | ${borrowerProfile.phone || 'не указан'}`,
-    `Адрес | ${lenderProfile.address || 'не указан'} | ${borrowerProfile.address || 'не указан'}`,
+    `Email | ${lenderProfile.email || ''} | ${borrowerProfile.email || ''}`,
+    `Телефон | ${lenderProfile.phone || ''} | ${borrowerProfile.phone || ''}`,
+    `Адрес | ${lenderProfile.address || ''} | ${borrowerProfile.address || ''}`,
     `ID на Платформе | ${lenderProfile.user_id} | ${borrowerProfile.user_id}`,
   ];
   return rows.join('\n');
@@ -818,7 +818,7 @@ export async function resolvePartialRepaymentVariables(
     LENDER_FULL_NAME: lenderProfile.full_name,
     BORROWER_FULL_NAME: borrowerProfile.full_name,
     REPAYMENT_RECEIVER_BANK_ACCOUNT_DISPLAY: 'согласно Приложению № 1',
-    REPAYMENT_RECEIVER_BANK_NAME: payment.bank_name?.trim() || 'не указан',
+    REPAYMENT_RECEIVER_BANK_NAME: payment.bank_name?.trim() || '',
     REPAYMENT_RECEIVER_BANK_REQUISITE_DETAILS: 'согласно Приложению № 1',
     REPAYMENT_RECEIVER_SBP_ID: '',
     REPAYMENT_RECEIVER_SBP_BANK: '',
@@ -920,7 +920,7 @@ export async function resolveFullRepaymentVariables(loanId: string): Promise<Res
     BORROWER_FULL_NAME: borrowerProfile.full_name,
 
     CLOSING_REPAYMENT_RECEIVER_BANK_ACCOUNT_DISPLAY: 'согласно Приложению № 1',
-    CLOSING_REPAYMENT_RECEIVER_BANK_NAME: closingPayment?.bank_name?.trim() || 'не указан',
+    CLOSING_REPAYMENT_RECEIVER_BANK_NAME: closingPayment?.bank_name?.trim() || '',
     CLOSING_REPAYMENT_RECEIVER_BANK_REQUISITE_DETAILS: 'согласно Приложению № 1',
 
     CLOSING_REPAYMENT_RECEIVER_SBP_ID: '',
