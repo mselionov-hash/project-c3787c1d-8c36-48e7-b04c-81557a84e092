@@ -80,11 +80,11 @@ const AuthConfirm = () => {
             <div>
               <h2 className="text-lg font-semibold mb-1">Email подтверждён</h2>
               <p className="text-sm text-muted-foreground">
-                Ваш аккаунт активирован. Добро пожаловать!
+                Ваш аккаунт успешно подтверждён. Теперь вы можете войти в сервис.
               </p>
             </div>
-            <Button onClick={() => navigate('/dashboard')} className="w-full rounded-xl h-11 gap-2">
-              Перейти в личный кабинет
+            <Button onClick={() => navigate('/auth')} className="w-full rounded-xl h-11 gap-2">
+              Войти в аккаунт
             </Button>
           </div>
         )}
