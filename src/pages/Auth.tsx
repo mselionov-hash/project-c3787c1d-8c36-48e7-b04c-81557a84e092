@@ -23,6 +23,11 @@ const Auth = () => {
     if (user) navigate('/dashboard');
   }, [user, navigate]);
 
+  const [showForgot, setShowForgot] = useState(false);
+  const [forgotEmail, setForgotEmail] = useState('');
+  const [forgotSubmitting, setForgotSubmitting] = useState(false);
+  const [forgotSent, setForgotSent] = useState(false);
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setSubmitting(true);
@@ -42,7 +47,10 @@ const Auth = () => {
         const { error } = await supabase.auth.signUp({
           email,
           password,
-          options: { data: { full_name: name.trim(), phone: phone.trim() } },
+          options: {
+            data: { full_name: name.trim(), phone: phone.trim() },
+            emailRedirectTo: window.location.origin + '/auth/confirm',
+          },
         });
         if (error) throw error;
         toast.success('Регистрация успешна! Проверьте email для подтверждения.');
@@ -51,6 +59,26 @@ const Auth = () => {
       toast.error(err.message || 'Произошла ошибка');
     } finally {
       setSubmitting(false);
+    }
+  };
+
+  const handleForgotPassword = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!forgotEmail.trim()) {
+      toast.error('Введите email');
+      return;
+    }
+    setForgotSubmitting(true);
+    try {
+      const { error } = await supabase.auth.resetPasswordForEmail(forgotEmail.trim(), {
+        redirectTo: `${window.location.origin}/reset-password`,
+      });
+      if (error) throw error;
+      setForgotSent(true);
+    } catch (err: any) {
+      toast.error(err.message || 'Ошибка отправки');
+    } finally {
+      setForgotSubmitting(false);
     }
   };
 
@@ -150,8 +178,56 @@ const Auth = () => {
                 {isLogin ? 'Войти' : 'Зарегистрироваться'}
                 {!submitting && <ArrowRight className="w-4 h-4" />}
               </Button>
+
+              {isLogin && (
+                <button
+                  type="button"
+                  onClick={() => { setShowForgot(true); setForgotEmail(email); }}
+                  className="w-full text-center text-xs text-muted-foreground hover:text-foreground transition-colors pt-1"
+                >
+                  Забыли пароль?
+                </button>
+              )}
             </form>
           </div>
+
+          {/* Forgot password overlay */}
+          {showForgot && (
+            <div className="card-elevated p-6 mt-4">
+              {forgotSent ? (
+                <div className="text-center space-y-3">
+                  <CheckCircle2 className="w-8 h-8 text-primary mx-auto" />
+                  <p className="text-sm font-semibold">Письмо отправлено</p>
+                  <p className="text-xs text-muted-foreground">
+                    Проверьте почту {forgotEmail} и перейдите по ссылке для сброса пароля.
+                  </p>
+                  <button onClick={() => { setShowForgot(false); setForgotSent(false); }} className="text-xs text-primary hover:underline">
+                    Вернуться к входу
+                  </button>
+                </div>
+              ) : (
+                <form onSubmit={handleForgotPassword} className="space-y-4">
+                  <div className="text-center">
+                    <p className="text-sm font-semibold">Восстановление пароля</p>
+                    <p className="text-xs text-muted-foreground mt-1">Введите email для получения ссылки сброса</p>
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="forgot-email" className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Email</Label>
+                    <Input id="forgot-email" type="email" placeholder="ivan@example.com" value={forgotEmail} onChange={e => setForgotEmail(e.target.value)} className="h-12 rounded-xl bg-muted/50 border-border/50 focus:bg-card" />
+                  </div>
+                  <div className="flex gap-2">
+                    <Button type="button" variant="outline" onClick={() => setShowForgot(false)} className="flex-1 h-10 rounded-xl text-xs">
+                      Отмена
+                    </Button>
+                    <Button type="submit" disabled={forgotSubmitting} className="flex-1 h-10 rounded-xl text-xs gap-1.5">
+                      {forgotSubmitting && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
+                      Отправить
+                    </Button>
+                  </div>
+                </form>
+              )}
+            </div>
+          )}
 
           <p className="text-center text-xs text-muted-foreground mt-6">
             Создавая аккаунт, вы соглашаетесь с условиями использования
