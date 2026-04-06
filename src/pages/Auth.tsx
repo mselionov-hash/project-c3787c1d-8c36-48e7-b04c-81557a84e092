@@ -93,8 +93,8 @@ const Auth = () => {
           <div className="absolute bottom-20 right-20 w-96 h-96 rounded-full bg-primary-foreground blur-3xl" />
         </div>
         <div className="relative z-10 max-w-md">
-          <div className="flex items-center gap-3 mb-4">
-            <img src={logoTransparent} alt="ГдеДеньги" className="w-12 h-12 object-contain" />
+          <div className="flex items-center gap-4 mb-4">
+            <img src={logoTransparent} alt="ГдеДеньги" className="w-14 h-14 object-contain" />
             <h1 className="text-4xl font-bold text-primary-foreground font-display">ГдеДеньги</h1>
           </div>
           <p className="text-primary-foreground/70 text-lg mb-10 leading-relaxed">
@@ -121,7 +121,7 @@ const Auth = () => {
       <div className="flex-1 flex items-center justify-center p-6">
         <div className="w-full max-w-[420px]">
           <div className="lg:hidden text-center mb-10">
-            <img src={logoSquare} alt="ГдеДеньги" className="w-16 h-16 rounded-2xl mx-auto mb-4" />
+            <img src={logoSquare} alt="ГдеДеньги" className="w-20 h-20 rounded-2xl mx-auto mb-4" />
             <h1 className="text-2xl font-bold tracking-tight font-display">ГдеДеньги</h1>
             <p className="text-muted-foreground mt-1">Займы между физическими лицами</p>
           </div>
