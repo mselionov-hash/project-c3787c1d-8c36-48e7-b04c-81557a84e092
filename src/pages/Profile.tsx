@@ -8,7 +8,7 @@ import { Label } from '@/components/ui/label';
 import { toast } from 'sonner';
 import { AppLayout } from '@/components/AppLayout';
 import { BankDetailsManager } from '@/components/BankDetailsManager';
-import { Save, Loader2 } from 'lucide-react';
+import { Save, Loader2, LogOut } from 'lucide-react';
 
 const Profile = () => {
   const navigate = useNavigate();
