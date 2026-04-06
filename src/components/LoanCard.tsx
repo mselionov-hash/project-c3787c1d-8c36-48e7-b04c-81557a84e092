@@ -33,10 +33,13 @@ function getNextStep(loan: Loan, isLender: boolean): NextStep | null {
     case 'signed_by_borrower':
       return isLender ? { label: 'Подписать договор', urgent: true } : null;
     case 'fully_signed':
+      return isLender
+        ? { label: 'Выбрать реквизиты / Выдать транш' }
+        : { label: 'Выбрать реквизиты для получения' };
     case 'signed_no_debt':
       return isLender ? { label: 'Выдать транш' } : null;
     case 'active':
-      return isLender ? null : { label: 'Погасить' };
+      return isLender ? { label: 'Выдать транш' } : { label: 'Погасить' };
     default:
       return null;
   }

@@ -253,10 +253,13 @@ const LoanDetails = () => {
   const outstanding = Math.max(0, totalDisbursed - totalRepaid);
   const bankReadiness = getLoanBankReadiness(loan, allowedDetails);
 
-  // Next-action logic: show post-sign CTA when signed and no outstanding debt
   const isSignedPhase = ['fully_signed', 'signed_no_debt'].includes(loan.status);
-  const showPostSignAction = isSignedPhase && outstanding === 0;
+  const isActivePhase = loan.status === 'active';
   const bankDetailsReady = bankReadiness.trancheReady;
+  const repaymentDetailsReady = bankReadiness.repaymentReady;
+  const loanLimit = Number(loan.amount);
+  const canIssueMore = totalDisbursed < loanLimit;
+  const showNextAction = isSignedPhase || (isActivePhase && (outstanding > 0 || canIssueMore));
 
   return (
     <AppLayout>
@@ -329,13 +332,25 @@ const LoanDetails = () => {
           </Button>
         )}
 
-        {/* Post-sign primary action */}
-        {showPostSignAction && (
+        {/* Post-sign / operational primary action */}
+        {showNextAction && (
           <NextActionBlock
             isLender={isLender}
+            isBorrower={isBorrower}
+            loanStatus={loan.status}
             bankDetailsReady={bankDetailsReady}
-            onOpenBankDetails={() => setExpanded(prev => ({ ...prev, bank: true }))}
+            repaymentDetailsReady={repaymentDetailsReady}
+            outstanding={outstanding}
+            canIssueMore={canIssueMore}
+            onOpenBankDetails={() => {
+              setExpanded(prev => ({ ...prev, bank: true }));
+              setTimeout(() => document.getElementById('bank-details-section')?.scrollIntoView({ behavior: 'smooth' }), 100);
+            }}
             onCreateTranche={() => setShowCreateTranche(true)}
+            onNavigateRepay={() => {
+              const repaymentSection = document.getElementById('repayments-section');
+              repaymentSection?.scrollIntoView({ behavior: 'smooth' });
+            }}
           />
         )}
 
@@ -387,7 +402,7 @@ const LoanDetails = () => {
         )}
 
         {/* Repayments */}
-        <div className="card-elevated p-4">
+        <div id="repayments-section" className="card-elevated p-4">
           <RepaymentList
             payments={payments}
             loanId={loan.id}
@@ -404,21 +419,24 @@ const LoanDetails = () => {
         {/* Transfer Evidence */}
         <TransferEvidence tranches={tranches} payments={payments} />
 
-        {/* Bank Details — lower priority */}
-        <CollapsibleCard
-          title="Реквизиты"
-          icon={<CreditCard className="w-3.5 h-3.5" />}
-          open={expanded.bank}
-          onToggle={() => toggle('bank')}
-        >
-          <AllowedBankDetailsSelector
-            loanId={loan.id}
-            lenderId={loan.lender_id}
-            borrowerId={loan.borrower_id}
-            loanStatus={loan.status}
-            onUpdate={fetchAll}
-          />
-        </CollapsibleCard>
+        {/* Bank Details */}
+        <div id="bank-details-section">
+          <CollapsibleCard
+            title="Реквизиты"
+            icon={<CreditCard className="w-3.5 h-3.5" />}
+            open={expanded.bank}
+            onToggle={() => toggle('bank')}
+            highlight={isSignedPhase && !bankDetailsReady}
+          >
+            <AllowedBankDetailsSelector
+              loanId={loan.id}
+              lenderId={loan.lender_id}
+              borrowerId={loan.borrower_id}
+              loanStatus={loan.status}
+              onUpdate={fetchAll}
+            />
+          </CollapsibleCard>
+        </div>
 
         {/* Signatures */}
         <CollapsibleCard
@@ -511,14 +529,15 @@ const Section = ({ title, children, defaultOpen = false }: { title: string; chil
   );
 };
 
-const CollapsibleCard = ({ title, icon, open, onToggle, children }: {
-  title: string; icon?: React.ReactNode; open: boolean; onToggle: () => void; children: React.ReactNode;
+const CollapsibleCard = ({ title, icon, open, onToggle, children, highlight }: {
+  title: string; icon?: React.ReactNode; open: boolean; onToggle: () => void; children: React.ReactNode; highlight?: boolean;
 }) => (
-  <div className="card-elevated">
+  <div className={`card-elevated ${highlight ? 'border-warning/40 ring-1 ring-warning/20' : ''}`}>
     <button onClick={onToggle} className="w-full flex items-center justify-between p-3 text-left">
-      <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider flex items-center gap-1.5">
+      <span className={`text-xs font-semibold uppercase tracking-wider flex items-center gap-1.5 ${highlight ? 'text-warning' : 'text-muted-foreground'}`}>
         {icon}
         {title}
+        {highlight && <span className="text-[10px] normal-case font-normal ml-1">(требуется выбор)</span>}
       </span>
       {open ? <ChevronUp className="w-3.5 h-3.5 text-muted-foreground" /> : <ChevronDown className="w-3.5 h-3.5 text-muted-foreground" />}
     </button>
@@ -547,58 +566,113 @@ const Row = ({ label, value }: { label: string; value: string }) => (
   </div>
 );
 
-const NextActionBlock = ({ isLender, bankDetailsReady, onOpenBankDetails, onCreateTranche }: {
+const NextActionBlock = ({ isLender, isBorrower, loanStatus, bankDetailsReady, repaymentDetailsReady, outstanding, canIssueMore, onOpenBankDetails, onCreateTranche, onNavigateRepay }: {
   isLender: boolean;
+  isBorrower: boolean;
+  loanStatus: string;
   bankDetailsReady: boolean;
+  repaymentDetailsReady: boolean;
+  outstanding: number;
+  canIssueMore: boolean;
   onOpenBankDetails: () => void;
   onCreateTranche: () => void;
+  onNavigateRepay: () => void;
 }) => {
+  const isSignedPhase = ['fully_signed', 'signed_no_debt'].includes(loanStatus);
+  const isActive = loanStatus === 'active';
+
+  // --- Lender ---
   if (isLender) {
-    return (
-      <div className="rounded-xl border-2 border-primary/30 bg-primary/5 p-4 space-y-2">
-        <div className="flex items-center gap-2">
-          <Banknote className="w-5 h-5 text-primary" />
-          <p className="text-sm font-semibold">Договор подписан — пора перевести деньги</p>
+    // Signed phase: requisites first, then tranche
+    if (isSignedPhase && !bankDetailsReady) {
+      return (
+        <div className="rounded-xl border-2 border-warning/30 bg-warning/5 p-4 space-y-2">
+          <div className="flex items-center gap-2">
+            <CreditCard className="w-5 h-5 text-warning" />
+            <p className="text-sm font-semibold">Выберите реквизиты для выдачи</p>
+          </div>
+          <p className="text-xs text-muted-foreground">
+            Договор подписан. Прежде чем выдать транш, выберите банковские реквизиты — свои (для перечисления) и заёмщика (для получения).
+          </p>
+          <Button size="sm" className="rounded-lg text-xs gap-1.5 mt-1" onClick={onOpenBankDetails}>
+            <CreditCard className="w-3.5 h-3.5" />
+            Выбрать реквизиты для выдачи
+          </Button>
         </div>
-        <p className="text-xs text-muted-foreground">
-          {bankDetailsReady
-            ? 'Реквизиты выбраны. Создайте транш и переведите средства заёмщику.'
-            : 'Сначала выберите реквизиты для перевода, затем создайте транш.'}
-        </p>
-        <div className="flex gap-2 pt-1">
-          {bankDetailsReady ? (
-            <>
-              <Button size="sm" className="rounded-lg text-xs gap-1.5" onClick={onCreateTranche}>
-                <Banknote className="w-3.5 h-3.5" />
-                Выдать транш
-              </Button>
-              <Button size="sm" variant="outline" className="rounded-lg text-xs gap-1" onClick={onOpenBankDetails}>
-                <CreditCard className="w-3.5 h-3.5" />
-                Реквизиты
-              </Button>
-            </>
-          ) : (
-            <Button size="sm" className="rounded-lg text-xs gap-1.5" onClick={onOpenBankDetails}>
-              <CreditCard className="w-3.5 h-3.5" />
-              Выбрать реквизиты для перевода
+      );
+    }
+
+    if ((isSignedPhase || isActive) && canIssueMore) {
+      return (
+        <div className="rounded-xl border-2 border-primary/30 bg-primary/5 p-4 space-y-2">
+          <div className="flex items-center gap-2">
+            <Banknote className="w-5 h-5 text-primary" />
+            <p className="text-sm font-semibold">Сделать транш</p>
+          </div>
+          <p className="text-xs text-muted-foreground">
+            Реквизиты выбраны. Создайте транш и переведите средства заёмщику.
+          </p>
+          <div className="flex gap-2 pt-1">
+            <Button size="sm" className="rounded-lg text-xs gap-1.5" onClick={onCreateTranche}>
+              <Banknote className="w-3.5 h-3.5" />
+              Выдать транш
             </Button>
-          )}
+            <Button size="sm" variant="outline" className="rounded-lg text-xs gap-1" onClick={onOpenBankDetails}>
+              <CreditCard className="w-3.5 h-3.5" />
+              Реквизиты
+            </Button>
+          </div>
         </div>
-      </div>
-    );
+      );
+    }
+
+    return null;
   }
 
-  return (
-    <div className="rounded-xl border border-border/50 bg-muted/30 p-4">
-      <div className="flex items-center gap-2">
-        <Clock className="w-5 h-5 text-muted-foreground" />
-        <div>
-          <p className="text-sm font-semibold">Ожидаем перевод от займодавца</p>
-          <p className="text-xs text-muted-foreground">Договор подписан. Когда займодавец переведёт средства, вам нужно будет подтвердить получение.</p>
+  // --- Borrower ---
+  if (isBorrower) {
+    // Signed phase: select requisites
+    if (isSignedPhase) {
+      return (
+        <div className="rounded-xl border border-border/50 bg-muted/30 p-4 space-y-2">
+          <div className="flex items-center gap-2">
+            <CreditCard className="w-5 h-5 text-muted-foreground" />
+            <p className="text-sm font-semibold">Выберите реквизиты для получения</p>
+          </div>
+          <p className="text-xs text-muted-foreground">
+            Договор подписан. Укажите реквизиты, на которые займодавец перечислит средства, и реквизиты для возврата.
+          </p>
+          <Button size="sm" variant="outline" className="rounded-lg text-xs gap-1.5 mt-1" onClick={onOpenBankDetails}>
+            <CreditCard className="w-3.5 h-3.5" />
+            Выбрать реквизиты для получения и возврата
+          </Button>
         </div>
-      </div>
-    </div>
-  );
+      );
+    }
+
+    // Active phase with outstanding debt: repay
+    if (isActive && outstanding > 0) {
+      return (
+        <div className="rounded-xl border-2 border-primary/30 bg-primary/5 p-4 space-y-2">
+          <div className="flex items-center gap-2">
+            <CheckCircle2 className="w-5 h-5 text-primary" />
+            <p className="text-sm font-semibold">Погасить задолженность</p>
+          </div>
+          <p className="text-xs text-muted-foreground">
+            Текущий остаток долга: {outstanding.toLocaleString('ru-RU')} ₽. Внесите платёж для погашения.
+          </p>
+          <Button size="sm" className="rounded-lg text-xs gap-1.5 mt-1" onClick={onNavigateRepay}>
+            <CheckCircle2 className="w-3.5 h-3.5" />
+            Погасить
+          </Button>
+        </div>
+      );
+    }
+
+    return null;
+  }
+
+  return null;
 };
 
 export default LoanDetails;
