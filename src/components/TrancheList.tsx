@@ -3,6 +3,7 @@ import { Button } from '@/components/ui/button';
 import { Banknote, Plus, CheckCircle2, Clock, AlertCircle } from 'lucide-react';
 import { CreateTrancheModal } from '@/components/CreateTrancheModal';
 import { TrancheConfirmModal } from '@/components/TrancheConfirmModal';
+import { formatDateSafe } from '@/lib/date-utils';
 import type { Tables } from '@/integrations/supabase/types';
 
 type Tranche = Tables<'loan_tranches'>;
@@ -41,7 +42,7 @@ export const TrancheList = ({
   const [showCreate, setShowCreate] = useState(false);
   const [confirmTranche, setConfirmTranche] = useState<Tranche | null>(null);
 
-  const canCreateTranche = isLender && ['fully_signed', 'active'].includes(loanStatus);
+  const canCreateTranche = isLender && ['fully_signed', 'signed_no_debt', 'active'].includes(loanStatus);
   const nextNumber = tranches.length > 0 ? Math.max(...tranches.map(t => t.tranche_number)) + 1 : 1;
   const totalConfirmed = tranches
     .filter(t => t.status === 'confirmed')
@@ -74,7 +75,7 @@ export const TrancheList = ({
       {tranches.length === 0 ? (
         <div className="text-center py-8">
           <p className="text-sm text-muted-foreground">
-            {['fully_signed', 'active'].includes(loanStatus)
+            {['fully_signed', 'signed_no_debt', 'active'].includes(loanStatus)
               ? 'Создайте первый транш для перечисления средств'
               : 'Транши появятся после подписания договора'}
           </p>
@@ -98,7 +99,7 @@ export const TrancheList = ({
                   </div>
                   <p className="text-xs text-muted-foreground">
                     {Number(t.amount).toLocaleString('ru-RU')} ₽
-                    {t.actual_date ? ` • ${new Date(t.actual_date).toLocaleDateString('ru-RU')}` : ` • план: ${new Date(t.planned_date).toLocaleDateString('ru-RU')}`}
+                    {t.actual_date ? ` • ${formatDateSafe(t.actual_date)}` : ` • план: ${formatDateSafe(t.planned_date)}`}
                     {t.method === 'sbp' ? ' • СБП' : ' • Перевод'}
                   </p>
                 </div>

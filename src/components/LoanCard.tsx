@@ -78,7 +78,7 @@ export const LoanCard = ({ loan, type }: { loan: Loan; type: 'issued' | 'taken' 
             {loan.interest_mode === 'fixed_rate' && (
               <span>{Number(loan.interest_rate)}%</span>
             )}
-            <span>до {new Date(loan.repayment_date).toLocaleDateString('ru-RU', { day: 'numeric', month: 'short' })}</span>
+            <span>до {formatDateSafe(loan.repayment_date, { day: 'numeric', month: 'short' })}</span>
             {daysLeft > 0 && daysLeft <= 30 && loan.status === 'active' && (
               <span className="text-warning">{daysLeft} дн.</span>
             )}

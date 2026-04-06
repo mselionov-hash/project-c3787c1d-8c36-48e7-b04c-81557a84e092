@@ -36,6 +36,7 @@ const statusConfig: Record<string, { label: string; icon: React.ElementType; cla
   signed_by_lender: { label: 'Подписан займодавцем', icon: PenTool, class: 'bg-info/15 text-info' },
   signed_by_borrower: { label: 'Подписан заёмщиком', icon: PenTool, class: 'bg-info/15 text-info' },
   fully_signed: { label: 'Подписан', icon: CheckCircle2, class: 'bg-primary/15 text-primary' },
+  signed_no_debt: { label: 'Подписан (нет долга)', icon: CheckCircle2, class: 'bg-primary/15 text-primary' },
   active: { label: 'Активный', icon: CheckCircle2, class: 'bg-primary/15 text-primary' },
   repaid: { label: 'Погашён', icon: CheckCircle2, class: 'bg-muted text-muted-foreground' },
   overdue: { label: 'Просрочен', icon: AlertTriangle, class: 'bg-destructive/15 text-destructive' },
