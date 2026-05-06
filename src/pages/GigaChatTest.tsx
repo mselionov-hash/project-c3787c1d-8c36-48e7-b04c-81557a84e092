@@ -6,6 +6,28 @@ import { AppLayout } from '@/components/AppLayout';
 import { Button } from '@/components/ui/button';
 import { Loader2, CheckCircle2, XCircle } from 'lucide-react';
 
+const readFunctionError = async (error: any, fallbackData: any) => {
+  const response = error?.context;
+  if (response instanceof Response) {
+    const text = await response.clone().text();
+    try {
+      return {
+        ok: false,
+        httpStatus: response.status,
+        ...JSON.parse(text),
+      };
+    } catch {
+      return {
+        ok: false,
+        httpStatus: response.status,
+        error: text || error.message,
+      };
+    }
+  }
+
+  return { ok: false, error: error?.message ?? 'Неизвестная ошибка', data: fallbackData };
+};
+
 const GigaChatTest = () => {
   const { user, loading } = useAuth();
   const [running, setRunning] = useState(false);
@@ -21,7 +43,7 @@ const GigaChatTest = () => {
       const { data, error } = await supabase.functions.invoke('gigachat-test', {
         body: {},
       });
-      setResult(error ? { ok: false, error: error.message, data } : data);
+      setResult(error ? await readFunctionError(error, data) : data);
     } catch (e: any) {
       setResult({ ok: false, error: e.message });
     } finally {
