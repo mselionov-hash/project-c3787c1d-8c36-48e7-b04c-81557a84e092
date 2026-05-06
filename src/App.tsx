@@ -14,6 +14,7 @@ import CreateLoan from "./pages/CreateLoan";
 import LoanDetails from "./pages/LoanDetails";
 import Documents from "./pages/Documents";
 import Profile from "./pages/Profile";
+import GigaChatTest from "./pages/GigaChatTest";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -36,6 +37,7 @@ const App = () => (
             <Route path="/loans/:id" element={<LoanDetails />} />
             <Route path="/documents" element={<Documents />} />
             <Route path="/profile" element={<Profile />} />
+            <Route path="/admin/gigachat-test" element={<GigaChatTest />} />
             <Route path="*" element={<NotFound />} />
           </Routes>
         </BrowserRouter>
