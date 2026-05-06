@@ -70,16 +70,32 @@ Deno.serve(async (req) => {
 
     // 3) OAuth: получаем access_token
     const rqUid = crypto.randomUUID();
-    const oauthRes = await fetch(OAUTH_URL!, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/x-www-form-urlencoded",
-        Accept: "application/json",
-        RqUID: rqUid,
-        Authorization: `Basic ${AUTH_KEY}`,
-      },
-      body: new URLSearchParams({ scope: SCOPE! }).toString(),
-    });
+    console.log("OAuth request to:", OAUTH_URL, "scope:", SCOPE);
+    let oauthRes: Response;
+    try {
+      oauthRes = await fetch(OAUTH_URL!, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/x-www-form-urlencoded",
+          Accept: "application/json",
+          RqUID: rqUid,
+          Authorization: `Basic ${AUTH_KEY}`,
+        },
+        body: new URLSearchParams({ scope: SCOPE! }).toString(),
+      });
+    } catch (e) {
+      console.error("OAuth fetch failed:", e);
+      return json(
+        {
+          ok: false,
+          stage: "oauth_network",
+          error: e instanceof Error ? `${e.name}: ${e.message}` : String(e),
+          hint:
+            "Если ошибка про сертификат/TLS — это сертификат Минцифры. GigaChat OAuth недоступен из Edge Runtime без отключения проверки TLS.",
+        },
+        502,
+      );
+    }
 
     const oauthText = await oauthRes.text();
     if (!oauthRes.ok) {
@@ -162,11 +178,12 @@ Deno.serve(async (req) => {
       message: "GigaChat connection OK",
     });
   } catch (e) {
+    console.error("gigachat-test exception:", e);
     return json(
       {
         ok: false,
         stage: "exception",
-        error: e instanceof Error ? e.message : String(e),
+        error: e instanceof Error ? `${e.name}: ${e.message}` : String(e),
       },
       500,
     );
