@@ -395,12 +395,16 @@ export type Database = {
       }
       loan_payments: {
         Row: {
+          ai_fraud_check_id: string | null
+          ai_risk_level: string | null
           bank_name: string | null
           confirmed_at: string | null
           confirmed_by: string | null
           created_at: string
           id: string
           loan_id: string
+          manual_override: boolean
+          manual_override_reason: string | null
           payer_id: string
           payment_reference: string | null
           schedule_item_id: string | null
@@ -410,14 +414,19 @@ export type Database = {
           transfer_amount: number
           transfer_date: string
           transfer_method: string
+          used_ai_extracted_data: boolean
         }
         Insert: {
+          ai_fraud_check_id?: string | null
+          ai_risk_level?: string | null
           bank_name?: string | null
           confirmed_at?: string | null
           confirmed_by?: string | null
           created_at?: string
           id?: string
           loan_id: string
+          manual_override?: boolean
+          manual_override_reason?: string | null
           payer_id: string
           payment_reference?: string | null
           schedule_item_id?: string | null
@@ -427,14 +436,19 @@ export type Database = {
           transfer_amount: number
           transfer_date?: string
           transfer_method: string
+          used_ai_extracted_data?: boolean
         }
         Update: {
+          ai_fraud_check_id?: string | null
+          ai_risk_level?: string | null
           bank_name?: string | null
           confirmed_at?: string | null
           confirmed_by?: string | null
           created_at?: string
           id?: string
           loan_id?: string
+          manual_override?: boolean
+          manual_override_reason?: string | null
           payer_id?: string
           payment_reference?: string | null
           schedule_item_id?: string | null
@@ -444,6 +458,7 @@ export type Database = {
           transfer_amount?: number
           transfer_date?: string
           transfer_method?: string
+          used_ai_extracted_data?: boolean
         }
         Relationships: [
           {
@@ -504,6 +519,8 @@ export type Database = {
         Row: {
           actual_date: string | null
           actual_time: string | null
+          ai_fraud_check_id: string | null
+          ai_risk_level: string | null
           amount: number
           bank_document_date: string | null
           bank_document_id: string | null
@@ -514,6 +531,8 @@ export type Database = {
           currency: string
           id: string
           loan_id: string
+          manual_override: boolean
+          manual_override_reason: string | null
           method: string
           notes: string | null
           planned_date: string
@@ -526,10 +545,13 @@ export type Database = {
           timezone: string | null
           tranche_number: number
           transfer_source: string | null
+          used_ai_extracted_data: boolean
         }
         Insert: {
           actual_date?: string | null
           actual_time?: string | null
+          ai_fraud_check_id?: string | null
+          ai_risk_level?: string | null
           amount: number
           bank_document_date?: string | null
           bank_document_id?: string | null
@@ -540,6 +562,8 @@ export type Database = {
           currency?: string
           id?: string
           loan_id: string
+          manual_override?: boolean
+          manual_override_reason?: string | null
           method?: string
           notes?: string | null
           planned_date: string
@@ -552,10 +576,13 @@ export type Database = {
           timezone?: string | null
           tranche_number: number
           transfer_source?: string | null
+          used_ai_extracted_data?: boolean
         }
         Update: {
           actual_date?: string | null
           actual_time?: string | null
+          ai_fraud_check_id?: string | null
+          ai_risk_level?: string | null
           amount?: number
           bank_document_date?: string | null
           bank_document_id?: string | null
@@ -566,6 +593,8 @@ export type Database = {
           currency?: string
           id?: string
           loan_id?: string
+          manual_override?: boolean
+          manual_override_reason?: string | null
           method?: string
           notes?: string | null
           planned_date?: string
@@ -578,6 +607,7 @@ export type Database = {
           timezone?: string | null
           tranche_number?: number
           transfer_source?: string | null
+          used_ai_extracted_data?: boolean
         }
         Relationships: [
           {

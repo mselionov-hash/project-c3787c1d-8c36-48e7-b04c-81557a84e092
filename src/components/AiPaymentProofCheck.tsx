@@ -89,8 +89,8 @@ const readFunctionError = async (error: any): Promise<AiAnalysisResult> => {
 
 const RISK_META: Record<NonNullable<AiAnalysisResult['risk_level']>, { label: string; verdict: string; cls: string; Icon: any }> = {
   LOW: { label: 'Низкий риск', verdict: 'Можно подтвердить', cls: 'text-primary border-primary/30 bg-primary/5', Icon: ShieldCheck },
-  MEDIUM: { label: 'Средний риск', verdict: 'Нужна проверка', cls: 'text-amber-500 border-amber-500/30 bg-amber-500/5', Icon: ShieldAlert },
-  HIGH: { label: 'Высокий риск', verdict: 'Нужна проверка', cls: 'text-destructive border-destructive/30 bg-destructive/5', Icon: ShieldAlert },
+  MEDIUM: { label: 'Средний риск', verdict: 'Можно подтвердить после проверки', cls: 'text-amber-500 border-amber-500/30 bg-amber-500/5', Icon: ShieldAlert },
+  HIGH: { label: 'Высокий риск', verdict: 'Нужна ручная проверка', cls: 'text-destructive border-destructive/30 bg-destructive/5', Icon: ShieldAlert },
   BLOCKING: { label: 'Блокирующая проблема', verdict: 'Нельзя подтвердить', cls: 'text-destructive border-destructive/40 bg-destructive/10', Icon: ShieldX },
 };
 

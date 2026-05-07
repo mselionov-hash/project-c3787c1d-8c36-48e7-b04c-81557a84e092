@@ -11,6 +11,9 @@ import {
 import { ProofUpload } from '@/components/ProofUpload';
 import { AiPaymentProofCheck, type AiAnalysisResult } from '@/components/AiPaymentProofCheck';
 import { AlertTriangle } from 'lucide-react';
+import { Textarea } from '@/components/ui/textarea';
+import { isAiProofCriticallyValid, isManualFallbackAllowed } from '@/lib/ai-proof-validation';
+import { ShieldX } from 'lucide-react';
 import type { Tables } from '@/integrations/supabase/types';
 import {
   fetchCurrentAllowedBankDetails,
@@ -60,6 +63,8 @@ export const CreateRepaymentModal = ({
   const [saving, setSaving] = useState(false);
   const [proofFiles, setProofFiles] = useState<string[]>([]);
   const [aiResult, setAiResult] = useState<AiAnalysisResult | null>(null);
+  const [manualOverride, setManualOverride] = useState(false);
+  const [manualReason, setManualReason] = useState('');
 
   const [payerBankDetails, setPayerBankDetails] = useState<BankDetail[]>([]);
   const [lenderBankDetails, setLenderBankDetails] = useState<AllowedBankDetail[]>([]);
@@ -111,6 +116,30 @@ export const CreateRepaymentModal = ({
     if (bd) setBankName(bd.bank_name);
   };
 
+  const validation = isAiProofCriticallyValid(aiResult, 'repayment');
+  const manualAllowed = isManualFallbackAllowed(aiResult, 'repayment');
+  const extractedAmount = aiResult?.ok ? aiResult.extracted?.amount ?? null : null;
+  const amountMismatch =
+    extractedAmount != null && amount && Number.isFinite(Number(amount))
+      ? Math.abs(Number(amount) - Number(extractedAmount)) > Math.max(1, Number(amount) * 0.005)
+      : false;
+
+  const useExtractedAmount = () => {
+    if (extractedAmount != null) setAmount(String(extractedAmount));
+  };
+
+  const canSave = (() => {
+    if (!amount || parseFloat(amount) <= 0) return false;
+    if (!selectedLenderBdId) return false;
+    if (proofFiles.length === 0) return true; // no AI run, allow basic save
+    if (!aiResult) return false; // proof uploaded but AI not run yet
+    if (!aiResult.ok) return manualOverride && manualAllowed && manualReason.trim().length >= 5;
+    if (aiResult.risk_level === 'BLOCKING') return false;
+    if (amountMismatch) return false;
+    if (manualOverride) return manualAllowed && manualReason.trim().length >= 5;
+    return validation.ok;
+  })();
+
   const handleSave = async () => {
     if (!amount || parseFloat(amount) <= 0) {
       toast.error('Укажите сумму');
@@ -130,6 +159,7 @@ export const CreateRepaymentModal = ({
 
     setSaving(true);
     try {
+      const usedAi = !manualOverride && !!aiResult?.ok;
       const { error } = await supabase.from('loan_payments').insert({
         loan_id: loanId,
         payer_id: payerId,
@@ -141,6 +171,11 @@ export const CreateRepaymentModal = ({
         payment_reference: paymentReference.trim() || null,
         screenshot_url: proofFiles.length > 0 ? proofFiles.join(',') : null,
         status: 'pending',
+        ai_fraud_check_id: aiResult?.record_ids?.check_id ?? null,
+        ai_risk_level: aiResult?.risk_level ?? null,
+        used_ai_extracted_data: usedAi,
+        manual_override: manualOverride,
+        manual_override_reason: manualOverride ? manualReason.trim() : null,
       });
       if (error) throw error;
       toast.success('Погашение записано');
@@ -264,24 +299,59 @@ export const CreateRepaymentModal = ({
                 }}
               />
             )}
-            {aiResult?.ok && aiResult.extracted?.amount != null && amount && Math.abs(Number(amount) - Number(aiResult.extracted.amount)) > Math.max(1, Number(amount) * 0.005) && (
-              <div className="rounded-xl border border-destructive/30 bg-destructive/5 p-3 text-xs flex items-start gap-2">
-                <AlertTriangle className="w-4 h-4 text-destructive flex-shrink-0 mt-0.5" />
-                <div className="text-destructive">
-                  Сумма в чеке ({Number(aiResult.extracted.amount).toLocaleString('ru-RU')} ₽) не совпадает с суммой погашения ({Number(amount).toLocaleString('ru-RU')} ₽).
+            {amountMismatch && (
+              <div className="rounded-xl border border-destructive/30 bg-destructive/5 p-3 text-xs space-y-2">
+                <div className="flex items-start gap-2 text-destructive">
+                  <AlertTriangle className="w-4 h-4 flex-shrink-0 mt-0.5" />
+                  <div>
+                    Сумма в чеке ({Number(extractedAmount).toLocaleString('ru-RU')} ₽) не совпадает с суммой погашения ({Number(amount).toLocaleString('ru-RU')} ₽). Измените сумму на распознанную или загрузите другой чек.
+                  </div>
                 </div>
+                <Button type="button" variant="outline" size="sm" onClick={useExtractedAmount} className="rounded-lg">
+                  Использовать сумму из чека
+                </Button>
               </div>
             )}
-            {aiResult?.ok && aiResult.risk_level === 'BLOCKING' && (
+            {aiResult?.ok && !validation.ok && !manualOverride && (
+              <div className="rounded-xl border border-destructive/30 bg-destructive/5 p-3 text-xs space-y-1">
+                <div className="flex items-center gap-2 font-semibold text-destructive">
+                  <ShieldX className="w-4 h-4" /> Создание погашения заблокировано
+                </div>
+                <ul className="text-foreground/80 space-y-0.5 pl-1">
+                  {validation.reasons.map((r, i) => <li key={i}>• {r}</li>)}
+                </ul>
+              </div>
+            )}
+            {proofFiles.length > 0 && manualAllowed && aiResult && (!aiResult.ok || aiResult.risk_level === 'HIGH' || aiResult.risk_level === 'MEDIUM') && (
+              <div className="space-y-2 pt-1">
+                <label className="flex items-center gap-2 text-xs text-muted-foreground cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={manualOverride}
+                    onChange={e => { setManualOverride(e.target.checked); if (!e.target.checked) setManualReason(''); }}
+                  />
+                  Подтвердить вручную (AI не распознал чек или риск высокий)
+                </label>
+                {manualOverride && (
+                  <Textarea
+                    value={manualReason}
+                    onChange={e => setManualReason(e.target.value)}
+                    placeholder="Причина ручного подтверждения (минимум 5 символов)"
+                    className="min-h-[64px] rounded-xl bg-muted/50 border-border/50 text-xs"
+                  />
+                )}
+              </div>
+            )}
+            {proofFiles.length > 0 && aiResult?.ok && !manualAllowed && (
               <p className="text-[11px] text-destructive">
-                Этот файл не подходит как доказательство платежа. Загрузите чек российского банка о завершенном переводе в рублях.
+                Ручной ввод недоступен: чек содержит критическую проблему (иностранный банк, не-RUB валюта, операция не исполнена, дубликат или превышение лимита). Загрузите корректный чек.
               </p>
             )}
           </div>
 
           <div className="flex gap-3 pt-2">
             <Button variant="outline" onClick={onClose} className="flex-1 rounded-xl h-11">Отмена</Button>
-            <Button onClick={handleSave} disabled={saving || !selectedLenderBdId || (aiResult?.ok && aiResult.risk_level === 'BLOCKING')} className="flex-1 rounded-xl h-11 gap-2">
+            <Button onClick={handleSave} disabled={saving || !canSave} className="flex-1 rounded-xl h-11 gap-2">
               {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <ArrowDownLeft className="w-4 h-4" />}
               Записать
             </Button>
