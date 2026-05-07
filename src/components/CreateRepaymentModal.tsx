@@ -299,24 +299,59 @@ export const CreateRepaymentModal = ({
                 }}
               />
             )}
-            {aiResult?.ok && aiResult.extracted?.amount != null && amount && Math.abs(Number(amount) - Number(aiResult.extracted.amount)) > Math.max(1, Number(amount) * 0.005) && (
-              <div className="rounded-xl border border-destructive/30 bg-destructive/5 p-3 text-xs flex items-start gap-2">
-                <AlertTriangle className="w-4 h-4 text-destructive flex-shrink-0 mt-0.5" />
-                <div className="text-destructive">
-                  Сумма в чеке ({Number(aiResult.extracted.amount).toLocaleString('ru-RU')} ₽) не совпадает с суммой погашения ({Number(amount).toLocaleString('ru-RU')} ₽).
+            {amountMismatch && (
+              <div className="rounded-xl border border-destructive/30 bg-destructive/5 p-3 text-xs space-y-2">
+                <div className="flex items-start gap-2 text-destructive">
+                  <AlertTriangle className="w-4 h-4 flex-shrink-0 mt-0.5" />
+                  <div>
+                    Сумма в чеке ({Number(extractedAmount).toLocaleString('ru-RU')} ₽) не совпадает с суммой погашения ({Number(amount).toLocaleString('ru-RU')} ₽). Измените сумму на распознанную или загрузите другой чек.
+                  </div>
                 </div>
+                <Button type="button" variant="outline" size="sm" onClick={useExtractedAmount} className="rounded-lg">
+                  Использовать сумму из чека
+                </Button>
               </div>
             )}
-            {aiResult?.ok && aiResult.risk_level === 'BLOCKING' && (
+            {aiResult?.ok && !validation.ok && !manualOverride && (
+              <div className="rounded-xl border border-destructive/30 bg-destructive/5 p-3 text-xs space-y-1">
+                <div className="flex items-center gap-2 font-semibold text-destructive">
+                  <ShieldX className="w-4 h-4" /> Создание погашения заблокировано
+                </div>
+                <ul className="text-foreground/80 space-y-0.5 pl-1">
+                  {validation.reasons.map((r, i) => <li key={i}>• {r}</li>)}
+                </ul>
+              </div>
+            )}
+            {proofFiles.length > 0 && manualAllowed && aiResult && (!aiResult.ok || aiResult.risk_level === 'HIGH' || aiResult.risk_level === 'MEDIUM') && (
+              <div className="space-y-2 pt-1">
+                <label className="flex items-center gap-2 text-xs text-muted-foreground cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={manualOverride}
+                    onChange={e => { setManualOverride(e.target.checked); if (!e.target.checked) setManualReason(''); }}
+                  />
+                  Подтвердить вручную (AI не распознал чек или риск высокий)
+                </label>
+                {manualOverride && (
+                  <Textarea
+                    value={manualReason}
+                    onChange={e => setManualReason(e.target.value)}
+                    placeholder="Причина ручного подтверждения (минимум 5 символов)"
+                    className="min-h-[64px] rounded-xl bg-muted/50 border-border/50 text-xs"
+                  />
+                )}
+              </div>
+            )}
+            {proofFiles.length > 0 && aiResult?.ok && !manualAllowed && (
               <p className="text-[11px] text-destructive">
-                Этот файл не подходит как доказательство платежа. Загрузите чек российского банка о завершенном переводе в рублях.
+                Ручной ввод недоступен: чек содержит критическую проблему (иностранный банк, не-RUB валюта, операция не исполнена, дубликат или превышение лимита). Загрузите корректный чек.
               </p>
             )}
           </div>
 
           <div className="flex gap-3 pt-2">
             <Button variant="outline" onClick={onClose} className="flex-1 rounded-xl h-11">Отмена</Button>
-            <Button onClick={handleSave} disabled={saving || !selectedLenderBdId || (aiResult?.ok && aiResult.risk_level === 'BLOCKING')} className="flex-1 rounded-xl h-11 gap-2">
+            <Button onClick={handleSave} disabled={saving || !canSave} className="flex-1 rounded-xl h-11 gap-2">
               {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <ArrowDownLeft className="w-4 h-4" />}
               Записать
             </Button>
