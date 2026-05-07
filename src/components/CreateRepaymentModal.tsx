@@ -63,6 +63,8 @@ export const CreateRepaymentModal = ({
   const [saving, setSaving] = useState(false);
   const [proofFiles, setProofFiles] = useState<string[]>([]);
   const [aiResult, setAiResult] = useState<AiAnalysisResult | null>(null);
+  const [manualOverride, setManualOverride] = useState(false);
+  const [manualReason, setManualReason] = useState('');
 
   const [payerBankDetails, setPayerBankDetails] = useState<BankDetail[]>([]);
   const [lenderBankDetails, setLenderBankDetails] = useState<AllowedBankDetail[]>([]);
