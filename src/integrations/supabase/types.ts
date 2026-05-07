@@ -14,6 +14,111 @@ export type Database = {
   }
   public: {
     Tables: {
+      ai_extracted_payment_data: {
+        Row: {
+          amount: number | null
+          bank_name: string | null
+          confidence: number | null
+          created_at: string
+          created_by: string
+          currency: string | null
+          entity_id: string | null
+          entity_type: string
+          id: string
+          loan_id: string
+          operation_id: string | null
+          payment_date: string | null
+          payment_purpose: string | null
+          payment_time: string | null
+          raw_extraction_json: Json
+          receiver_name: string | null
+          sender_name: string | null
+          source_file_url: string | null
+        }
+        Insert: {
+          amount?: number | null
+          bank_name?: string | null
+          confidence?: number | null
+          created_at?: string
+          created_by: string
+          currency?: string | null
+          entity_id?: string | null
+          entity_type: string
+          id?: string
+          loan_id: string
+          operation_id?: string | null
+          payment_date?: string | null
+          payment_purpose?: string | null
+          payment_time?: string | null
+          raw_extraction_json?: Json
+          receiver_name?: string | null
+          sender_name?: string | null
+          source_file_url?: string | null
+        }
+        Update: {
+          amount?: number | null
+          bank_name?: string | null
+          confidence?: number | null
+          created_at?: string
+          created_by?: string
+          currency?: string | null
+          entity_id?: string | null
+          entity_type?: string
+          id?: string
+          loan_id?: string
+          operation_id?: string | null
+          payment_date?: string | null
+          payment_purpose?: string | null
+          payment_time?: string | null
+          raw_extraction_json?: Json
+          receiver_name?: string | null
+          sender_name?: string | null
+          source_file_url?: string | null
+        }
+        Relationships: []
+      }
+      ai_fraud_checks: {
+        Row: {
+          ai_summary: string | null
+          blocking_reasons: string[]
+          checks_json: Json
+          created_at: string
+          created_by: string
+          entity_id: string | null
+          entity_type: string
+          id: string
+          loan_id: string
+          risk_level: string
+          risk_score: number | null
+        }
+        Insert: {
+          ai_summary?: string | null
+          blocking_reasons?: string[]
+          checks_json?: Json
+          created_at?: string
+          created_by: string
+          entity_id?: string | null
+          entity_type: string
+          id?: string
+          loan_id: string
+          risk_level: string
+          risk_score?: number | null
+        }
+        Update: {
+          ai_summary?: string | null
+          blocking_reasons?: string[]
+          checks_json?: Json
+          created_at?: string
+          created_by?: string
+          entity_id?: string | null
+          entity_type?: string
+          id?: string
+          loan_id?: string
+          risk_level?: string
+          risk_score?: number | null
+        }
+        Relationships: []
+      }
       ai_interactions: {
         Row: {
           completion_tokens: number | null
