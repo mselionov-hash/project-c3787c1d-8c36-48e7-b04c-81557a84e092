@@ -11,6 +11,9 @@ import {
 import { ProofUpload } from '@/components/ProofUpload';
 import { AiPaymentProofCheck, type AiAnalysisResult } from '@/components/AiPaymentProofCheck';
 import { AlertTriangle } from 'lucide-react';
+import { Textarea } from '@/components/ui/textarea';
+import { isAiProofCriticallyValid, isManualFallbackAllowed } from '@/lib/ai-proof-validation';
+import { ShieldX } from 'lucide-react';
 import type { Tables } from '@/integrations/supabase/types';
 import {
   fetchCurrentAllowedBankDetails,
