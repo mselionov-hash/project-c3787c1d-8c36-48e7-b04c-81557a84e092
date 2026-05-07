@@ -36,6 +36,14 @@ interface AnalysisResult {
   checks?: Check[];
   ai_summary?: string;
   fraud_signals?: any[];
+  document_classification?: {
+    is_payment_proof?: boolean | null;
+    is_russian_bank_receipt?: boolean | null;
+    document_type?: string | null;
+    bank_country?: string | null;
+    payment_status?: string | null;
+    rejection_reason?: string | null;
+  };
   extracted?: {
     amount?: number | null;
     currency?: string | null;
