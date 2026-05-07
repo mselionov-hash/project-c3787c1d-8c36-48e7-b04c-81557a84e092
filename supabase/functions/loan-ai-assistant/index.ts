@@ -20,12 +20,25 @@ const json = (status: number, body: unknown) =>
 const SYSTEM_PROMPT = `Ты AI-помощник сервиса ГдеДеньги.
 Сервис помогает физическим лицам в РФ оформлять и сопровождать частные займы между собой (P2P, только банковские переводы).
 Ты объясняешь пользователю текущий статус займа, следующий шаг и причины блокировок.
-Ты не являешься юристом и не даёшь окончательных юридических гарантий.
-Ты НЕ подписываешь документы, НЕ подтверждаешь транши, НЕ подтверждаешь платежи, НЕ создаёшь документы и НЕ меняешь реквизиты.
-Любое юридически значимое действие пользователь должен подтвердить вручную в интерфейсе.
-Если пользователь просит выполнить действие («подтверди», «подпиши», «создай транш», «обойди проверку») — вежливо откажись и подскажи, в каком разделе интерфейса это делается вручную.
-Отвечай кратко, на русском, человеческим языком. Если данных не хватает — скажи, каких именно. Не выдумывай факты, используй только переданный контекст.
-В конце ответа можешь предложить 1-3 раздела интерфейса в формате JSON-блока:
+
+ВАЛЮТА:
+- Все суммы в контексте этого займа указаны в российских рублях (RUB).
+- Никогда не используй знак "$" и не называй суммы долларами/евро/иной валютой.
+- Используй "₽" или "руб.". Если валюта не указана отдельно — считай её RUB.
+
+ОГРАНИЧЕНИЯ:
+- Ты не юрист и не даёшь окончательных юридических гарантий.
+- Ты НЕ подписываешь документы, НЕ подтверждаешь транши, НЕ подтверждаешь платежи, НЕ создаёшь документы и НЕ меняешь реквизиты.
+- Любое юридически значимое действие пользователь подтверждает вручную.
+- Если пользователь просит выполнить действие — вежливо откажись и подскажи нужный раздел интерфейса.
+
+СЛЕДУЮЩИЙ ШАГ:
+- В контексте передан next_action_hint — используй его как основную рекомендацию для пользователя.
+- Чётко указывай, чьи именно реквизиты не выбраны (займодавца / заёмщика), если это блокирует шаг.
+
+ФОРМАТ:
+- Отвечай кратко, на русском, человеческим языком. Не выдумывай факты — используй только переданный контекст.
+- В конце ответа можешь предложить 1-3 раздела интерфейса в формате JSON-блока:
 \`\`\`actions
 ["open_bank_details","open_tranches","open_repayments","open_documents","explain_ai_check","explain_status"]
 \`\`\`
@@ -44,6 +57,105 @@ function extractActions(answer: string): string[] {
     if (Array.isArray(arr)) return arr.filter((a) => typeof a === "string" && ALLOWED_ACTIONS.has(a)).slice(0, 3);
   } catch { /* ignore */ }
   return [];
+}
+
+function fmtRub(n: number): string {
+  try {
+    return new Intl.NumberFormat("ru-RU", { maximumFractionDigits: 2 }).format(n) + " ₽";
+  } catch {
+    return `${n} ₽`;
+  }
+}
+
+// Replace clear $ amounts with ₽ in the answer (loan context is always RUB).
+function sanitizeCurrency(text: string): string {
+  if (!text) return text;
+  let out = text;
+  // $1,234.56 / $ 1234 / 1234$
+  out = out.replace(/\$\s*([\d][\d\s.,]*)/g, (_m, num) => `${num} ₽`);
+  out = out.replace(/([\d][\d\s.,]*)\s*\$/g, (_m, num) => `${num} ₽`);
+  out = out.replace(/\bUSD\b/gi, "₽");
+  out = out.replace(/\b(долларов|долларах|долларами|доллар(?:а|у|ом)?)\b/gi, "руб.");
+  if (/\$|USD/i.test(text)) {
+    out += "\n\nПримечание: все суммы в этом займе указаны в российских рублях.";
+  }
+  return out;
+}
+
+function computeNextActionHint(params: {
+  status: string;
+  userRole: "lender" | "borrower";
+  lenderDisbSet: boolean;
+  borrowerRepSet: boolean;
+  outstanding: number;
+  pendingPayments: number;
+  hasHighRiskCheck: boolean;
+  isFullySigned: boolean;
+  hasConfirmedTranche: boolean;
+}): { hint: string; suggestedActions: string[] } {
+  const {
+    status, userRole, lenderDisbSet, borrowerRepSet,
+    outstanding, pendingPayments, hasHighRiskCheck, isFullySigned, hasConfirmedTranche,
+  } = params;
+
+  if (hasHighRiskCheck) {
+    return {
+      hint: "Последняя AI-проверка чека помечена как HIGH/BLOCKING. Объясните причину и предложите загрузить корректный чек (российский банк, RUB, статус «исполнено»).",
+      suggestedActions: ["explain_ai_check", "open_tranches"],
+    };
+  }
+  if (!isFullySigned) {
+    return {
+      hint: `Договор ещё не полностью подписан (status=${status}). Подскажите, чья подпись отсутствует, и направьте к разделу подписания.`,
+      suggestedActions: ["explain_status", "open_documents"],
+    };
+  }
+  if (!lenderDisbSet) {
+    return {
+      hint: "Не выбраны реквизиты займодавца для выдачи (disbursement). Транш невозможен, пока займодавец не выберет свои реквизиты в разделе «Реквизиты».",
+      suggestedActions: ["open_bank_details"],
+    };
+  }
+  if (!borrowerRepSet) {
+    return {
+      hint: "Не выбраны реквизиты заёмщика для возврата (repayment). Погашение невозможно, пока заёмщик не выберет свои реквизиты в разделе «Реквизиты».",
+      suggestedActions: ["open_bank_details"],
+    };
+  }
+  if (pendingPayments > 0 && userRole === "lender") {
+    return {
+      hint: `Есть ${pendingPayments} погашение(й) в статусе pending. Займодавцу нужно открыть раздел «Погашения» и подтвердить факт получения средств.`,
+      suggestedActions: ["open_repayments"],
+    };
+  }
+  if (!hasConfirmedTranche && userRole === "lender") {
+    return {
+      hint: "Договор подписан, реквизиты готовы — займодавцу пора сделать первый транш переводом и затем зафиксировать его в разделе «Транши».",
+      suggestedActions: ["open_tranches"],
+    };
+  }
+  if (outstanding > 0 && userRole === "borrower") {
+    return {
+      hint: `У заёмщика остаток долга ${fmtRub(outstanding)}. Нужно сделать перевод по реквизитам займодавца и зафиксировать погашение в разделе «Погашения».`,
+      suggestedActions: ["open_repayments"],
+    };
+  }
+  if (outstanding > 0 && userRole === "lender") {
+    return {
+      hint: `Остаток долга ${fmtRub(outstanding)}. Займодавец ожидает перевод от заёмщика и подтверждает поступления в разделе «Погашения».`,
+      suggestedActions: ["open_repayments"],
+    };
+  }
+  if (outstanding <= 0 && hasConfirmedTranche) {
+    return {
+      hint: "Долг полностью погашен. Можно сформировать итоговое подтверждение полного возврата (Приложение 5) в разделе документов.",
+      suggestedActions: ["open_documents"],
+    };
+  }
+  return {
+    hint: "Чёткого следующего шага нет — кратко опишите текущее состояние займа.",
+    suggestedActions: ["explain_status"],
+  };
 }
 
 Deno.serve(async (req) => {
@@ -79,7 +191,6 @@ Deno.serve(async (req) => {
 
   const admin = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
 
-  // Verify loan party
   const { data: loan, error: loanErr } = await admin
     .from("loans")
     .select("id, contract_number, status, lender_id, borrower_id, lender_name, borrower_name, amount, repayment_date, signature_scheme_requested, interest_mode, interest_rate")
@@ -89,9 +200,8 @@ Deno.serve(async (req) => {
   if (loan.lender_id !== userId && loan.borrower_id !== userId) {
     return json(403, { ok: false, error: "Нет доступа к этому договору" });
   }
-  const userRole = loan.lender_id === userId ? "lender" : "borrower";
+  const userRole: "lender" | "borrower" = loan.lender_id === userId ? "lender" : "borrower";
 
-  // Load related data in parallel
   const [
     { data: signatures },
     { data: tranches },
@@ -114,18 +224,41 @@ Deno.serve(async (req) => {
 
   const totalDisbursed = (tranches ?? []).filter((t) => t.status === "confirmed").reduce((s, t) => s + Number(t.amount || 0), 0);
   const totalRepaid = (payments ?? []).filter((p) => p.status === "confirmed").reduce((s, p) => s + Number(p.transfer_amount || 0), 0);
+  const outstanding = totalDisbursed - totalRepaid;
+  const pendingPayments = (payments ?? []).filter((p) => p.status === "pending").length;
+  const hasConfirmedTranche = (tranches ?? []).some((t) => t.status === "confirmed");
+  const hasHighRiskCheck = (aiChecks ?? []).some((c) => c.risk_level === "HIGH" || c.risk_level === "BLOCKING");
 
-  const lenderHasDisb = (allowedBank ?? []).some((b) => b.party_role === "lender" && b.purpose === "disbursement");
-  const borrowerHasRep = (allowedBank ?? []).some((b) => b.party_role === "borrower" && b.purpose === "repayment");
+  const lenderDisbSet = (allowedBank ?? []).some((b) => b.party_role === "lender" && b.purpose === "disbursement");
+  const borrowerDisbSet = (allowedBank ?? []).some((b) => b.party_role === "borrower" && b.purpose === "disbursement");
+  const lenderRepSet = (allowedBank ?? []).some((b) => b.party_role === "lender" && b.purpose === "repayment");
+  const borrowerRepSet = (allowedBank ?? []).some((b) => b.party_role === "borrower" && b.purpose === "repayment");
 
-  // Compact, sanitized context — no passport/PII
+  const isFullySigned = ["fully_signed", "signed_no_debt", "active", "repaid"].includes(loan.status)
+    || ((signatures ?? []).some((s) => s.role === "lender") && (signatures ?? []).some((s) => s.role === "borrower"));
+
+  const next = computeNextActionHint({
+    status: loan.status,
+    userRole,
+    lenderDisbSet,
+    borrowerRepSet,
+    outstanding,
+    pendingPayments,
+    hasHighRiskCheck,
+    isFullySigned,
+    hasConfirmedTranche,
+  });
+
   const context = {
     loan_id: loan.id,
     contract_number: loan.contract_number,
     status: loan.status,
     user_role: userRole,
     counterparty_name: userRole === "lender" ? loan.borrower_name : loan.lender_name,
+    currency: "RUB",
+    currency_symbol: "₽",
     amount: Number(loan.amount),
+    amount_display: fmtRub(Number(loan.amount)),
     interest_mode: loan.interest_mode,
     interest_rate: Number(loan.interest_rate),
     repayment_date: loan.repayment_date,
@@ -133,20 +266,33 @@ Deno.serve(async (req) => {
     signature_package: sigPackage ?? null,
     signatures: (signatures ?? []).map((s) => s.role),
     bank_details_readiness: {
-      lender_disbursement_set: lenderHasDisb,
-      borrower_repayment_set: borrowerHasRep,
+      lender_disbursement_set: lenderDisbSet,
+      borrower_disbursement_set: borrowerDisbSet,
+      lender_repayment_set: lenderRepSet,
+      borrower_repayment_set: borrowerRepSet,
+      tranche_ready: lenderDisbSet,
+      repayment_ready: borrowerRepSet,
     },
-    totals: { disbursed: totalDisbursed, repaid: totalRepaid, outstanding: totalDisbursed - totalRepaid },
-    tranches_summary: (tranches ?? []).map((t) => ({ n: t.tranche_number, amount: Number(t.amount), status: t.status, ai_risk: t.ai_risk_level })),
-    payments_summary: (payments ?? []).map((p) => ({ amount: Number(p.transfer_amount), status: p.status, date: p.transfer_date, ai_risk: p.ai_risk_level })),
-    schedule_summary: (schedule ?? []).map((s) => ({ n: s.item_number, due: s.due_date, amount: Number(s.total_amount), status: s.status })),
+    totals: {
+      disbursed: totalDisbursed,
+      repaid: totalRepaid,
+      outstanding,
+      total_disbursed_display: fmtRub(totalDisbursed),
+      total_repaid_display: fmtRub(totalRepaid),
+      outstanding_display: fmtRub(outstanding),
+    },
+    pending_payments_count: pendingPayments,
+    tranches_summary: (tranches ?? []).map((t) => ({ n: t.tranche_number, amount: Number(t.amount), amount_display: fmtRub(Number(t.amount)), status: t.status, ai_risk: t.ai_risk_level })),
+    payments_summary: (payments ?? []).map((p) => ({ amount: Number(p.transfer_amount), amount_display: fmtRub(Number(p.transfer_amount)), status: p.status, date: p.transfer_date, ai_risk: p.ai_risk_level })),
+    schedule_summary: (schedule ?? []).map((s) => ({ n: s.item_number, due: s.due_date, amount: Number(s.total_amount), amount_display: fmtRub(Number(s.total_amount)), status: s.status })),
     latest_ai_checks: (aiChecks ?? []).map((c) => ({ entity_type: c.entity_type, risk_level: c.risk_level, blocking_reasons: c.blocking_reasons, summary: c.ai_summary })),
     documents_available: (docs ?? []).map((d) => d.document_type),
+    next_action_hint: next.hint,
   };
 
   const fullPrompt = `${SYSTEM_PROMPT}
 
-КОНТЕКСТ ЗАЙМА (JSON):
+КОНТЕКСТ ЗАЙМА (JSON, все суммы в RUB):
 ${JSON.stringify(context, null, 2)}
 
 ВОПРОС ПОЛЬЗОВАТЕЛЯ:
@@ -201,13 +347,17 @@ ${userMessage}`;
     return json(502, { ok: false, httpStatus, stage: "proxy", error: errorText });
   }
 
-  const cleanAnswer = (answer ?? "").replace(/```actions[\s\S]*?```/g, "").trim();
-  const suggested_actions = extractActions(answer ?? "");
+  const cleanedAnswerRaw = (answer ?? "").replace(/```actions[\s\S]*?```/g, "").trim();
+  const cleanAnswer = sanitizeCurrency(cleanedAnswerRaw);
+  const modelActions = extractActions(answer ?? "");
+  // Merge model + deterministic suggestions, dedupe, cap at 3.
+  const suggested_actions = Array.from(new Set([...modelActions, ...next.suggestedActions])).slice(0, 3);
 
   return json(200, {
     ok: true,
     answer: cleanAnswer,
     suggested_actions,
+    next_action_hint: next.hint,
     usage: { prompt_tokens: promptTokens, completion_tokens: completionTokens, total_tokens: totalTokens },
     duration_ms: duration,
   });
