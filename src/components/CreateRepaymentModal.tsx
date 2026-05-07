@@ -9,7 +9,8 @@ import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from '@/components/ui/select';
 import { ProofUpload } from '@/components/ProofUpload';
-import { AiPaymentProofCheck } from '@/components/AiPaymentProofCheck';
+import { AiPaymentProofCheck, type AiAnalysisResult } from '@/components/AiPaymentProofCheck';
+import { AlertTriangle } from 'lucide-react';
 import type { Tables } from '@/integrations/supabase/types';
 import {
   fetchCurrentAllowedBankDetails,
