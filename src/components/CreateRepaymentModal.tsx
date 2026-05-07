@@ -116,6 +116,30 @@ export const CreateRepaymentModal = ({
     if (bd) setBankName(bd.bank_name);
   };
 
+  const validation = isAiProofCriticallyValid(aiResult, 'repayment');
+  const manualAllowed = isManualFallbackAllowed(aiResult, 'repayment');
+  const extractedAmount = aiResult?.ok ? aiResult.extracted?.amount ?? null : null;
+  const amountMismatch =
+    extractedAmount != null && amount && Number.isFinite(Number(amount))
+      ? Math.abs(Number(amount) - Number(extractedAmount)) > Math.max(1, Number(amount) * 0.005)
+      : false;
+
+  const useExtractedAmount = () => {
+    if (extractedAmount != null) setAmount(String(extractedAmount));
+  };
+
+  const canSave = (() => {
+    if (!amount || parseFloat(amount) <= 0) return false;
+    if (!selectedLenderBdId) return false;
+    if (proofFiles.length === 0) return true; // no AI run, allow basic save
+    if (!aiResult) return false; // proof uploaded but AI not run yet
+    if (!aiResult.ok) return manualOverride && manualAllowed && manualReason.trim().length >= 5;
+    if (aiResult.risk_level === 'BLOCKING') return false;
+    if (amountMismatch) return false;
+    if (manualOverride) return manualAllowed && manualReason.trim().length >= 5;
+    return validation.ok;
+  })();
+
   const handleSave = async () => {
     if (!amount || parseFloat(amount) <= 0) {
       toast.error('Укажите сумму');
@@ -135,6 +159,7 @@ export const CreateRepaymentModal = ({
 
     setSaving(true);
     try {
+      const usedAi = !manualOverride && !!aiResult?.ok;
       const { error } = await supabase.from('loan_payments').insert({
         loan_id: loanId,
         payer_id: payerId,
@@ -146,6 +171,11 @@ export const CreateRepaymentModal = ({
         payment_reference: paymentReference.trim() || null,
         screenshot_url: proofFiles.length > 0 ? proofFiles.join(',') : null,
         status: 'pending',
+        ai_fraud_check_id: aiResult?.record_ids?.check_id ?? null,
+        ai_risk_level: aiResult?.risk_level ?? null,
+        used_ai_extracted_data: usedAi,
+        manual_override: manualOverride,
+        manual_override_reason: manualOverride ? manualReason.trim() : null,
       });
       if (error) throw error;
       toast.success('Погашение записано');
