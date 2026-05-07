@@ -166,6 +166,10 @@ export const AiPaymentProofCheck = ({
         </p>
       )}
 
+      <p className="text-[11px] text-muted-foreground italic">
+        AI-проверка помогает распознать чек и выявить риски. Окончательное подтверждение операции выполняет пользователь.
+      </p>
+
       {result && !result.ok && (
         <div className="rounded-xl border border-destructive/30 bg-destructive/5 p-3 text-xs text-destructive">
           <div className="font-semibold mb-1">AI-проверка не выполнена</div>
@@ -185,6 +189,52 @@ export const AiPaymentProofCheck = ({
               <span className="text-xs text-muted-foreground ml-auto">баллы: {result.risk_score}</span>
             )}
           </div>
+
+          {result.risk_level === 'BLOCKING' && (
+            <div className="rounded-lg bg-destructive/15 border border-destructive/40 p-3 text-xs text-destructive">
+              <div className="font-bold mb-1">Этот файл не подходит как доказательство платежа</div>
+              <div className="text-foreground/80">
+                Документ не прошел базовую проверку. Загрузите чек российского банка о завершенном переводе в рублях.
+              </div>
+            </div>
+          )}
+
+          {result.document_classification && (
+            <div className="rounded-lg bg-background/40 border border-border/40 p-3 space-y-1.5 text-xs">
+              <div className="text-muted-foreground font-semibold uppercase tracking-wider text-[10px]">Классификация документа</div>
+              <div className="grid grid-cols-2 gap-x-4 gap-y-1">
+                <div className="text-muted-foreground">Тип документа</div>
+                <div className="font-medium">{(() => {
+                  const t = result.document_classification?.document_type;
+                  if (t === 'russian_bank_transfer_receipt') return 'Чек российского банка';
+                  if (t === 'foreign_bank_receipt') return 'Чек зарубежного банка';
+                  if (t === 'not_payment_document') return 'Не платежный документ';
+                  if (t === 'unknown_payment_document') return 'Неизвестный платежный документ';
+                  return t || '—';
+                })()}</div>
+                <div className="text-muted-foreground">Российский банк</div>
+                <div className="font-medium">{result.document_classification.is_russian_bank_receipt === true ? 'Да' : result.document_classification.is_russian_bank_receipt === false ? 'Нет' : '—'}</div>
+                <div className="text-muted-foreground">Валюта</div>
+                <div className="font-medium">{result.extracted?.currency || '—'}</div>
+                <div className="text-muted-foreground">Статус операции</div>
+                <div className="font-medium">{(() => {
+                  const s = result.document_classification?.payment_status;
+                  if (s === 'completed') return 'Исполнена';
+                  if (s === 'pending') return 'В обработке';
+                  if (s === 'cancelled') return 'Отменена';
+                  if (s === 'failed') return 'Не прошла';
+                  if (s === 'unknown') return 'Неизвестен';
+                  return s || '—';
+                })()}</div>
+              </div>
+              {result.document_classification.rejection_reason && (
+                <div className="pt-1 text-destructive">
+                  <span className="font-semibold">Причина отклонения: </span>
+                  {result.document_classification.rejection_reason}
+                </div>
+              )}
+            </div>
+          )}
 
           {result.ai_summary && (
             <p className="text-xs text-foreground/90 whitespace-pre-wrap">{result.ai_summary}</p>
