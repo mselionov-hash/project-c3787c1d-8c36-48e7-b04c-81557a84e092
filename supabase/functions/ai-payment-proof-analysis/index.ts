@@ -141,6 +141,7 @@ Deno.serve(async (req) => {
   }
 
   const extracted = proxyJson?.extracted ?? {};
+  const classification = proxyJson?.document_classification ?? {};
   const aiSummary: string = proxyJson?.ai_summary ?? "";
   const fraudSignals: any[] = Array.isArray(proxyJson?.fraud_signals) ? proxyJson.fraud_signals : [];
 
@@ -151,10 +152,72 @@ Deno.serve(async (req) => {
   let amountMismatch = false;
   let limitViolation = false;
   let duplicateOpId = false;
+  let classificationBlocked = false;
 
   const extractedAmount = Number(extracted.amount);
   const extractedConfidence = Number(extracted.confidence);
   const expected = body.expected_amount != null ? Number(body.expected_amount) : null;
+  const detectedCurrency = extracted.currency ? String(extracted.currency).toUpperCase().trim() : null;
+  const paymentStatus = classification.payment_status ? String(classification.payment_status).toLowerCase() : null;
+
+  // === Classification gates (run FIRST, before amount checks) ===
+  // 1. Is it a payment proof at all?
+  if (classification.is_payment_proof === false) {
+    classificationBlocked = true;
+    const reason = classification.rejection_reason
+      ? `Файл не является платежным подтверждением: ${classification.rejection_reason}`
+      : "Файл не является платежным подтверждением";
+    blockingReasons.push(reason);
+    checks.push({ id: "is_payment_proof", level: "blocking", message: reason });
+  } else if (classification.is_payment_proof === true) {
+    checks.push({ id: "is_payment_proof", level: "ok", message: "Файл распознан как платежное подтверждение." });
+  } else {
+    checks.push({ id: "is_payment_proof", level: "high", message: "Не удалось определить, является ли файл платежным подтверждением." });
+  }
+
+  // 2. Russian bank receipt?
+  if (classification.is_russian_bank_receipt === false) {
+    classificationBlocked = true;
+    const docType = classification.document_type || "unknown";
+    const reason = `Документ не является подтверждением рублевого перевода в российском банке (тип: ${docType}).`;
+    blockingReasons.push(reason);
+    checks.push({ id: "is_russian_bank_receipt", level: "blocking", message: reason });
+  } else if (classification.is_russian_bank_receipt === true) {
+    checks.push({ id: "is_russian_bank_receipt", level: "ok", message: "Подтверждение российского банка." });
+  } else if (classification.is_payment_proof === true) {
+    checks.push({ id: "is_russian_bank_receipt", level: "high", message: "Не удалось подтвердить, что чек выдан российским банком." });
+  }
+
+  // 3. Currency must be RUB
+  if (detectedCurrency && detectedCurrency !== "RUB" && detectedCurrency !== "RUR" && detectedCurrency !== "₽") {
+    classificationBlocked = true;
+    const reason = `Валюта платежа не соответствует валюте договора: обнаружена ${detectedCurrency}, ожидается RUB.`;
+    blockingReasons.push(reason);
+    checks.push({ id: "currency_match", level: "blocking", message: reason });
+  } else if (detectedCurrency === "RUB" || detectedCurrency === "RUR" || detectedCurrency === "₽") {
+    checks.push({ id: "currency_match", level: "ok", message: "Валюта платежа — рубли (RUB)." });
+  } else {
+    checks.push({ id: "currency_match", level: "high", message: "Валюта платежа не распознана." });
+  }
+
+  // 4. Payment status
+  if (paymentStatus === "cancelled" || paymentStatus === "failed" || paymentStatus === "pending") {
+    classificationBlocked = true;
+    const reason = `Операция не имеет статус исполненной (статус: ${paymentStatus}).`;
+    blockingReasons.push(reason);
+    checks.push({ id: "payment_status", level: "blocking", message: reason });
+  } else if (paymentStatus === "completed") {
+    checks.push({ id: "payment_status", level: "ok", message: "Операция исполнена." });
+  } else if (paymentStatus === "unknown" || !paymentStatus) {
+    checks.push({ id: "payment_status", level: "high", message: "Статус операции не распознан." });
+  }
+
+  // 5. Amount safety — null/low confidence amount is HIGH risk
+  if (!Number.isFinite(extractedAmount) || extractedAmount <= 0) {
+    checks.push({ id: "amount_recognized", level: "high", message: "Сумма платежа не распознана надежно." });
+  } else if (Number.isFinite(extractedConfidence) && extractedConfidence < 0.6) {
+    checks.push({ id: "amount_recognized", level: "high", message: `Сумма распознана с низкой уверенностью (${(extractedConfidence * 100).toFixed(0)}%).` });
+  }
 
   if (expected != null && Number.isFinite(extractedAmount) && extractedAmount > 0) {
     const diff = Math.abs(extractedAmount - expected);
