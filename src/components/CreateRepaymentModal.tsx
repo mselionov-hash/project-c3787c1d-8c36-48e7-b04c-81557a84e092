@@ -9,7 +9,8 @@ import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from '@/components/ui/select';
 import { ProofUpload } from '@/components/ProofUpload';
-import { AiPaymentProofCheck } from '@/components/AiPaymentProofCheck';
+import { AiPaymentProofCheck, type AiAnalysisResult } from '@/components/AiPaymentProofCheck';
+import { AlertTriangle } from 'lucide-react';
 import type { Tables } from '@/integrations/supabase/types';
 import {
   fetchCurrentAllowedBankDetails,
@@ -58,6 +59,7 @@ export const CreateRepaymentModal = ({
   const [paymentReference, setPaymentReference] = useState(defaultReference);
   const [saving, setSaving] = useState(false);
   const [proofFiles, setProofFiles] = useState<string[]>([]);
+  const [aiResult, setAiResult] = useState<AiAnalysisResult | null>(null);
 
   const [payerBankDetails, setPayerBankDetails] = useState<BankDetail[]>([]);
   const [lenderBankDetails, setLenderBankDetails] = useState<AllowedBankDetail[]>([]);
@@ -249,13 +251,37 @@ export const CreateRepaymentModal = ({
                 expectedRoleContext="loan_repayment"
                 fileUrls={proofFiles}
                 className="pt-2"
+                onAnalysisComplete={(r) => {
+                  setAiResult(r);
+                  if (r.ok && r.extracted) {
+                    const e = r.extracted;
+                    if (!amount && e.amount != null) setAmount(String(e.amount));
+                    if (e.payment_date) setTransferDate(e.payment_date);
+                    if (e.operation_id) setTransactionId(e.operation_id);
+                    if (e.bank_name) setBankName(e.bank_name);
+                    if (e.payment_purpose) setPaymentReference(e.payment_purpose);
+                  }
+                }}
               />
+            )}
+            {aiResult?.ok && aiResult.extracted?.amount != null && amount && Math.abs(Number(amount) - Number(aiResult.extracted.amount)) > Math.max(1, Number(amount) * 0.005) && (
+              <div className="rounded-xl border border-destructive/30 bg-destructive/5 p-3 text-xs flex items-start gap-2">
+                <AlertTriangle className="w-4 h-4 text-destructive flex-shrink-0 mt-0.5" />
+                <div className="text-destructive">
+                  Сумма в чеке ({Number(aiResult.extracted.amount).toLocaleString('ru-RU')} ₽) не совпадает с суммой погашения ({Number(amount).toLocaleString('ru-RU')} ₽).
+                </div>
+              </div>
+            )}
+            {aiResult?.ok && aiResult.risk_level === 'BLOCKING' && (
+              <p className="text-[11px] text-destructive">
+                Этот файл не подходит как доказательство платежа. Загрузите чек российского банка о завершенном переводе в рублях.
+              </p>
             )}
           </div>
 
           <div className="flex gap-3 pt-2">
             <Button variant="outline" onClick={onClose} className="flex-1 rounded-xl h-11">Отмена</Button>
-            <Button onClick={handleSave} disabled={saving || !selectedLenderBdId} className="flex-1 rounded-xl h-11 gap-2">
+            <Button onClick={handleSave} disabled={saving || !selectedLenderBdId || (aiResult?.ok && aiResult.risk_level === 'BLOCKING')} className="flex-1 rounded-xl h-11 gap-2">
               {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <ArrowDownLeft className="w-4 h-4" />}
               Записать
             </Button>
