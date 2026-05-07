@@ -13,6 +13,7 @@ import { RepaymentList } from '@/components/RepaymentList';
 import { TransferEvidence } from '@/components/TransferEvidence';
 import { LoanTimeline } from '@/components/LoanTimeline';
 import { EdoRegulationAcceptance } from '@/components/EdoRegulationAcceptance';
+import { LoanAiAssistant } from '@/components/LoanAiAssistant';
 import { AppLayout } from '@/components/AppLayout';
 import { Button } from '@/components/ui/button';
 import { toast } from 'sonner';
@@ -281,6 +282,10 @@ const LoanDetails = () => {
               {loan.contract_number ? `№ ${loan.contract_number}` : `ID: ${loan.id.slice(0, 8)}`}
             </p>
           </div>
+          <LoanAiAssistant
+            loanId={loan.id}
+            onAction={(section) => setExpanded((prev) => ({ ...prev, [section as SectionKey]: true }))}
+          />
         </div>
 
         {/* Summary */}
