@@ -9,6 +9,7 @@ import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from '@/components/ui/select';
 import { ProofUpload } from '@/components/ProofUpload';
+import { AiPaymentProofCheck } from '@/components/AiPaymentProofCheck';
 import type { Tables } from '@/integrations/supabase/types';
 import {
   fetchCurrentAllowedBankDetails,
