@@ -131,7 +131,10 @@ export const CreateRepaymentModal = ({
   const canSave = (() => {
     if (!amount || parseFloat(amount) <= 0) return false;
     if (!selectedLenderBdId) return false;
-    if (proofFiles.length === 0) return true; // no AI run, allow basic save
+    if (proofFiles.length === 0) {
+      // Proof is mandatory by default. Manual override allowed only with explicit reason.
+      return manualOverride && manualReason.trim().length >= 5;
+    }
     if (!aiResult) return false; // proof uploaded but AI not run yet
     if (!aiResult.ok) return manualOverride && manualAllowed && manualReason.trim().length >= 5;
     if (aiResult.risk_level === 'BLOCKING') return false;
