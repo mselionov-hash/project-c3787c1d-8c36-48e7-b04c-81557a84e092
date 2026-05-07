@@ -282,6 +282,10 @@ const LoanDetails = () => {
               {loan.contract_number ? `№ ${loan.contract_number}` : `ID: ${loan.id.slice(0, 8)}`}
             </p>
           </div>
+          <LoanAiAssistant
+            loanId={loan.id}
+            onAction={(section) => setExpanded((prev) => ({ ...prev, [section as SectionKey]: true }))}
+          />
         </div>
 
         {/* Summary */}
