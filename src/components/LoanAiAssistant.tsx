@@ -76,7 +76,16 @@ export function LoanAiAssistant({ loanId, onAction }: Props) {
 
   const handleAction = (action: string) => {
     const cfg = ACTION_LABELS[action];
-    if (cfg?.section) onAction?.(cfg.section);
+    if (!cfg) return;
+    if (cfg.kind === 'section' && cfg.payload) {
+      onAction?.(cfg.payload);
+      setOpen(false);
+    } else if (cfg.kind === 'navigate') {
+      navigate(`/documents?loan=${loanId}`);
+      setOpen(false);
+    } else if (cfg.kind === 'followup' && cfg.payload) {
+      ask(cfg.payload);
+    }
   };
 
   return (
