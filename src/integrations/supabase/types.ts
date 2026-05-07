@@ -14,6 +14,51 @@ export type Database = {
   }
   public: {
     Tables: {
+      ai_interactions: {
+        Row: {
+          completion_tokens: number | null
+          created_at: string
+          duration_ms: number | null
+          endpoint: string
+          error: string | null
+          http_status: number | null
+          id: string
+          prompt_tokens: number | null
+          request_message: string | null
+          response_text: string | null
+          total_tokens: number | null
+          user_id: string
+        }
+        Insert: {
+          completion_tokens?: number | null
+          created_at?: string
+          duration_ms?: number | null
+          endpoint: string
+          error?: string | null
+          http_status?: number | null
+          id?: string
+          prompt_tokens?: number | null
+          request_message?: string | null
+          response_text?: string | null
+          total_tokens?: number | null
+          user_id: string
+        }
+        Update: {
+          completion_tokens?: number | null
+          created_at?: string
+          duration_ms?: number | null
+          endpoint?: string
+          error?: string | null
+          http_status?: number | null
+          id?: string
+          prompt_tokens?: number | null
+          request_message?: string | null
+          response_text?: string | null
+          total_tokens?: number | null
+          user_id?: string
+        }
+        Relationships: []
+      }
       bank_details: {
         Row: {
           account_number: string | null
