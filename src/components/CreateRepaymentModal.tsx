@@ -281,7 +281,7 @@ export const CreateRepaymentModal = ({
 
           <div className="flex gap-3 pt-2">
             <Button variant="outline" onClick={onClose} className="flex-1 rounded-xl h-11">Отмена</Button>
-            <Button onClick={handleSave} disabled={saving || !selectedLenderBdId} className="flex-1 rounded-xl h-11 gap-2">
+            <Button onClick={handleSave} disabled={saving || !selectedLenderBdId || (aiResult?.ok && aiResult.risk_level === 'BLOCKING')} className="flex-1 rounded-xl h-11 gap-2">
               {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <ArrowDownLeft className="w-4 h-4" />}
               Записать
             </Button>
