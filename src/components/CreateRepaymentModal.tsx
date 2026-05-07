@@ -59,6 +59,7 @@ export const CreateRepaymentModal = ({
   const [paymentReference, setPaymentReference] = useState(defaultReference);
   const [saving, setSaving] = useState(false);
   const [proofFiles, setProofFiles] = useState<string[]>([]);
+  const [aiResult, setAiResult] = useState<AiAnalysisResult | null>(null);
 
   const [payerBankDetails, setPayerBankDetails] = useState<BankDetail[]>([]);
   const [lenderBankDetails, setLenderBankDetails] = useState<AllowedBankDetail[]>([]);
