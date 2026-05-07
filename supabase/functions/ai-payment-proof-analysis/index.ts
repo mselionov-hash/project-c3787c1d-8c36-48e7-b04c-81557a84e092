@@ -348,7 +348,7 @@ Deno.serve(async (req) => {
 
   // Compute final risk level
   let riskLevel: "LOW" | "MEDIUM" | "HIGH" | "BLOCKING" = "LOW";
-  if (blockingReasons.length > 0 || duplicateOpId || limitViolation) {
+  if (blockingReasons.length > 0 || duplicateOpId || limitViolation || classificationBlocked) {
     riskLevel = "BLOCKING";
   } else if (
     amountMismatch ||
@@ -367,13 +367,16 @@ Deno.serve(async (req) => {
     else if (c.level === "warn") riskScore += 8;
   }
 
+  // If classification blocks, do not surface untrusted amount as if it were valid.
+  const safeAmount = classificationBlocked ? null : (Number.isFinite(extractedAmount) ? extractedAmount : null);
+
   // Persist results
   const insertExtracted = await supabaseAdmin.from("ai_extracted_payment_data").insert({
     loan_id: body.loan_id,
     entity_type: body.entity_type,
     entity_id: body.entity_id ?? null,
     source_file_url: body.file_url,
-    amount: Number.isFinite(extractedAmount) ? extractedAmount : null,
+    amount: safeAmount,
     currency: extracted.currency ?? null,
     payment_date: extracted.payment_date ?? null,
     payment_time: extracted.payment_time ?? null,
@@ -383,7 +386,13 @@ Deno.serve(async (req) => {
     operation_id: extracted.operation_id ?? null,
     payment_purpose: extracted.payment_purpose ?? null,
     confidence: Number.isFinite(extractedConfidence) ? extractedConfidence : null,
-    raw_extraction_json: extracted,
+    raw_extraction_json: { extracted, document_classification: classification },
+    is_payment_proof: classification.is_payment_proof ?? null,
+    is_russian_bank_receipt: classification.is_russian_bank_receipt ?? null,
+    detected_currency: detectedCurrency ?? null,
+    payment_status: paymentStatus ?? null,
+    document_type: classification.document_type ?? null,
+    rejection_reason: classification.rejection_reason ?? null,
     created_by: userId,
   }).select("id").single();
 
@@ -393,7 +402,7 @@ Deno.serve(async (req) => {
     entity_id: body.entity_id ?? null,
     risk_level: riskLevel,
     risk_score: riskScore,
-    checks_json: { checks, fraud_signals: fraudSignals },
+    checks_json: { checks, fraud_signals: fraudSignals, document_classification: classification },
     ai_summary: aiSummary,
     blocking_reasons: blockingReasons,
     created_by: userId,
@@ -408,8 +417,16 @@ Deno.serve(async (req) => {
     checks,
     ai_summary: aiSummary,
     fraud_signals: fraudSignals,
+    document_classification: {
+      is_payment_proof: classification.is_payment_proof ?? null,
+      is_russian_bank_receipt: classification.is_russian_bank_receipt ?? null,
+      document_type: classification.document_type ?? null,
+      bank_country: classification.bank_country ?? null,
+      payment_status: classification.payment_status ?? null,
+      rejection_reason: classification.rejection_reason ?? null,
+    },
     extracted: {
-      amount: Number.isFinite(extractedAmount) ? extractedAmount : null,
+      amount: safeAmount,
       currency: extracted.currency ?? null,
       payment_date: extracted.payment_date ?? null,
       payment_time: extracted.payment_time ?? null,
