@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -15,13 +16,22 @@ const QUICK_PROMPTS = [
   'Почему чек не прошёл?',
 ];
 
-const ACTION_LABELS: Record<string, { label: string; section?: string }> = {
-  open_bank_details: { label: 'Открыть реквизиты', section: 'bank' },
-  open_tranches: { label: 'Открыть транши', section: 'tranches' },
-  open_repayments: { label: 'Открыть погашения', section: 'repayments' },
-  open_documents: { label: 'Открыть документы', section: 'evidence' },
-  explain_ai_check: { label: 'Подробнее о проверке' },
-  explain_status: { label: 'Подробнее о статусе' },
+type ActionKind = 'section' | 'navigate' | 'followup';
+const ACTION_LABELS: Record<string, { label: string; kind: ActionKind; payload?: string }> = {
+  open_bank_details: { label: 'Открыть реквизиты', kind: 'section', payload: 'bank' },
+  open_tranches: { label: 'Открыть транши', kind: 'section', payload: 'tranches' },
+  open_repayments: { label: 'Открыть погашения', kind: 'section', payload: 'repayments' },
+  open_documents: { label: 'Открыть документы', kind: 'navigate' },
+  explain_ai_check: {
+    label: 'Подробнее о проверке',
+    kind: 'followup',
+    payload: 'Объясни последнюю AI-проверку по этому займу: что не так, какой риск и что мне сделать дальше?',
+  },
+  explain_status: {
+    label: 'Подробнее о статусе',
+    kind: 'followup',
+    payload: 'Объясни текущий статус займа и следующий шаг для моей роли.',
+  },
 };
 
 interface Props {
@@ -30,6 +40,7 @@ interface Props {
 }
 
 export function LoanAiAssistant({ loanId, onAction }: Props) {
+  const navigate = useNavigate();
   const [open, setOpen] = useState(false);
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
