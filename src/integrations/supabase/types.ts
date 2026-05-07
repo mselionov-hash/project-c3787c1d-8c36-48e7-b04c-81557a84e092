@@ -22,16 +22,22 @@ export type Database = {
           created_at: string
           created_by: string
           currency: string | null
+          detected_currency: string | null
+          document_type: string | null
           entity_id: string | null
           entity_type: string
           id: string
+          is_payment_proof: boolean | null
+          is_russian_bank_receipt: boolean | null
           loan_id: string
           operation_id: string | null
           payment_date: string | null
           payment_purpose: string | null
+          payment_status: string | null
           payment_time: string | null
           raw_extraction_json: Json
           receiver_name: string | null
+          rejection_reason: string | null
           sender_name: string | null
           source_file_url: string | null
         }
@@ -42,16 +48,22 @@ export type Database = {
           created_at?: string
           created_by: string
           currency?: string | null
+          detected_currency?: string | null
+          document_type?: string | null
           entity_id?: string | null
           entity_type: string
           id?: string
+          is_payment_proof?: boolean | null
+          is_russian_bank_receipt?: boolean | null
           loan_id: string
           operation_id?: string | null
           payment_date?: string | null
           payment_purpose?: string | null
+          payment_status?: string | null
           payment_time?: string | null
           raw_extraction_json?: Json
           receiver_name?: string | null
+          rejection_reason?: string | null
           sender_name?: string | null
           source_file_url?: string | null
         }
@@ -62,16 +74,22 @@ export type Database = {
           created_at?: string
           created_by?: string
           currency?: string | null
+          detected_currency?: string | null
+          document_type?: string | null
           entity_id?: string | null
           entity_type?: string
           id?: string
+          is_payment_proof?: boolean | null
+          is_russian_bank_receipt?: boolean | null
           loan_id?: string
           operation_id?: string | null
           payment_date?: string | null
           payment_purpose?: string | null
+          payment_status?: string | null
           payment_time?: string | null
           raw_extraction_json?: Json
           receiver_name?: string | null
+          rejection_reason?: string | null
           sender_name?: string | null
           source_file_url?: string | null
         }

@@ -141,6 +141,7 @@ Deno.serve(async (req) => {
   }
 
   const extracted = proxyJson?.extracted ?? {};
+  const classification = proxyJson?.document_classification ?? {};
   const aiSummary: string = proxyJson?.ai_summary ?? "";
   const fraudSignals: any[] = Array.isArray(proxyJson?.fraud_signals) ? proxyJson.fraud_signals : [];
 
@@ -151,10 +152,72 @@ Deno.serve(async (req) => {
   let amountMismatch = false;
   let limitViolation = false;
   let duplicateOpId = false;
+  let classificationBlocked = false;
 
   const extractedAmount = Number(extracted.amount);
   const extractedConfidence = Number(extracted.confidence);
   const expected = body.expected_amount != null ? Number(body.expected_amount) : null;
+  const detectedCurrency = extracted.currency ? String(extracted.currency).toUpperCase().trim() : null;
+  const paymentStatus = classification.payment_status ? String(classification.payment_status).toLowerCase() : null;
+
+  // === Classification gates (run FIRST, before amount checks) ===
+  // 1. Is it a payment proof at all?
+  if (classification.is_payment_proof === false) {
+    classificationBlocked = true;
+    const reason = classification.rejection_reason
+      ? `Файл не является платежным подтверждением: ${classification.rejection_reason}`
+      : "Файл не является платежным подтверждением";
+    blockingReasons.push(reason);
+    checks.push({ id: "is_payment_proof", level: "blocking", message: reason });
+  } else if (classification.is_payment_proof === true) {
+    checks.push({ id: "is_payment_proof", level: "ok", message: "Файл распознан как платежное подтверждение." });
+  } else {
+    checks.push({ id: "is_payment_proof", level: "high", message: "Не удалось определить, является ли файл платежным подтверждением." });
+  }
+
+  // 2. Russian bank receipt?
+  if (classification.is_russian_bank_receipt === false) {
+    classificationBlocked = true;
+    const docType = classification.document_type || "unknown";
+    const reason = `Документ не является подтверждением рублевого перевода в российском банке (тип: ${docType}).`;
+    blockingReasons.push(reason);
+    checks.push({ id: "is_russian_bank_receipt", level: "blocking", message: reason });
+  } else if (classification.is_russian_bank_receipt === true) {
+    checks.push({ id: "is_russian_bank_receipt", level: "ok", message: "Подтверждение российского банка." });
+  } else if (classification.is_payment_proof === true) {
+    checks.push({ id: "is_russian_bank_receipt", level: "high", message: "Не удалось подтвердить, что чек выдан российским банком." });
+  }
+
+  // 3. Currency must be RUB
+  if (detectedCurrency && detectedCurrency !== "RUB" && detectedCurrency !== "RUR" && detectedCurrency !== "₽") {
+    classificationBlocked = true;
+    const reason = `Валюта платежа не соответствует валюте договора: обнаружена ${detectedCurrency}, ожидается RUB.`;
+    blockingReasons.push(reason);
+    checks.push({ id: "currency_match", level: "blocking", message: reason });
+  } else if (detectedCurrency === "RUB" || detectedCurrency === "RUR" || detectedCurrency === "₽") {
+    checks.push({ id: "currency_match", level: "ok", message: "Валюта платежа — рубли (RUB)." });
+  } else {
+    checks.push({ id: "currency_match", level: "high", message: "Валюта платежа не распознана." });
+  }
+
+  // 4. Payment status
+  if (paymentStatus === "cancelled" || paymentStatus === "failed" || paymentStatus === "pending") {
+    classificationBlocked = true;
+    const reason = `Операция не имеет статус исполненной (статус: ${paymentStatus}).`;
+    blockingReasons.push(reason);
+    checks.push({ id: "payment_status", level: "blocking", message: reason });
+  } else if (paymentStatus === "completed") {
+    checks.push({ id: "payment_status", level: "ok", message: "Операция исполнена." });
+  } else if (paymentStatus === "unknown" || !paymentStatus) {
+    checks.push({ id: "payment_status", level: "high", message: "Статус операции не распознан." });
+  }
+
+  // 5. Amount safety — null/low confidence amount is HIGH risk
+  if (!Number.isFinite(extractedAmount) || extractedAmount <= 0) {
+    checks.push({ id: "amount_recognized", level: "high", message: "Сумма платежа не распознана надежно." });
+  } else if (Number.isFinite(extractedConfidence) && extractedConfidence < 0.6) {
+    checks.push({ id: "amount_recognized", level: "high", message: `Сумма распознана с низкой уверенностью (${(extractedConfidence * 100).toFixed(0)}%).` });
+  }
 
   if (expected != null && Number.isFinite(extractedAmount) && extractedAmount > 0) {
     const diff = Math.abs(extractedAmount - expected);
@@ -285,7 +348,7 @@ Deno.serve(async (req) => {
 
   // Compute final risk level
   let riskLevel: "LOW" | "MEDIUM" | "HIGH" | "BLOCKING" = "LOW";
-  if (blockingReasons.length > 0 || duplicateOpId || limitViolation) {
+  if (blockingReasons.length > 0 || duplicateOpId || limitViolation || classificationBlocked) {
     riskLevel = "BLOCKING";
   } else if (
     amountMismatch ||
@@ -304,13 +367,16 @@ Deno.serve(async (req) => {
     else if (c.level === "warn") riskScore += 8;
   }
 
+  // If classification blocks, do not surface untrusted amount as if it were valid.
+  const safeAmount = classificationBlocked ? null : (Number.isFinite(extractedAmount) ? extractedAmount : null);
+
   // Persist results
   const insertExtracted = await supabaseAdmin.from("ai_extracted_payment_data").insert({
     loan_id: body.loan_id,
     entity_type: body.entity_type,
     entity_id: body.entity_id ?? null,
     source_file_url: body.file_url,
-    amount: Number.isFinite(extractedAmount) ? extractedAmount : null,
+    amount: safeAmount,
     currency: extracted.currency ?? null,
     payment_date: extracted.payment_date ?? null,
     payment_time: extracted.payment_time ?? null,
@@ -320,7 +386,13 @@ Deno.serve(async (req) => {
     operation_id: extracted.operation_id ?? null,
     payment_purpose: extracted.payment_purpose ?? null,
     confidence: Number.isFinite(extractedConfidence) ? extractedConfidence : null,
-    raw_extraction_json: extracted,
+    raw_extraction_json: { extracted, document_classification: classification },
+    is_payment_proof: classification.is_payment_proof ?? null,
+    is_russian_bank_receipt: classification.is_russian_bank_receipt ?? null,
+    detected_currency: detectedCurrency ?? null,
+    payment_status: paymentStatus ?? null,
+    document_type: classification.document_type ?? null,
+    rejection_reason: classification.rejection_reason ?? null,
     created_by: userId,
   }).select("id").single();
 
@@ -330,7 +402,7 @@ Deno.serve(async (req) => {
     entity_id: body.entity_id ?? null,
     risk_level: riskLevel,
     risk_score: riskScore,
-    checks_json: { checks, fraud_signals: fraudSignals },
+    checks_json: { checks, fraud_signals: fraudSignals, document_classification: classification },
     ai_summary: aiSummary,
     blocking_reasons: blockingReasons,
     created_by: userId,
@@ -345,8 +417,16 @@ Deno.serve(async (req) => {
     checks,
     ai_summary: aiSummary,
     fraud_signals: fraudSignals,
+    document_classification: {
+      is_payment_proof: classification.is_payment_proof ?? null,
+      is_russian_bank_receipt: classification.is_russian_bank_receipt ?? null,
+      document_type: classification.document_type ?? null,
+      bank_country: classification.bank_country ?? null,
+      payment_status: classification.payment_status ?? null,
+      rejection_reason: classification.rejection_reason ?? null,
+    },
     extracted: {
-      amount: Number.isFinite(extractedAmount) ? extractedAmount : null,
+      amount: safeAmount,
       currency: extracted.currency ?? null,
       payment_date: extracted.payment_date ?? null,
       payment_time: extracted.payment_time ?? null,
