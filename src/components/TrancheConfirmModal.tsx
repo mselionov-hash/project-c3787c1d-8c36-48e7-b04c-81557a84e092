@@ -3,11 +3,13 @@ import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Textarea } from '@/components/ui/textarea';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { toast } from 'sonner';
-import { X, Loader2, CheckCircle2, ChevronDown, AlertTriangle } from 'lucide-react';
+import { X, Loader2, CheckCircle2, ChevronDown, AlertTriangle, ShieldX } from 'lucide-react';
 import { ProofUpload } from '@/components/ProofUpload';
 import { AiPaymentProofCheck, type AiAnalysisResult } from '@/components/AiPaymentProofCheck';
+import { isAiProofCriticallyValid, isManualFallbackAllowed } from '@/lib/ai-proof-validation';
 import type { Tables } from '@/integrations/supabase/types';
 
 type Tranche = Tables<'loan_tranches'>;
@@ -23,6 +25,7 @@ interface TrancheConfirmModalProps {
 export const TrancheConfirmModal = ({ tranche, userId, loanLimit, onClose, onSuccess }: TrancheConfirmModalProps) => {
   const [aiResult, setAiResult] = useState<AiAnalysisResult | null>(null);
   const [manualMode, setManualMode] = useState(false);
+  const [manualReason, setManualReason] = useState('');
   const [manualDate, setManualDate] = useState(tranche.actual_date || new Date().toISOString().split('T')[0]);
   const [manualTime, setManualTime] = useState(tranche.actual_time || '');
   const [manualBankDocId, setManualBankDocId] = useState(tranche.bank_document_id || '');
@@ -34,11 +37,9 @@ export const TrancheConfirmModal = ({ tranche, userId, loanLimit, onClose, onSuc
 
   const inputClass = 'h-11 rounded-xl bg-muted/50 border-border/50 focus:bg-card';
 
-  const aiOk = aiResult?.ok && (aiResult.risk_level === 'LOW' || aiResult.risk_level === 'MEDIUM');
-  const aiBlocking = aiResult?.ok && aiResult.risk_level === 'BLOCKING';
-  const aiHigh = aiResult?.ok && aiResult.risk_level === 'HIGH';
+  const validation = isAiProofCriticallyValid(aiResult, 'tranche');
+  const manualAllowed = isManualFallbackAllowed(aiResult, 'tranche');
 
-  // Resolve final values for save
   const resolveSaveData = () => {
     if (manualMode) {
       return {
@@ -59,10 +60,10 @@ export const TrancheConfirmModal = ({ tranche, userId, loanLimit, onClose, onSuc
 
   const canConfirm = (() => {
     if (proofFiles.length === 0) return false;
-    if (manualMode) return !!manualDate;
-    if (!aiResult?.ok) return false;
-    if (aiBlocking) return false;
-    return true;
+    if (manualMode) {
+      return manualAllowed && !!manualDate && manualReason.trim().length >= 5;
+    }
+    return validation.ok;
   })();
 
   const handleConfirm = async () => {
@@ -85,6 +86,7 @@ export const TrancheConfirmModal = ({ tranche, userId, loanLimit, onClose, onSuc
       }
 
       const saveData = resolveSaveData();
+      const usedAi = !manualMode && !!aiResult?.ok;
 
       const { error } = await supabase
         .from('loan_tranches')
@@ -94,6 +96,11 @@ export const TrancheConfirmModal = ({ tranche, userId, loanLimit, onClose, onSuc
           confirmed_at: new Date().toISOString(),
           ...saveData,
           transfer_source: proofFiles.length > 0 ? proofFiles.join(',') : null,
+          ai_fraud_check_id: aiResult?.record_ids?.check_id ?? null,
+          ai_risk_level: aiResult?.risk_level ?? null,
+          used_ai_extracted_data: usedAi,
+          manual_override: manualMode,
+          manual_override_reason: manualMode ? manualReason.trim() : null,
         })
         .eq('id', tranche.id);
       if (error) throw error;
@@ -154,23 +161,26 @@ export const TrancheConfirmModal = ({ tranche, userId, loanLimit, onClose, onSuc
                 expectedAmount={Number(tranche.amount)}
                 expectedRoleContext="tranche_disbursement"
                 fileUrls={proofFiles}
-                onAnalysisComplete={(r) => { setAiResult(r); setManualMode(false); }}
+                onAnalysisComplete={(r) => { setAiResult(r); setManualMode(false); setManualReason(''); }}
               />
             </div>
           )}
 
-          {aiHigh && !manualMode && (
-            <div className="rounded-xl border border-amber-500/30 bg-amber-500/5 p-3 text-xs flex items-start gap-2">
-              <AlertTriangle className="w-4 h-4 text-amber-500 flex-shrink-0 mt-0.5" />
-              <div className="text-foreground/80">
-                AI обнаружил расхождения. Проверьте данные перед подтверждением или заполните вручную.
+          {/* Reasons why normal confirm is blocked */}
+          {aiResult?.ok && !validation.ok && !manualMode && (
+            <div className="rounded-xl border border-destructive/30 bg-destructive/5 p-3 text-xs space-y-1">
+              <div className="flex items-center gap-2 font-semibold text-destructive">
+                <ShieldX className="w-4 h-4" /> Подтверждение заблокировано
               </div>
+              <ul className="text-foreground/80 space-y-0.5 pl-1">
+                {validation.reasons.map((r, i) => <li key={i}>• {r}</li>)}
+              </ul>
             </div>
           )}
 
           {/* Manual fallback */}
-          {proofFiles.length > 0 && (
-            <Collapsible open={manualMode} onOpenChange={setManualMode}>
+          {proofFiles.length > 0 && manualAllowed && (
+            <Collapsible open={manualMode} onOpenChange={(v) => { setManualMode(v); if (!v) setManualReason(''); }}>
               <CollapsibleTrigger asChild>
                 <button
                   type="button"
@@ -181,6 +191,21 @@ export const TrancheConfirmModal = ({ tranche, userId, loanLimit, onClose, onSuc
                 </button>
               </CollapsibleTrigger>
               <CollapsibleContent className="space-y-3 pt-3">
+                <div className="rounded-lg border border-amber-500/30 bg-amber-500/5 p-3 text-xs flex items-start gap-2">
+                  <AlertTriangle className="w-4 h-4 text-amber-500 flex-shrink-0 mt-0.5" />
+                  <div className="text-foreground/80">
+                    Ручной ввод используется только когда AI не смог распознать чек. Укажите причину перехода в ручной режим.
+                  </div>
+                </div>
+                <div className="space-y-2">
+                  <Label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Причина ручного подтверждения *</Label>
+                  <Textarea
+                    value={manualReason}
+                    onChange={e => setManualReason(e.target.value)}
+                    placeholder="Например: AI не смог распознать чек, но я лично проверил перевод."
+                    className="min-h-[72px] rounded-xl bg-muted/50 border-border/50"
+                  />
+                </div>
                 <div className="space-y-2">
                   <Label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Фактическая дата</Label>
                   <Input type="date" value={manualDate} onChange={e => setManualDate(e.target.value)} className={inputClass} />
@@ -201,6 +226,12 @@ export const TrancheConfirmModal = ({ tranche, userId, loanLimit, onClose, onSuc
             </Collapsible>
           )}
 
+          {proofFiles.length > 0 && !manualAllowed && aiResult?.ok && (
+            <p className="text-[11px] text-destructive">
+              Ручной ввод недоступен: чек содержит критическую проблему (иностранный банк, не-RUB валюта, операция не исполнена, дубликат или превышение лимита). Загрузите корректный чек.
+            </p>
+          )}
+
           <div className="flex gap-3 pt-2">
             <Button variant="outline" onClick={onClose} className="flex-1 rounded-xl h-11">Отмена</Button>
             <Button onClick={handleConfirm} disabled={saving || !canConfirm} className="flex-1 rounded-xl h-11 gap-2">
@@ -208,16 +239,6 @@ export const TrancheConfirmModal = ({ tranche, userId, loanLimit, onClose, onSuc
               Подтвердить
             </Button>
           </div>
-          {!canConfirm && proofFiles.length > 0 && !aiResult && (
-            <p className="text-[11px] text-muted-foreground text-center">
-              Запустите AI-проверку чека или заполните данные вручную.
-            </p>
-          )}
-          {aiBlocking && (
-            <p className="text-[11px] text-destructive text-center">
-              Этот файл не подходит как доказательство платежа.
-            </p>
-          )}
         </div>
       </div>
     </div>
