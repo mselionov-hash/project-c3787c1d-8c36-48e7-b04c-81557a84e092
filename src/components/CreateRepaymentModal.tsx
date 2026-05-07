@@ -281,6 +281,30 @@ export const CreateRepaymentModal = ({
               onPendingChange={setProofFiles}
               compact
             />
+            {proofFiles.length === 0 && (
+              <div className="rounded-xl border border-amber-500/30 bg-amber-500/5 p-3 text-xs space-y-2">
+                <div className="flex items-start gap-2 text-foreground/80">
+                  <AlertTriangle className="w-4 h-4 text-amber-500 flex-shrink-0 mt-0.5" />
+                  <div>Загрузите чек/подтверждение перевода. Без чека запись возможна только в режиме ручного подтверждения с указанием причины.</div>
+                </div>
+                <label className="flex items-center gap-2 text-xs text-muted-foreground cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={manualOverride}
+                    onChange={e => { setManualOverride(e.target.checked); if (!e.target.checked) setManualReason(''); }}
+                  />
+                  Записать без чека (ручное подтверждение)
+                </label>
+                {manualOverride && (
+                  <Textarea
+                    value={manualReason}
+                    onChange={e => setManualReason(e.target.value)}
+                    placeholder="Причина ручного подтверждения (минимум 5 символов)"
+                    className="min-h-[64px] rounded-xl bg-muted/50 border-border/50 text-xs"
+                  />
+                )}
+              </div>
+            )}
             {proofFiles.length > 0 && (
               <AiPaymentProofCheck
                 loanId={loanId}
