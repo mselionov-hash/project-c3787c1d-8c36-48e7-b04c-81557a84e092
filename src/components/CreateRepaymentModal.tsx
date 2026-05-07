@@ -9,6 +9,7 @@ import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from '@/components/ui/select';
 import { ProofUpload } from '@/components/ProofUpload';
+import { AiPaymentProofCheck } from '@/components/AiPaymentProofCheck';
 import type { Tables } from '@/integrations/supabase/types';
 import {
   fetchCurrentAllowedBankDetails,
@@ -240,6 +241,16 @@ export const CreateRepaymentModal = ({
               onPendingChange={setProofFiles}
               compact
             />
+            {proofFiles.length > 0 && (
+              <AiPaymentProofCheck
+                loanId={loanId}
+                entityType="repayment"
+                expectedAmount={amount ? Number(amount) : null}
+                expectedRoleContext="loan_repayment"
+                fileUrls={proofFiles}
+                className="pt-2"
+              />
+            )}
           </div>
 
           <div className="flex gap-3 pt-2">

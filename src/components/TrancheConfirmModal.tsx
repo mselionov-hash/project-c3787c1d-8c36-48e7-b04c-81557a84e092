@@ -6,6 +6,7 @@ import { Label } from '@/components/ui/label';
 import { toast } from 'sonner';
 import { X, Loader2, CheckCircle2 } from 'lucide-react';
 import { ProofUpload } from '@/components/ProofUpload';
+import { AiPaymentProofCheck } from '@/components/AiPaymentProofCheck';
 import type { Tables } from '@/integrations/supabase/types';
 
 type Tranche = Tables<'loan_tranches'>;
@@ -123,6 +124,17 @@ export const TrancheConfirmModal = ({ tranche, userId, loanLimit, onClose, onSuc
               onPendingChange={setProofFiles}
               compact
             />
+            {proofFiles.length > 0 && (
+              <AiPaymentProofCheck
+                loanId={tranche.loan_id}
+                entityType="tranche"
+                entityId={tranche.id}
+                expectedAmount={Number(tranche.amount)}
+                expectedRoleContext="tranche_disbursement"
+                fileUrls={proofFiles}
+                className="pt-2"
+              />
+            )}
           </div>
 
           <div className="flex gap-3 pt-2">
