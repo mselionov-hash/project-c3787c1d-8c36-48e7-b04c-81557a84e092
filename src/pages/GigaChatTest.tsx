@@ -32,6 +32,7 @@ const readFunctionError = async (error: any, fallbackData: any) => {
 const GigaChatTest = () => {
   const { user, loading } = useAuth();
   const [running, setRunning] = useState(false);
+  const [message, setMessage] = useState('Привет, проверь подключение');
   const [result, setResult] = useState<any>(null);
 
   if (loading) return null;
@@ -42,7 +43,7 @@ const GigaChatTest = () => {
     setResult(null);
     try {
       const { data, error } = await supabase.functions.invoke('gigachat-test', {
-        body: {},
+        body: { message },
       });
       setResult(error ? await readFunctionError(error, data) : data);
     } catch (e: any) {
@@ -57,13 +58,22 @@ const GigaChatTest = () => {
       <div className="max-w-2xl mx-auto px-4 sm:px-6 py-8">
         <h1 className="text-xl font-bold font-display mb-2">Тест подключения GigaChat</h1>
         <p className="text-sm text-muted-foreground mb-6">
-          Phase 1: проверка OAuth и вызова /chat/completions через защищённую Edge Function.
+          Запрос идёт через защищённый AI-прокси ГдеДеньги в РФ. Учётные данные GigaChat не покидают прокси.
         </p>
 
-        <Button onClick={run} disabled={running} className="rounded-lg gap-2">
-          {running ? <Loader2 className="w-4 h-4 animate-spin" /> : null}
-          Запустить проверку
-        </Button>
+        <div className="space-y-3 mb-4">
+          <Input
+            value={message}
+            onChange={(e) => setMessage(e.target.value)}
+            placeholder="Сообщение для GigaChat"
+            disabled={running}
+            className="rounded-lg"
+          />
+          <Button onClick={run} disabled={running || !message.trim()} className="rounded-lg gap-2">
+            {running ? <Loader2 className="w-4 h-4 animate-spin" /> : null}
+            Отправить запрос
+          </Button>
+        </div>
 
         {result && (
           <div className="card-elevated p-5 mt-6 space-y-3">
@@ -74,13 +84,13 @@ const GigaChatTest = () => {
                 <XCircle className="w-5 h-5 text-destructive" />
               )}
               <span className="font-semibold">
-                {result.ok ? 'Соединение успешно' : `Ошибка${result.stage ? ` (${result.stage})` : ''}`}
+                {result.ok ? 'Ответ получен' : `Ошибка${result.stage ? ` (${result.stage})` : ''}`}
               </span>
             </div>
-            {result.ok && result.reply && (
-              <div className="text-sm">
+            {result.ok && result.answer && (
+              <div className="text-sm whitespace-pre-wrap">
                 <span className="text-muted-foreground">Ответ модели: </span>
-                <span className="font-medium">{result.reply}</span>
+                <span className="font-medium">{result.answer}</span>
               </div>
             )}
             <pre className="text-xs bg-muted/40 rounded-lg p-3 overflow-auto max-h-80">
