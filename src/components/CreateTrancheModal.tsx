@@ -316,6 +316,16 @@ export const CreateTrancheModal = ({
               onPendingChange={setProofFiles}
               compact
             />
+            {proofFiles.length > 0 && (
+              <AiPaymentProofCheck
+                loanId={loanId}
+                entityType="tranche"
+                expectedAmount={amount ? Number(amount) : null}
+                expectedRoleContext="tranche_disbursement"
+                fileUrls={proofFiles}
+                className="pt-2"
+              />
+            )}
           </div>
 
           <div className="flex gap-3 pt-2">
