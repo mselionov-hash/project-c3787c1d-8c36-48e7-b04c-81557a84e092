@@ -373,7 +373,7 @@ const LoanDetails = () => {
         </Section>
 
         {/* Tranches — always visible when relevant */}
-        <div className="card-elevated p-4">
+        <div id="tranches-section" className="card-elevated p-4">
           <TrancheList
             tranches={tranches}
             loanId={loan.id}
