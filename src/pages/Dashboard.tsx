@@ -115,10 +115,11 @@ const Dashboard = () => {
     l.hasPendingTranches && isBorrower(l) && ['active', 'signed_no_debt'].includes(l.status)
   );
 
-  // Awaiting repayment (borrower's turn)
+  // Awaiting repayment (borrower's turn) — exclude overdue (already in own section)
   const awaitingRepayment = loans.filter(l =>
-    l.status === 'active' && isBorrower(l) && !overdue.some(o => o.id === l.id)
+    l.status === 'active' && isBorrower(l) && !l.isOverdue
   );
+
 
   // Awaiting repayment confirmation (lender needs to confirm)
   const awaitingRepaymentConfirm = loans.filter(l =>
