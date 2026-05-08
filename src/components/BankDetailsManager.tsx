@@ -39,14 +39,6 @@ function detectBank(url: string): string | null {
   return null;
 }
 
-function isValidUrl(s: string): boolean {
-  try {
-    new URL(s);
-    return true;
-  } catch {
-    return false;
-  }
-}
 
 export const BankDetailsManager = () => {
   const { user } = useAuth();
