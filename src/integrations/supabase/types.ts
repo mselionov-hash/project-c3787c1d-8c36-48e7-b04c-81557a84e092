@@ -636,6 +636,9 @@ export type Database = {
       loans: {
         Row: {
           amount: number
+          archive_reason: string | null
+          archived_at: string | null
+          archived_by: string | null
           borrower_address: string | null
           borrower_disbursement_receipt_policy: string
           borrower_id: string | null
@@ -671,6 +674,9 @@ export type Database = {
         }
         Insert: {
           amount: number
+          archive_reason?: string | null
+          archived_at?: string | null
+          archived_by?: string | null
           borrower_address?: string | null
           borrower_disbursement_receipt_policy?: string
           borrower_id?: string | null
@@ -706,6 +712,9 @@ export type Database = {
         }
         Update: {
           amount?: number
+          archive_reason?: string | null
+          archived_at?: string | null
+          archived_by?: string | null
           borrower_address?: string | null
           borrower_disbursement_receipt_policy?: string
           borrower_id?: string | null
