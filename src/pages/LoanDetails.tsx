@@ -253,10 +253,11 @@ const LoanDetails = () => {
   const isLender = user?.id === loan.lender_id;
   const isBorrower = user?.id === loan.borrower_id;
   const isUnepFlow = loan.signature_scheme_requested === 'UNEP_WITH_APPENDIX_6';
+  const isSelfLoan = !!loan.borrower_id && loan.lender_id === loan.borrower_id;
   const baseCanSign = (isLender && !lenderSig) || (isBorrower && !borrowerSig);
   const unepReady = !isUnepFlow || (edoAcceptedByUser && edoAcceptedByCounterparty);
-  const canSign = baseCanSign && unepReady;
-  const canSend = isLender && !loan.borrower_id;
+  const canSign = baseCanSign && unepReady && !isSelfLoan;
+  const canSend = isLender && !loan.borrower_id && !isSelfLoan;
   const hasSchedule = ['installments_fixed', 'installments_variable'].includes(loan.repayment_schedule_type);
 
   const confirmedTranches = tranches.filter(t => t.status === 'confirmed');
