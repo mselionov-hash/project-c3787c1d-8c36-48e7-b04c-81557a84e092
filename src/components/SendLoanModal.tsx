@@ -3,8 +3,10 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { supabase } from '@/integrations/supabase/client';
+import { useAuth } from '@/hooks/useAuth';
 import { toast } from 'sonner';
 import { Send, X, Loader2, UserCheck, Search } from 'lucide-react';
+import { validateEmail, validateNotSelfLoan } from '@/lib/validation';
 
 interface SendLoanModalProps {
   loanId: string;
@@ -14,27 +16,36 @@ interface SendLoanModalProps {
 }
 
 const SendLoanModal = ({ loanId, borrowerName, onClose, onSuccess }: SendLoanModalProps) => {
+  const { user } = useAuth();
   const [email, setEmail] = useState('');
   const [searching, setSearching] = useState(false);
   const [sending, setSending] = useState(false);
   const [foundUser, setFoundUser] = useState<{ user_id: string; full_name: string } | null>(null);
 
   const handleSearch = async () => {
-    if (!email.trim()) {
-      toast.error('Введите email');
+    const emailCheck = validateEmail(email);
+    if (!emailCheck.valid) {
+      toast.error(emailCheck.error!);
       return;
     }
+    const selfEmail = validateNotSelfLoan({
+      currentUserEmail: user?.email, counterpartyEmail: emailCheck.normalizedValue,
+    });
+    if (!selfEmail.valid) { toast.error(selfEmail.error!); return; }
+
     setSearching(true);
     setFoundUser(null);
 
     try {
       const { data, error } = await supabase.rpc('find_user_by_email', {
-        lookup_email: email.trim(),
+        lookup_email: emailCheck.normalizedValue!,
       });
 
       if (error) throw error;
 
       if (data && data.length > 0) {
+        const selfId = validateNotSelfLoan({ currentUserId: user?.id, counterpartyUserId: data[0].user_id });
+        if (!selfId.valid) { toast.error(selfId.error!); return; }
         setFoundUser(data[0]);
       } else {
         toast.error('Пользователь с таким email не найден в системе');
