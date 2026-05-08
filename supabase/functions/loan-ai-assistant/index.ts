@@ -649,7 +649,12 @@ Deno.serve(async (req) => {
       summary: latestAi.ai_summary ?? "",
     } : null,
     documents: docAvailability,
-    next_action_hint: next.hint,
+    next_action_hint: nextHint,
+    operational_state: {
+      status_label: opState.statusLabel,
+      next_action: opState.nextAction,
+      available_actions: opState.availableActions,
+    },
     assistant_mode: assistantMode,
     intent: intent,
   };
