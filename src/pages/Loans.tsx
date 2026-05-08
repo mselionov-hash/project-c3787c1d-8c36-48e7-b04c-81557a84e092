@@ -7,8 +7,11 @@ import { LoanCard } from '@/components/LoanCard';
 import { Button } from '@/components/ui/button';
 import { Plus, Wallet, ArrowUpRight, ArrowDownLeft } from 'lucide-react';
 import type { Tables } from '@/integrations/supabase/types';
+import { isLoanOverdue, overdueDays } from '@/lib/loan-status';
 
 type Loan = Tables<'loans'>;
+type Tranche = Tables<'loan_tranches'>;
+type Payment = Tables<'loan_payments'>;
 
 const Loans = () => {
   const navigate = useNavigate();
