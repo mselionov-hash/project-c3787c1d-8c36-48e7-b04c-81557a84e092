@@ -100,9 +100,19 @@ const Loans = () => {
           </div>
         ) : (
           <div className="space-y-2">
-            {currentList.map(loan => (
-              <LoanCard key={loan.id} loan={loan} type={tab} />
-            ))}
+            {currentList.map(loan => {
+              const ts = tranchesByLoan[loan.id] || [];
+              const ps = paymentsByLoan[loan.id] || [];
+              const od = isLoanOverdue(loan, ts, ps);
+              return (
+                <LoanCard
+                  key={loan.id}
+                  loan={loan}
+                  type={tab}
+                  overdue={od ? { isOverdue: true, daysOverdue: overdueDays(loan.repayment_date) } : undefined}
+                />
+              );
+            })}
           </div>
         )}
       </div>
