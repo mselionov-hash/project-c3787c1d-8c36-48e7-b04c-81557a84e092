@@ -8,17 +8,20 @@ import { Button } from '@/components/ui/button';
 import { Plus, Wallet, ArrowUpRight, ArrowDownLeft } from 'lucide-react';
 import type { Tables } from '@/integrations/supabase/types';
 import { isLoanOverdue, overdueDays } from '@/lib/loan-status';
+import { getLoanOperationalState, type BankReadiness, type OperationalState } from '@/lib/loan-next-action';
 
 type Loan = Tables<'loans'>;
 type Tranche = Tables<'loan_tranches'>;
 type Payment = Tables<'loan_payments'>;
+type Signature = Tables<'loan_signatures'>;
+type AllowedBank = Tables<'loan_allowed_bank_details'>;
 
 const Loans = () => {
   const navigate = useNavigate();
   const { user, loading } = useAuth();
   const [loans, setLoans] = useState<Loan[]>([]);
-  const [tranchesByLoan, setTranchesByLoan] = useState<Record<string, Pick<Tranche, 'amount' | 'status'>[]>>({});
-  const [paymentsByLoan, setPaymentsByLoan] = useState<Record<string, Pick<Payment, 'transfer_amount' | 'status'>[]>>({});
+  const [opStateByLoan, setOpStateByLoan] = useState<Record<string, OperationalState>>({});
+  const [overdueByLoan, setOverdueByLoan] = useState<Record<string, { isOverdue: boolean; daysOverdue: number }>>({});
   const [loadingLoans, setLoadingLoans] = useState(true);
   const [tab, setTab] = useState<'issued' | 'taken'>('issued');
 
@@ -31,22 +34,56 @@ const Loans = () => {
   }, [user]);
 
   const fetchLoans = async () => {
-    const [{ data }, tr, pr] = await Promise.all([
+    const [loansRes, tr, pr, sr, ar] = await Promise.all([
       supabase.from('loans').select('*').order('created_at', { ascending: false }),
-      supabase.from('loan_tranches').select('loan_id, amount, status'),
+      supabase.from('loan_tranches').select('loan_id, amount, status, tranche_number'),
       supabase.from('loan_payments').select('loan_id, transfer_amount, status'),
+      supabase.from('loan_signatures').select('loan_id, role'),
+      supabase.from('loan_allowed_bank_details').select('loan_id, party_role, purpose'),
     ]);
-    const tMap: Record<string, Pick<Tranche, 'amount' | 'status'>[]> = {};
+
+    const data = loansRes.data || [];
+    const tMap = new Map<string, Pick<Tranche, 'amount' | 'status' | 'tranche_number'>[]>();
     for (const t of (tr.data || [])) {
-      (tMap[t.loan_id] ||= []).push(t as any);
+      const arr = tMap.get(t.loan_id) || []; arr.push(t as any); tMap.set(t.loan_id, arr);
     }
-    const pMap: Record<string, Pick<Payment, 'transfer_amount' | 'status'>[]> = {};
+    const pMap = new Map<string, Pick<Payment, 'transfer_amount' | 'status'>[]>();
     for (const p of (pr.data || [])) {
-      (pMap[p.loan_id] ||= []).push(p as any);
+      const arr = pMap.get(p.loan_id) || []; arr.push(p as any); pMap.set(p.loan_id, arr);
     }
-    setTranchesByLoan(tMap);
-    setPaymentsByLoan(pMap);
-    setLoans(data || []);
+    const sMap = new Map<string, Pick<Signature, 'role'>[]>();
+    for (const s of (sr.data || []) as any[]) {
+      const arr = sMap.get(s.loan_id) || []; arr.push({ role: s.role }); sMap.set(s.loan_id, arr);
+    }
+    const aMap = new Map<string, Array<Pick<AllowedBank, 'party_role' | 'purpose'>>>();
+    for (const a of (ar.data || []) as any[]) {
+      const arr = aMap.get(a.loan_id) || []; arr.push({ party_role: a.party_role, purpose: a.purpose }); aMap.set(a.loan_id, arr);
+    }
+
+    const opMap: Record<string, OperationalState> = {};
+    const odMap: Record<string, { isOverdue: boolean; daysOverdue: number }> = {};
+    for (const l of data) {
+      const ts = tMap.get(l.id) || [];
+      const ps = pMap.get(l.id) || [];
+      const sigs = sMap.get(l.id) || [];
+      const allowed = aMap.get(l.id) || [];
+      const bankReadiness: BankReadiness = {
+        lenderDisbursementReady: allowed.some(a => a.party_role === 'lender' && a.purpose === 'disbursement'),
+        borrowerDisbursementReady: allowed.some(a => a.party_role === 'borrower' && a.purpose === 'disbursement'),
+        lenderRepaymentReady: allowed.some(a => a.party_role === 'lender' && a.purpose === 'repayment'),
+        borrowerRepaymentReady: allowed.some(a => a.party_role === 'borrower' && a.purpose === 'repayment'),
+      };
+      opMap[l.id] = getLoanOperationalState({
+        loan: l, userId: user!.id, tranches: ts, payments: ps,
+        bankReadiness, signatures: sigs, latestAiChecks: [],
+      });
+      const od = isLoanOverdue(l, ts, ps);
+      odMap[l.id] = { isOverdue: od, daysOverdue: od ? overdueDays(l.repayment_date) : 0 };
+    }
+
+    setLoans(data);
+    setOpStateByLoan(opMap);
+    setOverdueByLoan(odMap);
     setLoadingLoans(false);
   };
 
@@ -67,7 +104,6 @@ const Loans = () => {
           </Button>
         </div>
 
-        {/* Tabs */}
         <div className="flex gap-1 p-1 bg-secondary rounded-lg mb-6">
           <button
             onClick={() => setTab('issued')}
@@ -101,15 +137,16 @@ const Loans = () => {
         ) : (
           <div className="space-y-2">
             {currentList.map(loan => {
-              const ts = tranchesByLoan[loan.id] || [];
-              const ps = paymentsByLoan[loan.id] || [];
-              const od = isLoanOverdue(loan, ts, ps);
+              const op = opStateByLoan[loan.id];
+              const od = overdueByLoan[loan.id];
               return (
                 <LoanCard
                   key={loan.id}
                   loan={loan}
                   type={tab}
-                  overdue={od ? { isOverdue: true, daysOverdue: overdueDays(loan.repayment_date) } : undefined}
+                  overdue={od?.isOverdue ? { isOverdue: true, daysOverdue: od.daysOverdue } : undefined}
+                  unifiedNext={op ? { label: op.nextAction.label, priority: op.nextAction.priority } : undefined}
+                  statusLabelOverride={op ? { label: op.statusLabel, tone: op.tone } : undefined}
                 />
               );
             })}

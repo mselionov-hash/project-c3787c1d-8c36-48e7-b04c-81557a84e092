@@ -26,6 +26,7 @@ import {
 import type { Tables } from '@/integrations/supabase/types';
 import { formatDateSafe } from '@/lib/date-utils';
 import { isLoanOverdue, overdueDays } from '@/lib/loan-status';
+import { getLoanOperationalState, type OperationalState, type UiAction } from '@/lib/loan-next-action';
 
 type Loan = Tables<'loans'>;
 type Signature = Tables<'loan_signatures'>;
@@ -292,13 +293,78 @@ const LoanDetails = () => {
   const counterpartySideReady = isLender ? bankReadiness.borrowerSideReady : bankReadiness.lenderSideReady;
   const loanLimit = Number(loan.amount);
   const canIssueMore = totalDisbursed < loanLimit;
-  const showNextAction = isSignedPhase || (isActivePhase && (outstanding > 0 || canIssueMore));
 
   const overdueFlag = isLoanOverdue(loan, tranches, payments);
   const overdueDaysCount = overdueFlag ? overdueDays(loan.repayment_date) : 0;
+
+  // === Unified operational state (single source of truth) ===
+  const opState: OperationalState | null = (isLender || isBorrower) ? getLoanOperationalState({
+    loan,
+    userId: user!.id,
+    tranches: tranches.map(t => ({ amount: t.amount, status: t.status, tranche_number: t.tranche_number })),
+    payments: payments.map(p => ({ transfer_amount: p.transfer_amount, status: p.status })),
+    bankReadiness: {
+      lenderDisbursementReady: bankReadiness.lenderDisbursement.length > 0,
+      borrowerDisbursementReady: bankReadiness.borrowerDisbursement.length > 0,
+      lenderRepaymentReady: bankReadiness.lenderRepayment.length > 0,
+      borrowerRepaymentReady: true,
+    },
+    signatures: signatures.map(s => ({ role: s.role })),
+    latestAiChecks: [],
+    edo: isUnepFlow ? {
+      required: true,
+      acceptedByUser: edoAcceptedByUser,
+      acceptedByCounterparty: edoAcceptedByCounterparty,
+    } : undefined,
+  }) : null;
+
   const effectiveStatus = overdueFlag
     ? { label: 'Просрочен', icon: AlertTriangle, class: 'bg-destructive/15 text-destructive' }
     : status;
+
+  const handleUiAction = (action: UiAction) => {
+    switch (action) {
+      case 'open_bank_details':
+        setExpanded(prev => ({ ...prev, bank: true }));
+        setTimeout(() => document.getElementById('bank-details-section')?.scrollIntoView({ behavior: 'smooth' }), 100);
+        return;
+      case 'open_tranches':
+      case 'open_tranche_confirm_modal':
+        setExpanded(prev => ({ ...prev, tranches: true }));
+        setTimeout(() => document.getElementById('tranches-section')?.scrollIntoView({ behavior: 'smooth' }), 100);
+        return;
+      case 'open_repayments':
+      case 'open_repayment_create_modal':
+        setExpanded(prev => ({ ...prev, repayments: true }));
+        setTimeout(() => document.getElementById('repayments-section')?.scrollIntoView({ behavior: 'smooth' }), 100);
+        return;
+      case 'open_documents':
+        navigate(`/documents?loan=${loan.id}`);
+        return;
+      case 'open_tranche_create_modal':
+        if (isLender) setShowCreateTranche(true);
+        return;
+      case 'open_signature_modal':
+        if (canSign) setShowSignature(true);
+        return;
+      case 'open_send_modal':
+        if (canSend) setShowSend(true);
+        return;
+      case 'open_edo_acceptance':
+      case 'explain_ai_check':
+      case 'explain_status':
+      default:
+        return;
+    }
+  };
+
+  // Show unified next action when there's an actionable next step beyond the explicit Send/Sign CTAs already rendered above
+  const skipUnifiedFor = new Set([
+    'send_to_borrower', 'sign_contract', 'wait_lender_send', 'accept_edo',
+    'wait_edo_counterparty', 'wait_counterparty_signature', 'invalid_self_loan', 'all_good',
+  ]);
+  const showUnifiedNext = !!opState && !skipUnifiedFor.has(opState.nextAction.id);
+
 
 
   return (
@@ -402,27 +468,9 @@ const LoanDetails = () => {
           </Button>
         )}
 
-        {/* Post-sign / operational primary action */}
-        {showNextAction && (
-          <NextActionBlock
-            isLender={isLender}
-            isBorrower={isBorrower}
-            loanStatus={loan.status}
-            mySideReady={mySideReady}
-            counterpartySideReady={counterpartySideReady}
-            bankDetailsReady={bankDetailsReady}
-            outstanding={outstanding}
-            canIssueMore={canIssueMore}
-            onOpenBankDetails={() => {
-              setExpanded(prev => ({ ...prev, bank: true }));
-              setTimeout(() => document.getElementById('bank-details-section')?.scrollIntoView({ behavior: 'smooth' }), 100);
-            }}
-            onCreateTranche={() => setShowCreateTranche(true)}
-            onNavigateRepay={() => {
-              const repaymentSection = document.getElementById('repayments-section');
-              repaymentSection?.scrollIntoView({ behavior: 'smooth' });
-            }}
-          />
+        {/* Unified next-action card (driven by getLoanOperationalState) */}
+        {showUnifiedNext && opState && (
+          <UnifiedNextActionCard opState={opState} onAction={handleUiAction} />
         )}
 
         {/* Timeline */}
@@ -637,153 +685,36 @@ const Row = ({ label, value }: { label: string; value: string }) => (
   </div>
 );
 
-const NextActionBlock = ({ isLender, isBorrower, loanStatus, mySideReady, counterpartySideReady, bankDetailsReady, outstanding, canIssueMore, onOpenBankDetails, onCreateTranche, onNavigateRepay }: {
-  isLender: boolean;
-  isBorrower: boolean;
-  loanStatus: string;
-  mySideReady: boolean;
-  counterpartySideReady: boolean;
-  bankDetailsReady: boolean;
-  outstanding: number;
-  canIssueMore: boolean;
-  onOpenBankDetails: () => void;
-  onCreateTranche: () => void;
-  onNavigateRepay: () => void;
-}) => {
-  const isSignedPhase = ['fully_signed', 'signed_no_debt'].includes(loanStatus);
-  const isActive = loanStatus === 'active';
+const PRIORITY_STYLES: Record<string, { wrap: string; icon: React.ElementType; iconClass: string; btn: string }> = {
+  primary: { wrap: 'border-2 border-primary/30 bg-primary/5', icon: Banknote, iconClass: 'text-primary', btn: 'bg-primary text-primary-foreground hover:bg-primary/90' },
+  blocked: { wrap: 'border-2 border-destructive/40 bg-destructive/10', icon: AlertTriangle, iconClass: 'text-destructive', btn: 'bg-destructive text-destructive-foreground hover:bg-destructive/90' },
+  secondary: { wrap: 'border border-border/60 bg-secondary/40', icon: FileText, iconClass: 'text-foreground', btn: 'bg-secondary text-foreground hover:bg-secondary/80' },
+  info: { wrap: 'border border-border/50 bg-muted/30', icon: Clock, iconClass: 'text-muted-foreground', btn: 'bg-muted text-foreground hover:bg-muted/80' },
+};
 
-  // --- Lender ---
-  if (isLender) {
-    if (isSignedPhase && !mySideReady) {
-      return (
-        <div className="rounded-xl border-2 border-warning/30 bg-warning/5 p-4 space-y-2">
-          <div className="flex items-center gap-2">
-            <CreditCard className="w-5 h-5 text-warning" />
-            <p className="text-sm font-semibold">Выберите реквизиты для выдачи</p>
-          </div>
-          <p className="text-xs text-muted-foreground">
-            Договор подписан. Выберите свои реквизиты для перечисления и для получения возврата.
-          </p>
-          <Button size="sm" className="rounded-lg text-xs gap-1.5 mt-1 bg-warning text-warning-foreground hover:bg-warning/90" onClick={onOpenBankDetails}>
-            <CreditCard className="w-3.5 h-3.5" />
-            Выбрать реквизиты для выдачи
-          </Button>
-        </div>
-      );
-    }
-
-    if (isSignedPhase && mySideReady && !counterpartySideReady) {
-      return (
-        <div className="rounded-xl border border-border/50 bg-muted/30 p-4 space-y-2">
-          <div className="flex items-center gap-2">
-            <Clock className="w-5 h-5 text-muted-foreground" />
-            <p className="text-sm font-semibold text-muted-foreground">Ожидаем выбор реквизитов заёмщиком</p>
-          </div>
-          <p className="text-xs text-muted-foreground">
-            Ваши реквизиты выбраны. Дождитесь, пока заёмщик укажет свои реквизиты для получения средств.
-          </p>
-        </div>
-      );
-    }
-
-    if ((isSignedPhase || isActive) && canIssueMore && bankDetailsReady) {
-      return (
-        <div className="rounded-xl border-2 border-primary/30 bg-primary/5 p-4 space-y-2">
-          <div className="flex items-center gap-2">
-            <Banknote className="w-5 h-5 text-primary" />
-            <p className="text-sm font-semibold">Сделать транш</p>
-          </div>
-          <p className="text-xs text-muted-foreground">
-            Реквизиты выбраны. Создайте транш и переведите средства заёмщику.
-          </p>
-          <div className="flex gap-2 pt-1">
-            <Button size="sm" className="rounded-lg text-xs gap-1.5 bg-primary text-primary-foreground hover:bg-primary/90" onClick={onCreateTranche}>
-              <Banknote className="w-3.5 h-3.5" />
-              Выдать транш
-            </Button>
-            <Button size="sm" variant="outline" className="rounded-lg text-xs gap-1" onClick={onOpenBankDetails}>
-              <CreditCard className="w-3.5 h-3.5" />
-              Реквизиты
-            </Button>
-          </div>
-        </div>
-      );
-    }
-
-    if ((isSignedPhase || isActive) && canIssueMore && !bankDetailsReady) {
-      return (
-        <div className="rounded-xl border border-border/50 bg-muted/30 p-4 space-y-2">
-          <div className="flex items-center gap-2">
-            <Clock className="w-5 h-5 text-muted-foreground" />
-            <p className="text-sm font-semibold text-muted-foreground">Реквизиты не готовы</p>
-          </div>
-          <p className="text-xs text-muted-foreground">
-            Для выдачи транша необходимо, чтобы обе стороны выбрали реквизиты.
-          </p>
-        </div>
-      );
-    }
-
-    return null;
-  }
-
-  // --- Borrower ---
-  if (isBorrower) {
-    if (isSignedPhase && !mySideReady) {
-      return (
-        <div className="rounded-xl border-2 border-warning/30 bg-warning/5 p-4 space-y-2">
-          <div className="flex items-center gap-2">
-            <CreditCard className="w-5 h-5 text-warning" />
-            <p className="text-sm font-semibold">Выберите реквизиты для получения</p>
-          </div>
-          <p className="text-xs text-muted-foreground">
-            Договор подписан. Укажите реквизиты, на которые займодавец перечислит средства.
-          </p>
-          <Button size="sm" className="rounded-lg text-xs gap-1.5 mt-1 bg-warning text-warning-foreground hover:bg-warning/90" onClick={onOpenBankDetails}>
-            <CreditCard className="w-3.5 h-3.5" />
-            Выбрать реквизиты для получения и возврата
-          </Button>
-        </div>
-      );
-    }
-
-    if (isSignedPhase && mySideReady && !counterpartySideReady) {
-      return (
-        <div className="rounded-xl border border-border/50 bg-muted/30 p-4 space-y-2">
-          <div className="flex items-center gap-2">
-            <Clock className="w-5 h-5 text-muted-foreground" />
-            <p className="text-sm font-semibold text-muted-foreground">Ожидаем выбор реквизитов займодавцем</p>
-          </div>
-          <p className="text-xs text-muted-foreground">
-            Ваши реквизиты выбраны. Дождитесь, пока займодавец укажет свои реквизиты.
-          </p>
-        </div>
-      );
-    }
-
-    if (isActive && outstanding > 0) {
-      return (
-        <div className="rounded-xl border-2 border-primary/30 bg-primary/5 p-4 space-y-2">
-          <div className="flex items-center gap-2">
-            <CheckCircle2 className="w-5 h-5 text-primary" />
-            <p className="text-sm font-semibold">Погасить задолженность</p>
-          </div>
-          <p className="text-xs text-muted-foreground">
-            Текущий остаток долга: {outstanding.toLocaleString('ru-RU')} ₽. Внесите платёж для погашения.
-          </p>
-          <Button size="sm" className="rounded-lg text-xs gap-1.5 mt-1 bg-primary text-primary-foreground hover:bg-primary/90" onClick={onNavigateRepay}>
-            <CheckCircle2 className="w-3.5 h-3.5" />
-            Погасить
-          </Button>
-        </div>
-      );
-    }
-
-    return null;
-  }
-
-  return null;
+const UnifiedNextActionCard = ({ opState, onAction }: { opState: OperationalState; onAction: (a: UiAction) => void }) => {
+  const next = opState.nextAction;
+  const style = PRIORITY_STYLES[next.priority] || PRIORITY_STYLES.info;
+  const Icon = style.icon;
+  const showButton = !!next.uiAction && next.priority !== 'info';
+  return (
+    <div className={`rounded-xl ${style.wrap} p-4 space-y-2`}>
+      <div className="flex items-center gap-2">
+        <Icon className={`w-5 h-5 ${style.iconClass}`} />
+        <p className="text-sm font-semibold">{next.label}</p>
+      </div>
+      <p className="text-xs text-muted-foreground">{next.description}</p>
+      {showButton && (
+        <Button
+          size="sm"
+          className={`rounded-lg text-xs gap-1.5 mt-1 ${style.btn}`}
+          onClick={() => onAction(next.uiAction)}
+        >
+          {next.label}
+        </Button>
+      )}
+    </div>
+  );
 };
 
 export default LoanDetails;
