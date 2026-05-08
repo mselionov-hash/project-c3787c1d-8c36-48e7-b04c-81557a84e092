@@ -209,7 +209,19 @@ const LoanDetails = () => {
 
   const handleSign = async (signatureDataUrl: string) => {
     if (!user || !loan) return;
+    if (loan.borrower_id && loan.lender_id === loan.borrower_id) {
+      toast.error('Нельзя подписать договор: займодавец и заёмщик совпадают.');
+      return;
+    }
     const role = loan.lender_id === user.id ? 'lender' : 'borrower';
+    if (role === 'lender' && user.id !== loan.lender_id) {
+      toast.error('Подписывать как займодавец может только сам займодавец.');
+      return;
+    }
+    if (role === 'borrower' && user.id !== loan.borrower_id) {
+      toast.error('Подписывать как заёмщик может только указанный заёмщик.');
+      return;
+    }
     try {
       let ip = '';
       try { const res = await fetch('https://api.ipify.org?format=json'); ip = (await res.json()).ip; } catch {}
