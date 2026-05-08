@@ -509,6 +509,24 @@ Deno.serve(async (req) => {
 
   const publicContextSummary = `${youAre} ${statusHuman} ${moneyLine}${aiLine}${reqLine}`.trim();
 
+  const confirmedTrancheCount = (tranches ?? []).filter((t) => t.status === "confirmed").length;
+  const confirmedRepaymentCount = (payments ?? []).filter((p) => p.status === "confirmed").length;
+  const docAvailability = computeDocumentAvailability({
+    isFullySigned,
+    trancheReady,
+    hasConfirmedTranche,
+    confirmedTrancheCount,
+    hasSchedule: (schedule ?? []).length > 0,
+    confirmedRepaymentCount,
+    totalDisbursed,
+    totalRepaid,
+    loanAmount: Number(loan.amount),
+    loanStatus: loan.status,
+    signatureScheme: loan.signature_scheme_requested,
+    hasEdoRegulation: (edoReg ?? []).length > 0,
+    generatedDocs: (docs ?? []).map((d) => d.document_type),
+  });
+
   const context = {
     public_context_summary: publicContextSummary,
     contract_number: loan.contract_number,
