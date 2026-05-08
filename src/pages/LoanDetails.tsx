@@ -222,6 +222,23 @@ const LoanDetails = () => {
       toast.error('Подписывать как заёмщик может только указанный заёмщик.');
       return;
     }
+    const required: Array<[string, unknown]> = [
+      ['ФИО', profile?.full_name],
+      ['дата рождения', profile?.date_of_birth],
+      ['серия паспорта', profile?.passport_series],
+      ['номер паспорта', profile?.passport_number],
+      ['дата выдачи паспорта', profile?.passport_issue_date],
+      ['кем выдан паспорт', profile?.passport_issued_by],
+      ['код подразделения', profile?.passport_division_code],
+      ['адрес регистрации', profile?.address],
+      ['телефон', profile?.phone],
+    ];
+    const missing = required.filter(([, v]) => !v || String(v).trim() === '').map(([n]) => n);
+    if (missing.length > 0) {
+      toast.error(`Заполните профиль перед подписанием: ${missing.join(', ')}`);
+      navigate('/profile');
+      return;
+    }
     try {
       let ip = '';
       try { const res = await fetch('https://api.ipify.org?format=json'); ip = (await res.json()).ip; } catch {}
