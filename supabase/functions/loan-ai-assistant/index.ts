@@ -272,13 +272,17 @@ Deno.serve(async (req) => {
   try { body = await req.json(); } catch { return json(400, { ok: false, error: "Невалидный JSON" }); }
 
   const loanId = typeof body?.loan_id === "string" ? body.loan_id : null;
-  const userMessage = typeof body?.message === "string" ? body.message.trim().slice(0, 2000) : "";
-  if (!loanId || !userMessage) return json(400, { ok: false, error: "Требуются loan_id и message" });
+  const rawMessage = typeof body?.message === "string" ? body.message.trim().slice(0, 2000) : "";
+  if (!loanId || !rawMessage) return json(400, { ok: false, error: "Требуются loan_id и message" });
 
-  // Detect intent markers from follow-up buttons
-  const intentMatch = userMessage.match(/^INTENT:\s*(explain_ai_check|explain_status)\b/i);
-  const assistantMode = intentMatch ? "deeper_explanation" : "normal";
-  const intent = intentMatch ? intentMatch[1].toLowerCase() : null;
+  // Intent: prefer explicit body.intent; fall back to legacy "INTENT:" prefix for backward compatibility.
+  const ALLOWED_INTENTS = new Set(["explain_ai_check", "explain_status"]);
+  const explicitIntent = typeof body?.intent === "string" && ALLOWED_INTENTS.has(body.intent) ? body.intent : null;
+  const legacyMatch = rawMessage.match(/^INTENT:\s*(explain_ai_check|explain_status)\b[.,\s-]*/i);
+  const intent: string | null = explicitIntent ?? (legacyMatch ? legacyMatch[1].toLowerCase() : null);
+  // Strip any legacy INTENT prefix from the user-visible/logged message.
+  const userMessage = legacyMatch ? rawMessage.slice(legacyMatch[0].length).trim() || rawMessage : rawMessage;
+  const assistantMode = intent ? "deeper_explanation" : "normal";
 
   const admin = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
 
@@ -474,7 +478,7 @@ ${userMessage}`;
     await admin.from("ai_interactions").insert({
       user_id: userId,
       endpoint: "/loan-ai-assistant",
-      request_message: `[loan:${loanId}] ${userMessage}`,
+      request_message: `[loan:${loanId}]${intent ? `[intent:${intent}]` : ""} ${userMessage}`,
       response_text: answer ?? rawText,
       http_status: httpStatus || null,
       error: errorText,
