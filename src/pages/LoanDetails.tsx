@@ -293,13 +293,78 @@ const LoanDetails = () => {
   const counterpartySideReady = isLender ? bankReadiness.borrowerSideReady : bankReadiness.lenderSideReady;
   const loanLimit = Number(loan.amount);
   const canIssueMore = totalDisbursed < loanLimit;
-  const showNextAction = isSignedPhase || (isActivePhase && (outstanding > 0 || canIssueMore));
 
   const overdueFlag = isLoanOverdue(loan, tranches, payments);
   const overdueDaysCount = overdueFlag ? overdueDays(loan.repayment_date) : 0;
+
+  // === Unified operational state (single source of truth) ===
+  const opState: OperationalState | null = (isLender || isBorrower) ? getLoanOperationalState({
+    loan,
+    userId: user!.id,
+    tranches: tranches.map(t => ({ amount: t.amount, status: t.status, tranche_number: t.tranche_number })),
+    payments: payments.map(p => ({ transfer_amount: p.transfer_amount, status: p.status })),
+    bankReadiness: {
+      lenderDisbursementReady: bankReadiness.lenderDisbursement.length > 0,
+      borrowerDisbursementReady: bankReadiness.borrowerDisbursement.length > 0,
+      lenderRepaymentReady: bankReadiness.lenderRepayment.length > 0,
+      borrowerRepaymentReady: true,
+    },
+    signatures: signatures.map(s => ({ role: s.role })),
+    latestAiChecks: [],
+    edo: isUnepFlow ? {
+      required: true,
+      acceptedByUser: edoAcceptedByUser,
+      acceptedByCounterparty: edoAcceptedByCounterparty,
+    } : undefined,
+  }) : null;
+
   const effectiveStatus = overdueFlag
     ? { label: 'Просрочен', icon: AlertTriangle, class: 'bg-destructive/15 text-destructive' }
     : status;
+
+  const handleUiAction = (action: UiAction) => {
+    switch (action) {
+      case 'open_bank_details':
+        setExpanded(prev => ({ ...prev, bank: true }));
+        setTimeout(() => document.getElementById('bank-details-section')?.scrollIntoView({ behavior: 'smooth' }), 100);
+        return;
+      case 'open_tranches':
+      case 'open_tranche_confirm_modal':
+        setExpanded(prev => ({ ...prev, tranches: true }));
+        setTimeout(() => document.getElementById('tranches-section')?.scrollIntoView({ behavior: 'smooth' }), 100);
+        return;
+      case 'open_repayments':
+      case 'open_repayment_create_modal':
+        setExpanded(prev => ({ ...prev, repayments: true }));
+        setTimeout(() => document.getElementById('repayments-section')?.scrollIntoView({ behavior: 'smooth' }), 100);
+        return;
+      case 'open_documents':
+        navigate(`/documents?loan=${loan.id}`);
+        return;
+      case 'open_tranche_create_modal':
+        if (isLender) setShowCreateTranche(true);
+        return;
+      case 'open_signature_modal':
+        if (canSign) setShowSignature(true);
+        return;
+      case 'open_send_modal':
+        if (canSend) setShowSend(true);
+        return;
+      case 'open_edo_acceptance':
+      case 'explain_ai_check':
+      case 'explain_status':
+      default:
+        return;
+    }
+  };
+
+  // Show unified next action when there's an actionable next step beyond the explicit Send/Sign CTAs already rendered above
+  const skipUnifiedFor = new Set([
+    'send_to_borrower', 'sign_contract', 'wait_lender_send', 'accept_edo',
+    'wait_edo_counterparty', 'wait_counterparty_signature', 'invalid_self_loan', 'all_good',
+  ]);
+  const showUnifiedNext = !!opState && !skipUnifiedFor.has(opState.nextAction.id);
+
 
 
   return (
