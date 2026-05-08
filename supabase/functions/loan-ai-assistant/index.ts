@@ -521,7 +521,11 @@ Deno.serve(async (req) => {
   if (!counterpartyReady) reqLine += " Ждём реквизиты второй стороны.";
   else reqLine += " Реквизиты второй стороны тоже готовы.";
 
-  const publicContextSummary = `${youAre} ${statusHuman} ${moneyLine}${aiLine}${reqLine}`.trim();
+  const overdueLine = isOverdue
+    ? ` Займ просрочен на ${overdueDaysCount} ${overdueDaysCount === 1 ? "день" : "дн."}. Остаток долга — ${fmtRub(outstanding)}.`
+    : "";
+
+  const publicContextSummary = `${youAre} ${statusHuman} ${moneyLine}${overdueLine}${aiLine}${reqLine}`.trim();
 
   const confirmedTrancheCount = (tranches ?? []).filter((t) => t.status === "confirmed").length;
   const confirmedRepaymentCount = (payments ?? []).filter((p) => p.status === "confirmed").length;
