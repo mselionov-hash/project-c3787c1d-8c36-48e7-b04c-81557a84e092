@@ -154,20 +154,22 @@ export const BankDetailsManager = () => {
       }
 
       const bankPreset = BANK_PRESETS.find(b => b.id === selectedBank);
-      const detectedBank = hasLink ? detectBank(transferLink.trim()) : null;
+      const detectedBank = normalizedLink ? detectBank(normalizedLink) : null;
       const bankName = detectedBank || bankPreset?.label || 'Другой банк';
+      const bankNameCheck = validateBankName(bankName);
+      if (!bankNameCheck.valid) { toast.error(bankNameCheck.error!); return; }
       const isFirst = details.length === 0;
 
       const { error } = await supabase.from('bank_details').insert({
         user_id: user.id,
-        label: bankName,
-        bank_name: bankName,
+        label: bankNameCheck.normalizedValue!,
+        bank_name: bankNameCheck.normalizedValue!,
         detail_type: 'general',
-        transfer_link: hasLink ? transferLink.trim() : null,
+        transfer_link: normalizedLink,
         qr_image_url: qrImageUrl,
         recipient_display_name: recipientName.trim() || null,
-        card_number: hasCard ? cardNumber.trim() : null,
-        phone: phone.trim() || null,
+        card_number: normalizedCard,
+        phone: normalizedPhone,
         is_default: isFirst,
       });
       if (error) throw error;
