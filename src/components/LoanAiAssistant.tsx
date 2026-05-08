@@ -112,14 +112,27 @@ export function LoanAiAssistant({ loanId, onAction }: Props) {
     }
   };
 
+  const SECTION_ANCHORS: Record<string, string> = {
+    bank: 'bank-details-section',
+    tranches: 'tranches-section',
+    repayments: 'repayments-section',
+  };
+
   const handleAction = (action: string) => {
     const cfg = ACTION_LABELS[action];
     if (!cfg) return;
     if (cfg.kind === 'section' && cfg.payload) {
       onAction?.(cfg.payload);
       setOpen(false);
+      const anchor = SECTION_ANCHORS[cfg.payload];
+      if (anchor) setTimeout(() => document.getElementById(anchor)?.scrollIntoView({ behavior: 'smooth' }), 120);
     } else if (cfg.kind === 'navigate') {
       navigate(`/documents?loan=${loanId}`);
+      setOpen(false);
+    } else if (cfg.kind === 'modal' && cfg.payload) {
+      // Dispatch event for the relevant child component to open its modal.
+      // Final confirmation always requires explicit user click inside the modal.
+      window.dispatchEvent(new CustomEvent(cfg.payload, { detail: { loanId } }));
       setOpen(false);
     } else if (cfg.kind === 'followup' && cfg.followup) {
       ask(cfg.followup.message, { intent: cfg.followup.intent, displayText: cfg.followup.displayText });
