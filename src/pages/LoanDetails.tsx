@@ -279,6 +279,11 @@ const LoanDetails = () => {
   return (
     <AppLayout>
       <div className="max-w-3xl mx-auto px-4 sm:px-6 py-6 sm:py-8 space-y-3">
+        {isSelfLoan && (
+          <div className="rounded-lg border border-destructive/40 bg-destructive/10 px-4 py-3 text-sm text-destructive">
+            Этот займ некорректен: займодавец и заёмщик — один и тот же пользователь. Действия по договору заблокированы. Обратитесь в поддержку для очистки данных.
+          </div>
+        )}
         {/* Header */}
         <div className="flex items-center gap-3">
           <button onClick={() => navigate(-1)} className="p-2 rounded-lg hover:bg-secondary transition-colors text-muted-foreground">
