@@ -7,6 +7,7 @@ import { LoanCard } from '@/components/LoanCard';
 import { Button } from '@/components/ui/button';
 import { Plus, Send, CheckCircle2, Clock, Wallet, AlertTriangle, CreditCard, Banknote } from 'lucide-react';
 import type { Tables } from '@/integrations/supabase/types';
+import { calculateLoanTotals, isLoanOverdue, overdueDays } from '@/lib/loan-status';
 
 type Loan = Tables<'loans'>;
 type Tranche = Tables<'loan_tranches'>;
@@ -15,6 +16,9 @@ type Payment = Tables<'loan_payments'>;
 interface LoanWithPending extends Loan {
   hasPendingTranches?: boolean;
   hasPendingPayments?: boolean;
+  isOverdue?: boolean;
+  daysOverdue?: number;
+  outstanding?: number;
 }
 
 const Dashboard = () => {
@@ -34,19 +38,44 @@ const Dashboard = () => {
   const fetchLoans = async () => {
     const [loansRes, tranchesRes, paymentsRes] = await Promise.all([
       supabase.from('loans').select('*').order('updated_at', { ascending: false }),
-      supabase.from('loan_tranches').select('loan_id, status').in('status', ['sent', 'planned']),
-      supabase.from('loan_payments').select('loan_id, status').eq('status', 'pending'),
+      supabase.from('loan_tranches').select('loan_id, amount, status'),
+      supabase.from('loan_payments').select('loan_id, transfer_amount, status'),
     ]);
 
     const rawLoans = loansRes.data || [];
-    const pendingTrancheLoans = new Set((tranchesRes.data || []).filter(t => t.status === 'sent').map(t => t.loan_id));
-    const pendingPaymentLoans = new Set((paymentsRes.data || []).map(p => p.loan_id));
+    const allTranches = tranchesRes.data || [];
+    const allPayments = paymentsRes.data || [];
 
-    const enriched: LoanWithPending[] = rawLoans.map(l => ({
-      ...l,
-      hasPendingTranches: pendingTrancheLoans.has(l.id),
-      hasPendingPayments: pendingPaymentLoans.has(l.id),
-    }));
+    const tranchesByLoan = new Map<string, Pick<Tranche, 'amount' | 'status'>[]>();
+    for (const t of allTranches) {
+      const arr = tranchesByLoan.get(t.loan_id) || [];
+      arr.push(t as any);
+      tranchesByLoan.set(t.loan_id, arr);
+    }
+    const paymentsByLoan = new Map<string, Pick<Payment, 'transfer_amount' | 'status'>[]>();
+    for (const p of allPayments) {
+      const arr = paymentsByLoan.get(p.loan_id) || [];
+      arr.push(p as any);
+      paymentsByLoan.set(p.loan_id, arr);
+    }
+
+    const pendingTrancheLoans = new Set(allTranches.filter(t => t.status === 'sent').map(t => t.loan_id));
+    const pendingPaymentLoans = new Set(allPayments.filter(p => p.status === 'pending').map(p => p.loan_id));
+
+    const enriched: LoanWithPending[] = rawLoans.map(l => {
+      const ts = tranchesByLoan.get(l.id) || [];
+      const ps = paymentsByLoan.get(l.id) || [];
+      const overdueFlag = isLoanOverdue(l, ts, ps);
+      const totals = calculateLoanTotals(ts, ps);
+      return {
+        ...l,
+        hasPendingTranches: pendingTrancheLoans.has(l.id),
+        hasPendingPayments: pendingPaymentLoans.has(l.id),
+        isOverdue: overdueFlag,
+        daysOverdue: overdueFlag ? overdueDays(l.repayment_date) : 0,
+        outstanding: totals.outstanding,
+      };
+    });
 
     setLoans(enriched);
     setLoadingLoans(false);
@@ -60,10 +89,8 @@ const Dashboard = () => {
   const isLender = (l: Loan) => l.lender_id === user.id;
   const isBorrower = (l: Loan) => l.borrower_id === user.id;
 
-  // Overdue
-  const overdue = loans.filter(l =>
-    l.status === 'active' && new Date(l.repayment_date).getTime() < Date.now()
-  );
+  // Overdue (computed)
+  const overdue = loans.filter(l => l.isOverdue);
 
   // Awaiting signature
   const awaitingSignature = loans.filter(l => {
