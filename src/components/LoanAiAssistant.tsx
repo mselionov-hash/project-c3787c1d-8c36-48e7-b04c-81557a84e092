@@ -8,12 +8,16 @@ import { supabase } from '@/integrations/supabase/client';
 
 type Msg = { role: 'user' | 'assistant'; content: string; actions?: string[]; error?: boolean };
 
-const QUICK_PROMPTS = [
-  'Что мне делать дальше?',
-  'Почему действие заблокировано?',
-  'Какие документы доступны?',
-  'Проверить статус займа',
-  'Почему чек не прошёл?',
+const QUICK_PROMPTS: Array<{ label: string; intent?: string; message?: string }> = [
+  { label: 'Что мне делать дальше?' },
+  { label: 'Почему действие заблокировано?' },
+  {
+    label: 'Какие документы доступны?',
+    intent: 'explain_documents',
+    message: 'Какие документы по этому займу уже сформированы, какие можно сформировать сейчас, и какие появятся позже?',
+  },
+  { label: 'Проверить статус займа' },
+  { label: 'Почему чек не прошёл?' },
 ];
 
 type ActionKind = 'section' | 'navigate' | 'followup';
@@ -133,11 +137,11 @@ export function LoanAiAssistant({ loanId, onAction }: Props) {
                 <div className="flex flex-wrap gap-1.5">
                   {QUICK_PROMPTS.map((q) => (
                     <button
-                      key={q}
-                      onClick={() => ask(q)}
+                      key={q.label}
+                      onClick={() => ask(q.message ?? q.label, q.intent ? { intent: q.intent, displayText: q.label } : undefined)}
                       className="text-[11px] px-2.5 py-1.5 rounded-md border border-border/60 hover:bg-secondary transition-colors text-left"
                     >
-                      {q}
+                      {q.label}
                     </button>
                   ))}
                 </div>

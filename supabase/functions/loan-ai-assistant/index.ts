@@ -48,6 +48,138 @@ function purposeLabel(p: string): string {
   return p === "disbursement" ? "выдача денег" : p === "repayment" ? "возврат денег" : p;
 }
 
+const DOC_LABELS: Record<string, string> = {
+  loan_contract: "Договор займа",
+  appendix_bank_details: "Приложение 1: реквизиты сторон",
+  appendix_repayment_schedule: "Приложение 2: график платежей",
+  tranche_receipt: "Расписка о получении транша",
+  partial_repayment_confirmation: "Подтверждение частичного погашения",
+  full_repayment_confirmation: "Подтверждение полного погашения",
+  unep_agreement: "Приложение 6: соглашение об УНЭП",
+  edo_regulation: "Регламент ЭДО",
+};
+function docLabel(t: string): string { return DOC_LABELS[t] ?? t; }
+
+type DocItem = { type: string; label: string; reason?: string; count?: number };
+type DocAvailability = {
+  generated: DocItem[];
+  available_now: DocItem[];
+  not_available_yet: DocItem[];
+  documents_summary_human: string;
+};
+
+function computeDocumentAvailability(p: {
+  isFullySigned: boolean;
+  trancheReady: boolean;
+  hasConfirmedTranche: boolean;
+  confirmedTrancheCount: number;
+  hasSchedule: boolean;
+  confirmedRepaymentCount: number;
+  totalDisbursed: number;
+  totalRepaid: number;
+  loanAmount: number;
+  loanStatus: string;
+  signatureScheme: string;
+  hasEdoRegulation: boolean;
+  generatedDocs: string[];
+}): DocAvailability {
+  const generatedSet = new Map<string, number>();
+  for (const d of p.generatedDocs) generatedSet.set(d, (generatedSet.get(d) ?? 0) + 1);
+
+  const generated: DocItem[] = [];
+  const available_now: DocItem[] = [];
+  const not_available_yet: DocItem[] = [];
+
+  const pushGen = (type: string) => {
+    if (generatedSet.has(type)) generated.push({ type, label: docLabel(type), count: generatedSet.get(type)! });
+  };
+
+  // 1. Loan contract
+  pushGen("loan_contract");
+  if (p.isFullySigned) {
+    if (!generatedSet.has("loan_contract")) available_now.push({ type: "loan_contract", label: docLabel("loan_contract"), reason: "Договор подписан обеими сторонами." });
+  } else {
+    not_available_yet.push({ type: "loan_contract", label: docLabel("loan_contract"), reason: "Сначала договор должны подписать обе стороны." });
+  }
+
+  // 2. APP1 bank details
+  pushGen("appendix_bank_details");
+  if (p.isFullySigned && p.trancheReady) {
+    if (!generatedSet.has("appendix_bank_details")) available_now.push({ type: "appendix_bank_details", label: docLabel("appendix_bank_details"), reason: "Реквизиты сторон выбраны." });
+  } else {
+    not_available_yet.push({ type: "appendix_bank_details", label: docLabel("appendix_bank_details"), reason: "Сначала стороны должны выбрать реквизиты." });
+  }
+
+  // 3. APP2 schedule
+  pushGen("appendix_repayment_schedule");
+  if (p.hasSchedule) {
+    if (!generatedSet.has("appendix_repayment_schedule")) available_now.push({ type: "appendix_repayment_schedule", label: docLabel("appendix_repayment_schedule"), reason: "График платежей сформирован." });
+  } else {
+    not_available_yet.push({ type: "appendix_repayment_schedule", label: docLabel("appendix_repayment_schedule"), reason: "График не предусмотрен или ещё не сформирован." });
+  }
+
+  // 4. APP3 tranche receipt
+  pushGen("tranche_receipt");
+  if (p.confirmedTrancheCount > 0) {
+    available_now.push({ type: "tranche_receipt", label: docLabel("tranche_receipt"), reason: `По подтверждённым траншам: ${p.confirmedTrancheCount}.` });
+  } else {
+    not_available_yet.push({ type: "tranche_receipt", label: docLabel("tranche_receipt"), reason: "Появится после подтверждения транша." });
+  }
+
+  // 5. APP4 partial repayment
+  pushGen("partial_repayment_confirmation");
+  const fullyClosed = p.totalDisbursed > 0 && p.totalRepaid >= p.totalDisbursed;
+  if (p.confirmedRepaymentCount > 0 && !fullyClosed) {
+    available_now.push({ type: "partial_repayment_confirmation", label: docLabel("partial_repayment_confirmation"), reason: `По подтверждённым погашениям: ${p.confirmedRepaymentCount}.` });
+  } else if (p.confirmedRepaymentCount === 0) {
+    not_available_yet.push({ type: "partial_repayment_confirmation", label: docLabel("partial_repayment_confirmation"), reason: "Появится после подтверждения погашения." });
+  }
+
+  // 6. APP5 full repayment
+  pushGen("full_repayment_confirmation");
+  const canFull = p.totalDisbursed >= p.loanAmount && p.totalRepaid >= p.totalDisbursed && p.totalDisbursed > 0;
+  if (canFull) {
+    if (!generatedSet.has("full_repayment_confirmation")) available_now.push({ type: "full_repayment_confirmation", label: docLabel("full_repayment_confirmation"), reason: "Займ полностью погашен." });
+  } else {
+    not_available_yet.push({ type: "full_repayment_confirmation", label: docLabel("full_repayment_confirmation"), reason: "Появится после полного погашения займа." });
+  }
+
+  // 7. APP6 UNEP
+  pushGen("unep_agreement");
+  if (p.signatureScheme === "UNEP_WITH_APPENDIX_6") {
+    if (!generatedSet.has("unep_agreement")) available_now.push({ type: "unep_agreement", label: docLabel("unep_agreement"), reason: "Выбрана схема подписания УНЭП." });
+  } else {
+    not_available_yet.push({ type: "unep_agreement", label: docLabel("unep_agreement"), reason: "Не требуется для этого займа." });
+  }
+
+  // 8. EDO regulation
+  if (p.hasEdoRegulation) {
+    available_now.push({ type: "edo_regulation", label: docLabel("edo_regulation"), reason: "Действующая редакция регламента опубликована." });
+  } else {
+    not_available_yet.push({ type: "edo_regulation", label: docLabel("edo_regulation"), reason: "Регламент ЭДО ещё не опубликован." });
+  }
+
+  let summary = "";
+  const genLabels = generated.map((g) => g.label);
+  const availLabels = available_now.map((g) => g.label);
+  if (genLabels.length === 0 && availLabels.length === 0) {
+    const blockers = not_available_yet.slice(0, 2).map((d) => `${d.label} — ${d.reason}`).join("; ");
+    summary = `Пока документы недоступны. ${blockers}`;
+  } else {
+    const parts: string[] = [];
+    if (genLabels.length > 0) parts.push(`Уже сформированы: ${genLabels.join(", ")}.`);
+    if (availLabels.length > 0) parts.push(`Сейчас можно сформировать: ${availLabels.join(", ")}.`);
+    const futureBlockers = not_available_yet
+      .filter((d) => d.type === "tranche_receipt" || d.type === "partial_repayment_confirmation" || d.type === "full_repayment_confirmation")
+      .slice(0, 2)
+      .map((d) => `${d.label.toLowerCase()} — ${d.reason.toLowerCase()}`);
+    if (futureBlockers.length > 0) parts.push(`Пока недоступно: ${futureBlockers.join("; ")}`);
+    summary = parts.join(" ");
+  }
+
+  return { generated, available_now, not_available_yet, documents_summary_human: summary };
+}
+
 const SYSTEM_PROMPT = `Ты AI-помощник сервиса ГдеДеньги. Сервис помогает физическим лицам в РФ оформлять и сопровождать частные займы между собой (P2P, только банковские переводы).
 
 ТВОЯ РОЛЬ:
@@ -276,9 +408,9 @@ Deno.serve(async (req) => {
   if (!loanId || !rawMessage) return json(400, { ok: false, error: "Требуются loan_id и message" });
 
   // Intent: prefer explicit body.intent; fall back to legacy "INTENT:" prefix for backward compatibility.
-  const ALLOWED_INTENTS = new Set(["explain_ai_check", "explain_status"]);
+  const ALLOWED_INTENTS = new Set(["explain_ai_check", "explain_status", "explain_documents"]);
   const explicitIntent = typeof body?.intent === "string" && ALLOWED_INTENTS.has(body.intent) ? body.intent : null;
-  const legacyMatch = rawMessage.match(/^INTENT:\s*(explain_ai_check|explain_status)\b[.,\s-]*/i);
+  const legacyMatch = rawMessage.match(/^INTENT:\s*(explain_ai_check|explain_status|explain_documents)\b[.,\s-]*/i);
   const intent: string | null = explicitIntent ?? (legacyMatch ? legacyMatch[1].toLowerCase() : null);
   // Strip any legacy INTENT prefix from the user-visible/logged message.
   const userMessage = legacyMatch ? rawMessage.slice(legacyMatch[0].length).trim() || rawMessage : rawMessage;
@@ -306,6 +438,7 @@ Deno.serve(async (req) => {
     { data: docs },
     { data: allowedBank },
     { data: sigPackage },
+    { data: edoReg },
   ] = await Promise.all([
     admin.from("loan_signatures").select("role, signed_at").eq("loan_id", loanId),
     admin.from("loan_tranches").select("tranche_number, amount, status, planned_date, actual_date, ai_risk_level").eq("loan_id", loanId).order("tranche_number"),
@@ -315,6 +448,7 @@ Deno.serve(async (req) => {
     admin.from("generated_documents").select("document_type, created_at").eq("loan_id", loanId).order("created_at", { ascending: false }),
     admin.from("loan_allowed_bank_details").select("party_role, purpose").eq("loan_id", loanId),
     admin.from("signature_packages").select("package_status, signature_scheme_effective, app6_status").eq("loan_id", loanId).maybeSingle(),
+    admin.from("edo_regulations").select("id").eq("is_current", true).limit(1),
   ]);
 
   const totalDisbursed = (tranches ?? []).filter((t) => t.status === "confirmed").reduce((s, t) => s + Number(t.amount || 0), 0);
@@ -375,6 +509,24 @@ Deno.serve(async (req) => {
 
   const publicContextSummary = `${youAre} ${statusHuman} ${moneyLine}${aiLine}${reqLine}`.trim();
 
+  const confirmedTrancheCount = (tranches ?? []).filter((t) => t.status === "confirmed").length;
+  const confirmedRepaymentCount = (payments ?? []).filter((p) => p.status === "confirmed").length;
+  const docAvailability = computeDocumentAvailability({
+    isFullySigned,
+    trancheReady,
+    hasConfirmedTranche,
+    confirmedTrancheCount,
+    hasSchedule: (schedule ?? []).length > 0,
+    confirmedRepaymentCount,
+    totalDisbursed,
+    totalRepaid,
+    loanAmount: Number(loan.amount),
+    loanStatus: loan.status,
+    signatureScheme: loan.signature_scheme_requested,
+    hasEdoRegulation: (edoReg ?? []).length > 0,
+    generatedDocs: (docs ?? []).map((d) => d.document_type),
+  });
+
   const context = {
     public_context_summary: publicContextSummary,
     contract_number: loan.contract_number,
@@ -422,7 +574,7 @@ Deno.serve(async (req) => {
       reasons: Array.isArray(latestAi.blocking_reasons) ? latestAi.blocking_reasons : [],
       summary: latestAi.ai_summary ?? "",
     } : null,
-    documents_available: (docs ?? []).map((d) => d.document_type),
+    documents: docAvailability,
     next_action_hint: next.hint,
     assistant_mode: assistantMode,
     intent: intent,
@@ -432,6 +584,8 @@ Deno.serve(async (req) => {
     ? "\nРЕЖИМ: deeper_explanation (explain_ai_check). Не повторяй прошлый ответ. Дай более глубокое объяснение последней проверки чека: что именно не так, почему это важно, блокирует ли это подтверждение, и какой именно файл нужно загрузить (российский банк, рубли, видна сумма/дата/получатель/статус «исполнено»)."
     : intent === "explain_status"
     ? "\nРЕЖИМ: deeper_explanation (explain_status). Не повторяй прошлый ответ. Объясни текущее состояние займа человеческим языком: что уже произошло, что осталось, и какой именно следующий шаг для роли пользователя."
+    : intent === "explain_documents"
+    ? `\nРЕЖИМ: explain_documents. Объясни доступные документы, опираясь строго на documents.documents_summary_human и поля documents.generated / documents.available_now / documents.not_available_yet. Используй человеческие названия из поля label. Не выдумывай документы, не упоминай коды. Если ни одного документа нет — объясни, что именно мешает и что нужно сделать дальше. В конце сообщения, если есть хотя бы один документ в generated или available_now, предложи открыть раздел документов.`
     : "";
 
   const fullPrompt = `${SYSTEM_PROMPT}
@@ -494,8 +648,32 @@ ${userMessage}`;
   }
 
   const cleanedAnswerRaw = (answer ?? "").replace(/```actions[\s\S]*?```/g, "").trim();
-  const cleanAnswer = sanitizeOutput(cleanedAnswerRaw);
+  let cleanAnswer = sanitizeOutput(cleanedAnswerRaw);
   const modelActions = extractActions(answer ?? "");
+
+  // Deterministic fallback for documents-related questions / empty answers
+  const isDocQuery = intent === "explain_documents"
+    || /документ|приложени|расписк|регламент/i.test(userMessage);
+  const looksEmptyDocAnswer = isDocQuery && (
+    cleanAnswer.length < 30
+    || /доступны следующие документы\s*:?\s*$/i.test(cleanAnswer)
+  );
+  if (looksEmptyDocAnswer || (intent === "explain_documents" && cleanAnswer.length < 30)) {
+    const lines: string[] = [docAvailability.documents_summary_human];
+    if (docAvailability.generated.length > 0) {
+      lines.push(`Уже сформированы: ${docAvailability.generated.map((d) => d.label).join(", ")}.`);
+    }
+    if (docAvailability.available_now.length > 0) {
+      lines.push(`Сейчас можно сформировать: ${docAvailability.available_now.map((d) => d.label).join(", ")}.`);
+    }
+    const blockers = docAvailability.not_available_yet
+      .filter((d) => d.type !== "edo_regulation" && d.type !== "unep_agreement")
+      .slice(0, 3);
+    if (blockers.length > 0) {
+      lines.push("Пока недоступны: " + blockers.map((d) => `${d.label} — ${d.reason}`).join("; "));
+    }
+    cleanAnswer = sanitizeOutput(lines.filter(Boolean).join("\n"));
+  }
 
   // Contextual suggested actions
   const contextual: string[] = [];
@@ -505,12 +683,14 @@ ${userMessage}`;
   if (outstanding > 0 && hasConfirmedTranche) contextual.push("open_repayments");
   if (!isFullySigned) contextual.push("explain_status");
   if (!hasConfirmedTranche && isFullySigned) contextual.push("open_tranches");
+  const docsActionable = docAvailability.generated.length > 0 || docAvailability.available_now.length > 0;
+  if (isDocQuery && docsActionable) contextual.unshift("open_documents");
 
   const suggested_actions = Array.from(new Set([
     ...modelActions,
     ...next.suggestedActions,
     ...contextual,
-  ])).slice(0, 3);
+  ])).filter((a) => a !== "open_documents" || docsActionable).slice(0, 3);
 
   return json(200, {
     ok: true,
