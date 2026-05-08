@@ -48,6 +48,138 @@ function purposeLabel(p: string): string {
   return p === "disbursement" ? "выдача денег" : p === "repayment" ? "возврат денег" : p;
 }
 
+const DOC_LABELS: Record<string, string> = {
+  loan_contract: "Договор займа",
+  appendix_bank_details: "Приложение 1: реквизиты сторон",
+  appendix_repayment_schedule: "Приложение 2: график платежей",
+  tranche_receipt: "Расписка о получении транша",
+  partial_repayment_confirmation: "Подтверждение частичного погашения",
+  full_repayment_confirmation: "Подтверждение полного погашения",
+  unep_agreement: "Приложение 6: соглашение об УНЭП",
+  edo_regulation: "Регламент ЭДО",
+};
+function docLabel(t: string): string { return DOC_LABELS[t] ?? t; }
+
+type DocItem = { type: string; label: string; reason?: string; count?: number };
+type DocAvailability = {
+  generated: DocItem[];
+  available_now: DocItem[];
+  not_available_yet: DocItem[];
+  documents_summary_human: string;
+};
+
+function computeDocumentAvailability(p: {
+  isFullySigned: boolean;
+  trancheReady: boolean;
+  hasConfirmedTranche: boolean;
+  confirmedTrancheCount: number;
+  hasSchedule: boolean;
+  confirmedRepaymentCount: number;
+  totalDisbursed: number;
+  totalRepaid: number;
+  loanAmount: number;
+  loanStatus: string;
+  signatureScheme: string;
+  hasEdoRegulation: boolean;
+  generatedDocs: string[];
+}): DocAvailability {
+  const generatedSet = new Map<string, number>();
+  for (const d of p.generatedDocs) generatedSet.set(d, (generatedSet.get(d) ?? 0) + 1);
+
+  const generated: DocItem[] = [];
+  const available_now: DocItem[] = [];
+  const not_available_yet: DocItem[] = [];
+
+  const pushGen = (type: string) => {
+    if (generatedSet.has(type)) generated.push({ type, label: docLabel(type), count: generatedSet.get(type)! });
+  };
+
+  // 1. Loan contract
+  pushGen("loan_contract");
+  if (p.isFullySigned) {
+    if (!generatedSet.has("loan_contract")) available_now.push({ type: "loan_contract", label: docLabel("loan_contract"), reason: "Договор подписан обеими сторонами." });
+  } else {
+    not_available_yet.push({ type: "loan_contract", label: docLabel("loan_contract"), reason: "Сначала договор должны подписать обе стороны." });
+  }
+
+  // 2. APP1 bank details
+  pushGen("appendix_bank_details");
+  if (p.isFullySigned && p.trancheReady) {
+    if (!generatedSet.has("appendix_bank_details")) available_now.push({ type: "appendix_bank_details", label: docLabel("appendix_bank_details"), reason: "Реквизиты сторон выбраны." });
+  } else {
+    not_available_yet.push({ type: "appendix_bank_details", label: docLabel("appendix_bank_details"), reason: "Сначала стороны должны выбрать реквизиты." });
+  }
+
+  // 3. APP2 schedule
+  pushGen("appendix_repayment_schedule");
+  if (p.hasSchedule) {
+    if (!generatedSet.has("appendix_repayment_schedule")) available_now.push({ type: "appendix_repayment_schedule", label: docLabel("appendix_repayment_schedule"), reason: "График платежей сформирован." });
+  } else {
+    not_available_yet.push({ type: "appendix_repayment_schedule", label: docLabel("appendix_repayment_schedule"), reason: "График не предусмотрен или ещё не сформирован." });
+  }
+
+  // 4. APP3 tranche receipt
+  pushGen("tranche_receipt");
+  if (p.confirmedTrancheCount > 0) {
+    available_now.push({ type: "tranche_receipt", label: docLabel("tranche_receipt"), reason: `По подтверждённым траншам: ${p.confirmedTrancheCount}.` });
+  } else {
+    not_available_yet.push({ type: "tranche_receipt", label: docLabel("tranche_receipt"), reason: "Появится после подтверждения транша." });
+  }
+
+  // 5. APP4 partial repayment
+  pushGen("partial_repayment_confirmation");
+  const fullyClosed = p.totalDisbursed > 0 && p.totalRepaid >= p.totalDisbursed;
+  if (p.confirmedRepaymentCount > 0 && !fullyClosed) {
+    available_now.push({ type: "partial_repayment_confirmation", label: docLabel("partial_repayment_confirmation"), reason: `По подтверждённым погашениям: ${p.confirmedRepaymentCount}.` });
+  } else if (p.confirmedRepaymentCount === 0) {
+    not_available_yet.push({ type: "partial_repayment_confirmation", label: docLabel("partial_repayment_confirmation"), reason: "Появится после подтверждения погашения." });
+  }
+
+  // 6. APP5 full repayment
+  pushGen("full_repayment_confirmation");
+  const canFull = p.totalDisbursed >= p.loanAmount && p.totalRepaid >= p.totalDisbursed && p.totalDisbursed > 0;
+  if (canFull) {
+    if (!generatedSet.has("full_repayment_confirmation")) available_now.push({ type: "full_repayment_confirmation", label: docLabel("full_repayment_confirmation"), reason: "Займ полностью погашен." });
+  } else {
+    not_available_yet.push({ type: "full_repayment_confirmation", label: docLabel("full_repayment_confirmation"), reason: "Появится после полного погашения займа." });
+  }
+
+  // 7. APP6 UNEP
+  pushGen("unep_agreement");
+  if (p.signatureScheme === "UNEP_WITH_APPENDIX_6") {
+    if (!generatedSet.has("unep_agreement")) available_now.push({ type: "unep_agreement", label: docLabel("unep_agreement"), reason: "Выбрана схема подписания УНЭП." });
+  } else {
+    not_available_yet.push({ type: "unep_agreement", label: docLabel("unep_agreement"), reason: "Не требуется для этого займа." });
+  }
+
+  // 8. EDO regulation
+  if (p.hasEdoRegulation) {
+    available_now.push({ type: "edo_regulation", label: docLabel("edo_regulation"), reason: "Действующая редакция регламента опубликована." });
+  } else {
+    not_available_yet.push({ type: "edo_regulation", label: docLabel("edo_regulation"), reason: "Регламент ЭДО ещё не опубликован." });
+  }
+
+  let summary = "";
+  const genLabels = generated.map((g) => g.label);
+  const availLabels = available_now.map((g) => g.label);
+  if (genLabels.length === 0 && availLabels.length === 0) {
+    const blockers = not_available_yet.slice(0, 2).map((d) => `${d.label} — ${d.reason}`).join("; ");
+    summary = `Пока документы недоступны. ${blockers}`;
+  } else {
+    const parts: string[] = [];
+    if (genLabels.length > 0) parts.push(`Уже сформированы: ${genLabels.join(", ")}.`);
+    if (availLabels.length > 0) parts.push(`Сейчас можно сформировать: ${availLabels.join(", ")}.`);
+    const futureBlockers = not_available_yet
+      .filter((d) => d.type === "tranche_receipt" || d.type === "partial_repayment_confirmation" || d.type === "full_repayment_confirmation")
+      .slice(0, 2)
+      .map((d) => `${d.label.toLowerCase()} — ${d.reason.toLowerCase()}`);
+    if (futureBlockers.length > 0) parts.push(`Пока недоступно: ${futureBlockers.join("; ")}`);
+    summary = parts.join(" ");
+  }
+
+  return { generated, available_now, not_available_yet, documents_summary_human: summary };
+}
+
 const SYSTEM_PROMPT = `Ты AI-помощник сервиса ГдеДеньги. Сервис помогает физическим лицам в РФ оформлять и сопровождать частные займы между собой (P2P, только банковские переводы).
 
 ТВОЯ РОЛЬ:
