@@ -40,17 +40,21 @@ const Dashboard = () => {
   }, [user]);
 
   const fetchLoans = async () => {
-    const [loansRes, tranchesRes, paymentsRes] = await Promise.all([
+    const [loansRes, tranchesRes, paymentsRes, sigsRes, allowedRes] = await Promise.all([
       supabase.from('loans').select('*').order('updated_at', { ascending: false }),
-      supabase.from('loan_tranches').select('loan_id, amount, status'),
+      supabase.from('loan_tranches').select('loan_id, amount, status, tranche_number'),
       supabase.from('loan_payments').select('loan_id, transfer_amount, status'),
+      supabase.from('loan_signatures').select('loan_id, role'),
+      supabase.from('loan_allowed_bank_details').select('loan_id, party_role, purpose'),
     ]);
 
     const rawLoans = loansRes.data || [];
     const allTranches = tranchesRes.data || [];
     const allPayments = paymentsRes.data || [];
+    const allSigs = (sigsRes.data || []) as Array<Pick<Signature, 'role'> & { loan_id: string }>;
+    const allAllowed = (allowedRes.data || []) as Array<Pick<AllowedBank, 'party_role' | 'purpose'> & { loan_id: string }>;
 
-    const tranchesByLoan = new Map<string, Pick<Tranche, 'amount' | 'status'>[]>();
+    const tranchesByLoan = new Map<string, Pick<Tranche, 'amount' | 'status' | 'tranche_number'>[]>();
     for (const t of allTranches) {
       const arr = tranchesByLoan.get(t.loan_id) || [];
       arr.push(t as any);
@@ -62,6 +66,18 @@ const Dashboard = () => {
       arr.push(p as any);
       paymentsByLoan.set(p.loan_id, arr);
     }
+    const sigsByLoan = new Map<string, Pick<Signature, 'role'>[]>();
+    for (const s of allSigs) {
+      const arr = sigsByLoan.get(s.loan_id) || [];
+      arr.push({ role: s.role });
+      sigsByLoan.set(s.loan_id, arr);
+    }
+    const allowedByLoan = new Map<string, Array<Pick<AllowedBank, 'party_role' | 'purpose'>>>();
+    for (const a of allAllowed) {
+      const arr = allowedByLoan.get(a.loan_id) || [];
+      arr.push({ party_role: a.party_role, purpose: a.purpose });
+      allowedByLoan.set(a.loan_id, arr);
+    }
 
     const pendingTrancheLoans = new Set(allTranches.filter(t => t.status === 'sent').map(t => t.loan_id));
     const pendingPaymentLoans = new Set(allPayments.filter(p => p.status === 'pending').map(p => p.loan_id));
@@ -69,8 +85,20 @@ const Dashboard = () => {
     const enriched: LoanWithPending[] = rawLoans.map(l => {
       const ts = tranchesByLoan.get(l.id) || [];
       const ps = paymentsByLoan.get(l.id) || [];
+      const sigs = sigsByLoan.get(l.id) || [];
+      const allowed = allowedByLoan.get(l.id) || [];
       const overdueFlag = isLoanOverdue(l, ts, ps);
       const totals = calculateLoanTotals(ts, ps);
+      const bankReadiness: BankReadiness = {
+        lenderDisbursementReady: allowed.some(a => a.party_role === 'lender' && a.purpose === 'disbursement'),
+        borrowerDisbursementReady: allowed.some(a => a.party_role === 'borrower' && a.purpose === 'disbursement'),
+        lenderRepaymentReady: allowed.some(a => a.party_role === 'lender' && a.purpose === 'repayment'),
+        borrowerRepaymentReady: allowed.some(a => a.party_role === 'borrower' && a.purpose === 'repayment'),
+      };
+      const opState = getLoanOperationalState({
+        loan: l, userId: user!.id, tranches: ts, payments: ps,
+        bankReadiness, signatures: sigs, latestAiChecks: [],
+      });
       return {
         ...l,
         hasPendingTranches: pendingTrancheLoans.has(l.id),
@@ -78,6 +106,7 @@ const Dashboard = () => {
         isOverdue: overdueFlag,
         daysOverdue: overdueFlag ? overdueDays(l.repayment_date) : 0,
         outstanding: totals.outstanding,
+        opState,
       };
     });
 
