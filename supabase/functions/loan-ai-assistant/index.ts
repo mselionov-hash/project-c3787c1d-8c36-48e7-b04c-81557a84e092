@@ -438,6 +438,7 @@ Deno.serve(async (req) => {
     { data: docs },
     { data: allowedBank },
     { data: sigPackage },
+    { data: edoReg },
   ] = await Promise.all([
     admin.from("loan_signatures").select("role, signed_at").eq("loan_id", loanId),
     admin.from("loan_tranches").select("tranche_number, amount, status, planned_date, actual_date, ai_risk_level").eq("loan_id", loanId).order("tranche_number"),
@@ -447,6 +448,7 @@ Deno.serve(async (req) => {
     admin.from("generated_documents").select("document_type, created_at").eq("loan_id", loanId).order("created_at", { ascending: false }),
     admin.from("loan_allowed_bank_details").select("party_role, purpose").eq("loan_id", loanId),
     admin.from("signature_packages").select("package_status, signature_scheme_effective, app6_status").eq("loan_id", loanId).maybeSingle(),
+    admin.from("edo_regulations").select("id").eq("is_current", true).limit(1),
   ]);
 
   const totalDisbursed = (tranches ?? []).filter((t) => t.status === "confirmed").reduce((s, t) => s + Number(t.amount || 0), 0);
