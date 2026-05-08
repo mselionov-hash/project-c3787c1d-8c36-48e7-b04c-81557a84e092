@@ -17,6 +17,8 @@ const Loans = () => {
   const navigate = useNavigate();
   const { user, loading } = useAuth();
   const [loans, setLoans] = useState<Loan[]>([]);
+  const [tranchesByLoan, setTranchesByLoan] = useState<Record<string, Pick<Tranche, 'amount' | 'status'>[]>>({});
+  const [paymentsByLoan, setPaymentsByLoan] = useState<Record<string, Pick<Payment, 'transfer_amount' | 'status'>[]>>({});
   const [loadingLoans, setLoadingLoans] = useState(true);
   const [tab, setTab] = useState<'issued' | 'taken'>('issued');
 
@@ -29,10 +31,21 @@ const Loans = () => {
   }, [user]);
 
   const fetchLoans = async () => {
-    const { data } = await supabase
-      .from('loans')
-      .select('*')
-      .order('created_at', { ascending: false });
+    const [{ data }, tr, pr] = await Promise.all([
+      supabase.from('loans').select('*').order('created_at', { ascending: false }),
+      supabase.from('loan_tranches').select('loan_id, amount, status'),
+      supabase.from('loan_payments').select('loan_id, transfer_amount, status'),
+    ]);
+    const tMap: Record<string, Pick<Tranche, 'amount' | 'status'>[]> = {};
+    for (const t of (tr.data || [])) {
+      (tMap[t.loan_id] ||= []).push(t as any);
+    }
+    const pMap: Record<string, Pick<Payment, 'transfer_amount' | 'status'>[]> = {};
+    for (const p of (pr.data || [])) {
+      (pMap[p.loan_id] ||= []).push(p as any);
+    }
+    setTranchesByLoan(tMap);
+    setPaymentsByLoan(pMap);
     setLoans(data || []);
     setLoadingLoans(false);
   };
