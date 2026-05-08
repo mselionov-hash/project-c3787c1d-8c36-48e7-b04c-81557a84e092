@@ -648,8 +648,32 @@ ${userMessage}`;
   }
 
   const cleanedAnswerRaw = (answer ?? "").replace(/```actions[\s\S]*?```/g, "").trim();
-  const cleanAnswer = sanitizeOutput(cleanedAnswerRaw);
+  let cleanAnswer = sanitizeOutput(cleanedAnswerRaw);
   const modelActions = extractActions(answer ?? "");
+
+  // Deterministic fallback for documents-related questions / empty answers
+  const isDocQuery = intent === "explain_documents"
+    || /документ|приложени|расписк|регламент/i.test(userMessage);
+  const looksEmptyDocAnswer = isDocQuery && (
+    cleanAnswer.length < 30
+    || /доступны следующие документы\s*:?\s*$/i.test(cleanAnswer)
+  );
+  if (looksEmptyDocAnswer || (intent === "explain_documents" && cleanAnswer.length < 30)) {
+    const lines: string[] = [docAvailability.documents_summary_human];
+    if (docAvailability.generated.length > 0) {
+      lines.push(`Уже сформированы: ${docAvailability.generated.map((d) => d.label).join(", ")}.`);
+    }
+    if (docAvailability.available_now.length > 0) {
+      lines.push(`Сейчас можно сформировать: ${docAvailability.available_now.map((d) => d.label).join(", ")}.`);
+    }
+    const blockers = docAvailability.not_available_yet
+      .filter((d) => d.type !== "edo_regulation" && d.type !== "unep_agreement")
+      .slice(0, 3);
+    if (blockers.length > 0) {
+      lines.push("Пока недоступны: " + blockers.map((d) => `${d.label} — ${d.reason}`).join("; "));
+    }
+    cleanAnswer = sanitizeOutput(lines.filter(Boolean).join("\n"));
+  }
 
   // Contextual suggested actions
   const contextual: string[] = [];
@@ -659,12 +683,14 @@ ${userMessage}`;
   if (outstanding > 0 && hasConfirmedTranche) contextual.push("open_repayments");
   if (!isFullySigned) contextual.push("explain_status");
   if (!hasConfirmedTranche && isFullySigned) contextual.push("open_tranches");
+  const docsActionable = docAvailability.generated.length > 0 || docAvailability.available_now.length > 0;
+  if (isDocQuery && docsActionable) contextual.unshift("open_documents");
 
   const suggested_actions = Array.from(new Set([
     ...modelActions,
     ...next.suggestedActions,
     ...contextual,
-  ])).slice(0, 3);
+  ])).filter((a) => a !== "open_documents" || docsActionable).slice(0, 3);
 
   return json(200, {
     ok: true,
