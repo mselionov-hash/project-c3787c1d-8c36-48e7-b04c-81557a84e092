@@ -284,6 +284,8 @@ const Dashboard = () => {
                       loan={loan}
                       type={loan.lender_id === user.id ? 'issued' : 'taken'}
                       overdue={{ isOverdue: true, daysOverdue: loan.daysOverdue }}
+                      unifiedNext={loan.opState ? { label: loan.opState.nextAction.label, priority: loan.opState.nextAction.priority } : undefined}
+                      statusLabelOverride={loan.opState ? { label: loan.opState.statusLabel, tone: loan.opState.tone } : undefined}
                     />
                   ))}
                 </div>
