@@ -502,6 +502,12 @@ Deno.serve(async (req) => {
     hasConfirmedTranche,
   });
 
+  if (isOverdue) {
+    next.hint = userRole === "borrower"
+      ? `Срок возврата прошёл ${overdueDaysCount} ${overdueDaysCount === 1 ? "день" : "дн."} назад. Остаток долга — ${fmtRub(outstanding)}. Погасите задолженность переводом займодавцу и зафиксируйте платёж в разделе погашений.`
+      : `Срок возврата по займу прошёл ${overdueDaysCount} ${overdueDaysCount === 1 ? "день" : "дн."} назад. Остаток долга заёмщика — ${fmtRub(outstanding)}. Ожидайте перевод и подтвердите его, как только средства поступят.`;
+  }
+
   // Build human public summary (no internal codes)
   const youAre = `Вы — ${roleLabel(userRole)}.`;
   const statusHuman = `Состояние займа: ${statusLabel(loan.status)}.`;
