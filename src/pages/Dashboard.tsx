@@ -234,13 +234,28 @@ const Dashboard = () => {
         ) : (
           <div className="space-y-5">
             {/* Overdue */}
-            <DashboardSection
-              loans={overdue}
-              userId={user.id}
-              icon={<AlertTriangle className="w-3.5 h-3.5 text-destructive" />}
-              title="Просрочено"
-              titleClass="text-destructive"
-            />
+            {overdue.length > 0 && (
+              <section>
+                <div className="flex items-center gap-2 mb-2">
+                  <AlertTriangle className="w-3.5 h-3.5 text-destructive" />
+                  <h2 className="text-xs font-semibold uppercase tracking-wider text-destructive">Просрочено</h2>
+                  <span className="text-[10px] text-muted-foreground">({overdue.length})</span>
+                  <span className="text-[10px] text-destructive ml-auto">
+                    Остаток {overdue.reduce((s, l) => s + (l.outstanding || 0), 0).toLocaleString('ru-RU')} ₽
+                  </span>
+                </div>
+                <div className="space-y-1.5">
+                  {overdue.map(loan => (
+                    <LoanCard
+                      key={loan.id}
+                      loan={loan}
+                      type={loan.lender_id === user.id ? 'issued' : 'taken'}
+                      overdue={{ isOverdue: true, daysOverdue: loan.daysOverdue }}
+                    />
+                  ))}
+                </div>
+              </section>
+            )}
 
             {/* Awaiting signature */}
             <DashboardSection
