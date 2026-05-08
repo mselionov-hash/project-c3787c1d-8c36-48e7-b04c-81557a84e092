@@ -17,7 +17,8 @@ const QUICK_PROMPTS = [
 ];
 
 type ActionKind = 'section' | 'navigate' | 'followup';
-const ACTION_LABELS: Record<string, { label: string; kind: ActionKind; payload?: string }> = {
+type FollowupConfig = { intent: string; message: string; displayText: string };
+const ACTION_LABELS: Record<string, { label: string; kind: ActionKind; payload?: string; followup?: FollowupConfig }> = {
   open_bank_details: { label: 'Открыть реквизиты', kind: 'section', payload: 'bank' },
   open_tranches: { label: 'Открыть транши', kind: 'section', payload: 'tranches' },
   open_repayments: { label: 'Открыть погашения', kind: 'section', payload: 'repayments' },
@@ -25,14 +26,24 @@ const ACTION_LABELS: Record<string, { label: string; kind: ActionKind; payload?:
   explain_ai_check: {
     label: 'Подробнее о проверке',
     kind: 'followup',
-    payload: 'INTENT: explain_ai_check. Не повторяй предыдущий ответ. Дай более глубокое объяснение последней проверки чека: что именно не получилось, почему это важно, блокирует ли это подтверждение и какой файл нужно загрузить вместо текущего. Простым языком, без внутренних кодов.',
+    followup: {
+      intent: 'explain_ai_check',
+      displayText: 'Подробнее о проверке',
+      message: 'Объясни последнюю AI-проверку по этому займу: что именно не так, почему это важно, блокирует ли это подтверждение и какой файл нужно загрузить вместо текущего.',
+    },
   },
   explain_status: {
     label: 'Подробнее о статусе',
     kind: 'followup',
-    payload: 'INTENT: explain_status. Не повторяй предыдущий ответ. Объясни простым языком, в каком состоянии сейчас займ, что уже произошло, что осталось и какой следующий шаг именно для меня.',
+    followup: {
+      intent: 'explain_status',
+      displayText: 'Подробнее о статусе',
+      message: 'Объясни текущий статус займа: что уже произошло, что осталось и какой следующий шаг для моей роли.',
+    },
   },
 };
+
+const INTERNAL_PREFIX_RE = /^(INTENT|SYSTEM|INTERNAL|DEBUG)\s*:/i;
 
 interface Props {
   loanId: string;
