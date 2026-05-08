@@ -455,11 +455,23 @@ Deno.serve(async (req) => {
 
   const totalDisbursed = (tranches ?? []).filter((t) => t.status === "confirmed").reduce((s, t) => s + Number(t.amount || 0), 0);
   const totalRepaid = (payments ?? []).filter((p) => p.status === "confirmed").reduce((s, p) => s + Number(p.transfer_amount || 0), 0);
-  const outstanding = totalDisbursed - totalRepaid;
+  const outstanding = Math.max(0, totalDisbursed - totalRepaid);
   const pendingPayments = (payments ?? []).filter((p) => p.status === "pending").length;
   const hasConfirmedTranche = (tranches ?? []).some((t) => t.status === "confirmed");
   const latestAi = (aiChecks ?? [])[0] ?? null;
   const hasHighRiskCheck = (aiChecks ?? []).some((c) => c.risk_level === "HIGH" || c.risk_level === "BLOCKING");
+
+  // Overdue detection (dynamic, not stored)
+  const NON_OVERDUE = new Set(["draft", "repaid", "cancelled"]);
+  const today = new Date(); today.setUTCHours(0, 0, 0, 0);
+  const dueMs = loan.repayment_date ? new Date(loan.repayment_date + "T00:00:00Z").getTime() : NaN;
+  const isOverdue = !NON_OVERDUE.has(loan.status)
+    && hasConfirmedTranche
+    && outstanding > 0
+    && Number.isFinite(dueMs)
+    && dueMs < today.getTime();
+  const overdueDaysCount = isOverdue ? Math.floor((today.getTime() - dueMs) / (1000 * 60 * 60 * 24)) : 0;
+
 
   const lenderDisbSet = (allowedBank ?? []).some((b) => b.party_role === "lender" && b.purpose === "disbursement");
   const borrowerDisbSet = (allowedBank ?? []).some((b) => b.party_role === "borrower" && b.purpose === "disbursement");
