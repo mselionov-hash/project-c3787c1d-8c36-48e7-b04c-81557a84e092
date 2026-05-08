@@ -35,7 +35,7 @@ const Loans = () => {
 
   const fetchLoans = async () => {
     const [loansRes, tr, pr, sr, ar] = await Promise.all([
-      supabase.from('loans').select('*').order('created_at', { ascending: false }),
+      supabase.from('loans').select('*').is('archived_at', null).order('created_at', { ascending: false }),
       supabase.from('loan_tranches').select('loan_id, amount, status, tranche_number'),
       supabase.from('loan_payments').select('loan_id, transfer_amount, status'),
       supabase.from('loan_signatures').select('loan_id, role'),
