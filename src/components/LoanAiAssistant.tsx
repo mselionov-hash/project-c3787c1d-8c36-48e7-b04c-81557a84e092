@@ -62,15 +62,18 @@ export function LoanAiAssistant({ loanId, onAction }: Props) {
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: 'smooth' });
   }, [messages, loading]);
 
-  const ask = async (text: string) => {
+  const ask = async (text: string, options?: { intent?: string; displayText?: string }) => {
     const message = text.trim();
     if (!message || loading) return;
-    setMessages((m) => [...m, { role: 'user', content: message }]);
+    const visible = (options?.displayText ?? message).trim();
+    // Never expose internal markers in chat history
+    const safeVisible = INTERNAL_PREFIX_RE.test(visible) ? 'Запрос помощника' : visible;
+    setMessages((m) => [...m, { role: 'user', content: safeVisible }]);
     setInput('');
     setLoading(true);
     try {
       const { data, error } = await supabase.functions.invoke('loan-ai-assistant', {
-        body: { loan_id: loanId, message },
+        body: { loan_id: loanId, message, intent: options?.intent ?? null },
       });
       if (error || !data?.ok) {
         const errMsg = (data as any)?.error ?? error?.message ?? 'Не удалось получить ответ';
@@ -94,8 +97,8 @@ export function LoanAiAssistant({ loanId, onAction }: Props) {
     } else if (cfg.kind === 'navigate') {
       navigate(`/documents?loan=${loanId}`);
       setOpen(false);
-    } else if (cfg.kind === 'followup' && cfg.payload) {
-      ask(cfg.payload);
+    } else if (cfg.kind === 'followup' && cfg.followup) {
+      ask(cfg.followup.message, { intent: cfg.followup.intent, displayText: cfg.followup.displayText });
     }
   };
 
