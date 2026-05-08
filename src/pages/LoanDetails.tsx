@@ -25,6 +25,7 @@ import {
 } from 'lucide-react';
 import type { Tables } from '@/integrations/supabase/types';
 import { formatDateSafe } from '@/lib/date-utils';
+import { isLoanOverdue, overdueDays } from '@/lib/loan-status';
 
 type Loan = Tables<'loans'>;
 type Signature = Tables<'loan_signatures'>;
@@ -293,6 +294,13 @@ const LoanDetails = () => {
   const canIssueMore = totalDisbursed < loanLimit;
   const showNextAction = isSignedPhase || (isActivePhase && (outstanding > 0 || canIssueMore));
 
+  const overdueFlag = isLoanOverdue(loan, tranches, payments);
+  const overdueDaysCount = overdueFlag ? overdueDays(loan.repayment_date) : 0;
+  const effectiveStatus = overdueFlag
+    ? { label: 'Просрочен', icon: AlertTriangle, class: 'bg-destructive/15 text-destructive' }
+    : status;
+
+
   return (
     <AppLayout>
       <div className="max-w-3xl mx-auto px-4 sm:px-6 py-6 sm:py-8 space-y-3">
@@ -311,7 +319,7 @@ const LoanDetails = () => {
               <h1 className="text-lg font-bold font-display truncate">
                 {isLender ? loan.borrower_name : loan.lender_name}
               </h1>
-              <span className={`pill-badge ${status.class}`}>{status.label}</span>
+              <span className={`pill-badge ${effectiveStatus.class}`}>{effectiveStatus.label}</span>
             </div>
             <p className="text-xs text-muted-foreground">
               {loan.contract_number ? `№ ${loan.contract_number}` : `ID: ${loan.id.slice(0, 8)}`}
@@ -342,7 +350,28 @@ const LoanDetails = () => {
           )}
         </div>
 
-        {/* Primary actions */}
+        {overdueFlag && (
+          <div className="rounded-lg border border-destructive/40 bg-destructive/10 px-4 py-3">
+            <div className="flex items-start gap-2">
+              <AlertTriangle className="w-4 h-4 text-destructive mt-0.5 flex-shrink-0" />
+              <div className="flex-1 text-sm">
+                <p className="font-semibold text-destructive">Займ просрочен</p>
+                <p className="text-xs text-muted-foreground mt-0.5">
+                  Дата возврата прошла {overdueDaysCount} {overdueDaysCount === 1 ? 'день' : 'дн.'} назад. Остаток долга:{' '}
+                  <span className="font-semibold text-destructive">{outstanding.toLocaleString('ru-RU')} ₽</span>.
+                </p>
+                <p className="text-xs mt-1.5 text-foreground">
+                  {isBorrower
+                    ? 'Погасите задолженность переводом на реквизиты займодавца и зафиксируйте платёж в разделе погашений.'
+                    : isLender
+                    ? 'Ожидайте поступления средств от заёмщика. Когда платёж придёт — подтвердите его в разделе погашений.'
+                    : ''}
+                </p>
+              </div>
+            </div>
+          </div>
+        )}
+
         {canSend && (
           <Button onClick={() => setShowSend(true)} className="w-full gap-2 rounded-lg h-9 text-xs">
             <Send className="w-3.5 h-3.5" />

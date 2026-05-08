@@ -455,11 +455,23 @@ Deno.serve(async (req) => {
 
   const totalDisbursed = (tranches ?? []).filter((t) => t.status === "confirmed").reduce((s, t) => s + Number(t.amount || 0), 0);
   const totalRepaid = (payments ?? []).filter((p) => p.status === "confirmed").reduce((s, p) => s + Number(p.transfer_amount || 0), 0);
-  const outstanding = totalDisbursed - totalRepaid;
+  const outstanding = Math.max(0, totalDisbursed - totalRepaid);
   const pendingPayments = (payments ?? []).filter((p) => p.status === "pending").length;
   const hasConfirmedTranche = (tranches ?? []).some((t) => t.status === "confirmed");
   const latestAi = (aiChecks ?? [])[0] ?? null;
   const hasHighRiskCheck = (aiChecks ?? []).some((c) => c.risk_level === "HIGH" || c.risk_level === "BLOCKING");
+
+  // Overdue detection (dynamic, not stored)
+  const NON_OVERDUE = new Set(["draft", "repaid", "cancelled"]);
+  const today = new Date(); today.setUTCHours(0, 0, 0, 0);
+  const dueMs = loan.repayment_date ? new Date(loan.repayment_date + "T00:00:00Z").getTime() : NaN;
+  const isOverdue = !NON_OVERDUE.has(loan.status)
+    && hasConfirmedTranche
+    && outstanding > 0
+    && Number.isFinite(dueMs)
+    && dueMs < today.getTime();
+  const overdueDaysCount = isOverdue ? Math.floor((today.getTime() - dueMs) / (1000 * 60 * 60 * 24)) : 0;
+
 
   const lenderDisbSet = (allowedBank ?? []).some((b) => b.party_role === "lender" && b.purpose === "disbursement");
   const borrowerDisbSet = (allowedBank ?? []).some((b) => b.party_role === "borrower" && b.purpose === "disbursement");
@@ -490,6 +502,12 @@ Deno.serve(async (req) => {
     hasConfirmedTranche,
   });
 
+  if (isOverdue) {
+    next.hint = userRole === "borrower"
+      ? `Срок возврата прошёл ${overdueDaysCount} ${overdueDaysCount === 1 ? "день" : "дн."} назад. Остаток долга — ${fmtRub(outstanding)}. Погасите задолженность переводом займодавцу и зафиксируйте платёж в разделе погашений.`
+      : `Срок возврата по займу прошёл ${overdueDaysCount} ${overdueDaysCount === 1 ? "день" : "дн."} назад. Остаток долга заёмщика — ${fmtRub(outstanding)}. Ожидайте перевод и подтвердите его, как только средства поступят.`;
+  }
+
   // Build human public summary (no internal codes)
   const youAre = `Вы — ${roleLabel(userRole)}.`;
   const statusHuman = `Состояние займа: ${statusLabel(loan.status)}.`;
@@ -509,7 +527,11 @@ Deno.serve(async (req) => {
   if (!counterpartyReady) reqLine += " Ждём реквизиты второй стороны.";
   else reqLine += " Реквизиты второй стороны тоже готовы.";
 
-  const publicContextSummary = `${youAre} ${statusHuman} ${moneyLine}${aiLine}${reqLine}`.trim();
+  const overdueLine = isOverdue
+    ? ` Займ просрочен на ${overdueDaysCount} ${overdueDaysCount === 1 ? "день" : "дн."}. Остаток долга — ${fmtRub(outstanding)}.`
+    : "";
+
+  const publicContextSummary = `${youAre} ${statusHuman} ${moneyLine}${overdueLine}${aiLine}${reqLine}`.trim();
 
   const confirmedTrancheCount = (tranches ?? []).filter((t) => t.status === "confirmed").length;
   const confirmedRepaymentCount = (payments ?? []).filter((p) => p.status === "confirmed").length;
@@ -555,6 +577,9 @@ Deno.serve(async (req) => {
       outstanding_display: fmtRub(outstanding),
     },
     pending_payments_count: pendingPayments,
+    is_overdue: isOverdue,
+    overdue_days: overdueDaysCount,
+    overdue_amount_display: isOverdue ? fmtRub(outstanding) : null,
     tranches_human: (tranches ?? []).map((t) => ({
       n: t.tranche_number, amount_display: fmtRub(Number(t.amount)),
       state: t.status === "confirmed" ? "подтверждён" : t.status === "sent" ? "отправлен, ждёт подтверждения" : t.status === "planned" ? "запланирован" : t.status,
