@@ -350,7 +350,28 @@ const LoanDetails = () => {
           )}
         </div>
 
-        {/* Primary actions */}
+        {overdueFlag && (
+          <div className="rounded-lg border border-destructive/40 bg-destructive/10 px-4 py-3">
+            <div className="flex items-start gap-2">
+              <AlertTriangle className="w-4 h-4 text-destructive mt-0.5 flex-shrink-0" />
+              <div className="flex-1 text-sm">
+                <p className="font-semibold text-destructive">Займ просрочен</p>
+                <p className="text-xs text-muted-foreground mt-0.5">
+                  Дата возврата прошла {overdueDaysCount} {overdueDaysCount === 1 ? 'день' : 'дн.'} назад. Остаток долга:{' '}
+                  <span className="font-semibold text-destructive">{outstanding.toLocaleString('ru-RU')} ₽</span>.
+                </p>
+                <p className="text-xs mt-1.5 text-foreground">
+                  {isBorrower
+                    ? 'Погасите задолженность переводом на реквизиты займодавца и зафиксируйте платёж в разделе погашений.'
+                    : isLender
+                    ? 'Ожидайте поступления средств от заёмщика. Когда платёж придёт — подтвердите его в разделе погашений.'
+                    : ''}
+                </p>
+              </div>
+            </div>
+          </div>
+        )}
+
         {canSend && (
           <Button onClick={() => setShowSend(true)} className="w-full gap-2 rounded-lg h-9 text-xs">
             <Send className="w-3.5 h-3.5" />
