@@ -26,6 +26,7 @@ import {
 import type { Tables } from '@/integrations/supabase/types';
 import { formatDateSafe } from '@/lib/date-utils';
 import { isLoanOverdue, overdueDays } from '@/lib/loan-status';
+import { getLoanOperationalState, type OperationalState, type UiAction } from '@/lib/loan-next-action';
 
 type Loan = Tables<'loans'>;
 type Signature = Tables<'loan_signatures'>;
