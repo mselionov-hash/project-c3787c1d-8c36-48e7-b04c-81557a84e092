@@ -468,27 +468,9 @@ const LoanDetails = () => {
           </Button>
         )}
 
-        {/* Post-sign / operational primary action */}
-        {showNextAction && (
-          <NextActionBlock
-            isLender={isLender}
-            isBorrower={isBorrower}
-            loanStatus={loan.status}
-            mySideReady={mySideReady}
-            counterpartySideReady={counterpartySideReady}
-            bankDetailsReady={bankDetailsReady}
-            outstanding={outstanding}
-            canIssueMore={canIssueMore}
-            onOpenBankDetails={() => {
-              setExpanded(prev => ({ ...prev, bank: true }));
-              setTimeout(() => document.getElementById('bank-details-section')?.scrollIntoView({ behavior: 'smooth' }), 100);
-            }}
-            onCreateTranche={() => setShowCreateTranche(true)}
-            onNavigateRepay={() => {
-              const repaymentSection = document.getElementById('repayments-section');
-              repaymentSection?.scrollIntoView({ behavior: 'smooth' });
-            }}
-          />
+        {/* Unified next-action card (driven by getLoanOperationalState) */}
+        {showUnifiedNext && opState && (
+          <UnifiedNextActionCard opState={opState} onAction={handleUiAction} />
         )}
 
         {/* Timeline */}
