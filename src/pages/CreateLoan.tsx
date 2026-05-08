@@ -11,6 +11,15 @@ import { AppLayout } from '@/components/AppLayout';
 import { ArrowLeft, ArrowRight, Loader2, ChevronDown, ChevronUp } from 'lucide-react';
 import { formatDateSafe } from '@/lib/date-utils';
 import {
+  validateFullName,
+  validateEmail,
+  validateLoanAmount,
+  validateRepaymentDate,
+  validateInterestRate,
+  validatePenaltyRate,
+  validateNotSelfLoan,
+} from '@/lib/validation';
+import {
   Select,
   SelectContent,
   SelectItem,
@@ -143,8 +152,34 @@ const CreateLoan = () => {
 
   const handleSubmit = async () => {
     if (!user) return;
-    if (!borrowerName.trim() || !amount || !repaymentDate) {
-      toast.error('Заполните обязательные поля');
+    const nameCheck = validateFullName(borrowerName);
+    if (!nameCheck.valid) { toast.error(nameCheck.error!); return; }
+    const amountCheck = validateLoanAmount(amount);
+    if (!amountCheck.valid) { toast.error(amountCheck.error!); return; }
+    const dateCheck = validateRepaymentDate(repaymentDate, issueDate);
+    if (!dateCheck.valid) { toast.error(dateCheck.error!); return; }
+    const interestCheck = validateInterestRate(interestRate, interestMode);
+    if (!interestCheck.valid) { toast.error(interestCheck.error!); return; }
+    const penaltyCheck = validatePenaltyRate(penaltyRate);
+    if (!penaltyCheck.valid) { toast.error(penaltyCheck.error!); return; }
+
+    if (borrowerEmail.trim()) {
+      const emailCheck = validateEmail(borrowerEmail);
+      if (!emailCheck.valid) { toast.error(emailCheck.error!); return; }
+      const selfEmail = validateNotSelfLoan({
+        currentUserEmail: user.email, counterpartyEmail: emailCheck.normalizedValue,
+      });
+      if (!selfEmail.valid) { toast.error(selfEmail.error!); return; }
+      try {
+        const { data: lookup } = await supabase.rpc('find_user_by_email', { lookup_email: emailCheck.normalizedValue! });
+        if (lookup && lookup.length > 0) {
+          const selfId = validateNotSelfLoan({ currentUserId: user.id, counterpartyUserId: lookup[0].user_id });
+          if (!selfId.valid) { toast.error(selfId.error!); return; }
+        }
+      } catch { /* lookup failure is non-blocking */ }
+    }
+    if (lenderName.trim() && borrowerName.trim().toLowerCase() === lenderName.trim().toLowerCase()) {
+      toast.error('ФИО заёмщика совпадает с вашим. Укажите другого заёмщика.');
       return;
     }
 
