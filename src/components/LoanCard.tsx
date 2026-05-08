@@ -17,6 +17,11 @@ const statusLabels: Record<string, { label: string; class: string }> = {
   overdue: { label: 'Просрочен', class: 'bg-destructive/15 text-destructive' },
 };
 
+interface OverdueMeta {
+  isOverdue: boolean;
+  daysOverdue?: number;
+}
+
 interface NextStep {
   label: string;
   urgent?: boolean;
