@@ -220,8 +220,10 @@ active, draft, fully_signed, signed_no_debt, awaiting_signatures, signed_by_lend
 Допустимые действия только из этого списка.`;
 
 const ALLOWED_ACTIONS = new Set([
-  "open_bank_details", "open_tranches", "open_repayments",
-  "open_documents", "explain_ai_check", "explain_status",
+  "open_bank_details", "open_tranches", "open_repayments", "open_documents",
+  "open_tranche_create_modal", "open_repayment_create_modal", "open_tranche_confirm_modal",
+  "upload_new_proof",
+  "explain_ai_check", "explain_status", "explain_documents",
 ]);
 
 function extractActions(answer: string): string[] {
