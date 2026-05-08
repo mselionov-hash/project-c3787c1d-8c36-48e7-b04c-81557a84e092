@@ -556,7 +556,7 @@ Deno.serve(async (req) => {
       reasons: Array.isArray(latestAi.blocking_reasons) ? latestAi.blocking_reasons : [],
       summary: latestAi.ai_summary ?? "",
     } : null,
-    documents_available: (docs ?? []).map((d) => d.document_type),
+    documents: docAvailability,
     next_action_hint: next.hint,
     assistant_mode: assistantMode,
     intent: intent,
@@ -566,6 +566,8 @@ Deno.serve(async (req) => {
     ? "\nРЕЖИМ: deeper_explanation (explain_ai_check). Не повторяй прошлый ответ. Дай более глубокое объяснение последней проверки чека: что именно не так, почему это важно, блокирует ли это подтверждение, и какой именно файл нужно загрузить (российский банк, рубли, видна сумма/дата/получатель/статус «исполнено»)."
     : intent === "explain_status"
     ? "\nРЕЖИМ: deeper_explanation (explain_status). Не повторяй прошлый ответ. Объясни текущее состояние займа человеческим языком: что уже произошло, что осталось, и какой именно следующий шаг для роли пользователя."
+    : intent === "explain_documents"
+    ? `\nРЕЖИМ: explain_documents. Объясни доступные документы, опираясь строго на documents.documents_summary_human и поля documents.generated / documents.available_now / documents.not_available_yet. Используй человеческие названия из поля label. Не выдумывай документы, не упоминай коды. Если ни одного документа нет — объясни, что именно мешает и что нужно сделать дальше. В конце сообщения, если есть хотя бы один документ в generated или available_now, предложи открыть раздел документов.`
     : "";
 
   const fullPrompt = `${SYSTEM_PROMPT}
