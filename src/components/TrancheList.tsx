@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Banknote, Plus, CheckCircle2, Clock, AlertCircle } from 'lucide-react';
 import { CreateTrancheModal } from '@/components/CreateTrancheModal';
