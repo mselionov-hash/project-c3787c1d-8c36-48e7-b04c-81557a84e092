@@ -294,6 +294,13 @@ const LoanDetails = () => {
   const canIssueMore = totalDisbursed < loanLimit;
   const showNextAction = isSignedPhase || (isActivePhase && (outstanding > 0 || canIssueMore));
 
+  const overdueFlag = isLoanOverdue(loan, tranches, payments);
+  const overdueDaysCount = overdueFlag ? overdueDays(loan.repayment_date) : 0;
+  const effectiveStatus = overdueFlag
+    ? { label: 'Просрочен', icon: AlertTriangle, class: 'bg-destructive/15 text-destructive' }
+    : status;
+
+
   return (
     <AppLayout>
       <div className="max-w-3xl mx-auto px-4 sm:px-6 py-6 sm:py-8 space-y-3">
