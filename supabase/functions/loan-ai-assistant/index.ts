@@ -571,6 +571,9 @@ Deno.serve(async (req) => {
       outstanding_display: fmtRub(outstanding),
     },
     pending_payments_count: pendingPayments,
+    is_overdue: isOverdue,
+    overdue_days: overdueDaysCount,
+    overdue_amount_display: isOverdue ? fmtRub(outstanding) : null,
     tranches_human: (tranches ?? []).map((t) => ({
       n: t.tranche_number, amount_display: fmtRub(Number(t.amount)),
       state: t.status === "confirmed" ? "подтверждён" : t.status === "sent" ? "отправлен, ждёт подтверждения" : t.status === "planned" ? "запланирован" : t.status,
