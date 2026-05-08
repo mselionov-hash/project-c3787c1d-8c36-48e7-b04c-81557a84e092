@@ -526,22 +526,34 @@ Deno.serve(async (req) => {
   const isFullySigned = ["fully_signed", "signed_no_debt", "active", "repaid"].includes(loan.status)
     || ((signatures ?? []).some((s) => s.role === "lender") && (signatures ?? []).some((s) => s.role === "borrower"));
 
-  const next = computeNextActionHint({
+  const isSelfLoan = !!loan.borrower_id && loan.lender_id === loan.borrower_id;
+  const userSigned = (signatures ?? []).some((s) => s.role === userRole);
+  const edoRequired = loan.signature_scheme_requested === "UNEP_WITH_APPENDIX_6";
+  // Edge fn doesn't fetch EDO acceptance per-user; treat as accepted to avoid false-blocking. UI surfaces this separately.
+  const opState = computeOperationalState({
     status: loan.status,
     userRole,
+    isSelfLoan,
+    isFullySigned,
+    userSigned,
+    edoRequired,
+    edoAcceptedByUser: true,
+    edoAcceptedByCounterparty: true,
     lenderDisbSet, borrowerDisbSet, lenderRepSet, borrowerRepSet,
-    outstanding,
+    hasConfirmedTranche,
+    pendingTranches: (tranches ?? []).filter((t) => t.status === "sent").length,
     pendingPayments,
     hasHighRiskCheck,
-    isFullySigned,
-    hasConfirmedTranche,
+    latestAiEntity: latestAi?.entity_type ?? null,
+    outstanding,
+    totalDisbursed,
+    totalRepaid,
+    loanAmount: Number(loan.amount),
+    isOverdue,
+    overdueDays: overdueDaysCount,
+    loanStatusLabel: statusLabel(loan.status),
   });
-
-  if (isOverdue) {
-    next.hint = userRole === "borrower"
-      ? `Срок возврата прошёл ${overdueDaysCount} ${overdueDaysCount === 1 ? "день" : "дн."} назад. Остаток долга — ${fmtRub(outstanding)}. Погасите задолженность переводом займодавцу и зафиксируйте платёж в разделе погашений.`
-      : `Срок возврата по займу прошёл ${overdueDaysCount} ${overdueDaysCount === 1 ? "день" : "дн."} назад. Остаток долга заёмщика — ${fmtRub(outstanding)}. Ожидайте перевод и подтвердите его, как только средства поступят.`;
-  }
+  const nextHint = `${opState.nextAction.label}. ${opState.nextAction.description}`;
 
   // Build human public summary (no internal codes)
   const youAre = `Вы — ${roleLabel(userRole)}.`;
