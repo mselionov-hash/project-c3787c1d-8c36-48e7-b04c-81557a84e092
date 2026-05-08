@@ -17,28 +17,71 @@ const json = (status: number, body: unknown) =>
     headers: { ...corsHeaders, "Content-Type": "application/json" },
   });
 
-const SYSTEM_PROMPT = `Ты AI-помощник сервиса ГдеДеньги.
-Сервис помогает физическим лицам в РФ оформлять и сопровождать частные займы между собой (P2P, только банковские переводы).
-Ты объясняешь пользователю текущий статус займа, следующий шаг и причины блокировок.
+// ================= Public label maps =================
+function statusLabel(s: string): string {
+  const m: Record<string, string> = {
+    draft: "черновик",
+    awaiting_signatures: "ожидает подписания",
+    signed_by_lender: "подписан займодавцем, ждёт подписи заёмщика",
+    signed_by_borrower: "подписан заёмщиком, ждёт подписи займодавца",
+    fully_signed: "договор подписан обеими сторонами",
+    signed_no_debt: "договор подписан, деньги ещё не выданы",
+    active: "действующий займ",
+    repaid: "займ погашен",
+    overdue: "есть просрочка",
+  };
+  return m[s] ?? "статус займа уточняется";
+}
+function roleLabel(r: "lender" | "borrower"): string {
+  return r === "lender" ? "займодавец" : "заёмщик";
+}
+function riskLabel(r: string | null | undefined): string {
+  switch (r) {
+    case "LOW": return "низкий риск";
+    case "MEDIUM": return "есть небольшие замечания";
+    case "HIGH": return "нужна ручная проверка";
+    case "BLOCKING": return "чек не подходит";
+    default: return "проверка не выполнялась";
+  }
+}
+function purposeLabel(p: string): string {
+  return p === "disbursement" ? "выдача денег" : p === "repayment" ? "возврат денег" : p;
+}
+
+const SYSTEM_PROMPT = `Ты AI-помощник сервиса ГдеДеньги. Сервис помогает физическим лицам в РФ оформлять и сопровождать частные займы между собой (P2P, только банковские переводы).
+
+ТВОЯ РОЛЬ:
+- Отвечай как спокойный продуктовый менеджер службы поддержки, человеческим языком.
+- Сначала прямой ответ на вопрос, затем краткое объяснение причин простыми словами, затем 1–3 следующих шага.
+- Не цитируй JSON, не упоминай названия полей, статусов и кодов из контекста.
 
 ВАЛЮТА:
-- Все суммы в контексте этого займа указаны в российских рублях (RUB).
-- Никогда не используй знак "$" и не называй суммы долларами/евро/иной валютой.
-- Используй "₽" или "руб.". Если валюта не указана отдельно — считай её RUB.
+- Все суммы в RUB. Никогда не используй "$", "USD", "доллар". Используй "₽" или "руб.".
 
-ОГРАНИЧЕНИЯ:
-- Ты не юрист и не даёшь окончательных юридических гарантий.
-- Ты НЕ подписываешь документы, НЕ подтверждаешь транши, НЕ подтверждаешь платежи, НЕ создаёшь документы и НЕ меняешь реквизиты.
-- Любое юридически значимое действие пользователь подтверждает вручную.
-- Если пользователь просит выполнить действие — вежливо откажись и подскажи нужный раздел интерфейса.
+ЗАПРЕЩЁННЫЕ СЛОВА И КОДЫ (никогда не показывай пользователю):
+active, draft, fully_signed, signed_no_debt, awaiting_signatures, signed_by_lender, signed_by_borrower, repaid, overdue, pending, confirmed, lender, borrower, user_role, status, risk_level, HIGH, MEDIUM, LOW, BLOCKING, disbursement, repayment, tranche_ready, repayment_ready.
+Если в контексте встречаются такие слова — переведи их в человеческий русский, используя поля *_label из public_context_summary и context.
+
+ЧЕЛОВЕЧЕСКИЕ ФОРМУЛИРОВКИ:
+- Вместо "user_role: borrower" → "вы выступаете как заёмщик".
+- Вместо "status: active" → "займ действующий".
+- Вместо "HIGH/BLOCKING" → "проверка чека показала проблему" / "чек не подходит".
+- Вместо "disbursement/repayment requisites" → "реквизиты для перевода денег" / "реквизиты для возврата".
+
+ДЕЙСТВИЯ:
+- Ты НЕ подписываешь, НЕ подтверждаешь транши и платежи, НЕ создаёшь документы, НЕ меняешь реквизиты.
+- Если просят выполнить действие — вежливо откажись и подскажи нужный раздел интерфейса.
 
 СЛЕДУЮЩИЙ ШАГ:
-- В контексте передан next_action_hint — используй его как основную рекомендацию для пользователя.
-- Чётко указывай, чьи именно реквизиты не выбраны (займодавца / заёмщика), если это блокирует шаг.
+- В контексте передан next_action_hint — используй его как основу рекомендации, но переформулируй живым языком.
+- Чётко указывай, чьих именно реквизитов не хватает (займодавца / заёмщика, для выдачи или для возврата), используя человеческие формулировки.
+
+ИНТЕНТЫ:
+- Если в начале сообщения пользователя есть "INTENT: explain_ai_check" или "INTENT: explain_status" — режим "deeper_explanation": дай более глубокое объяснение, не повторяй прошлый ответ дословно, добавь больше деталей о причинах и конкретных следующих шагах.
 
 ФОРМАТ:
-- Отвечай кратко, на русском, человеческим языком. Не выдумывай факты — используй только переданный контекст.
-- В конце ответа можешь предложить 1-3 раздела интерфейса в формате JSON-блока:
+- Кратко, по делу, на русском.
+- В конце можешь предложить 1–3 раздела интерфейса в JSON-блоке:
 \`\`\`actions
 ["open_bank_details","open_tranches","open_repayments","open_documents","explain_ai_check","explain_status"]
 \`\`\`
@@ -60,22 +103,45 @@ function extractActions(answer: string): string[] {
 }
 
 function fmtRub(n: number): string {
-  try {
-    return new Intl.NumberFormat("ru-RU", { maximumFractionDigits: 2 }).format(n) + " ₽";
-  } catch {
-    return `${n} ₽`;
-  }
+  try { return new Intl.NumberFormat("ru-RU", { maximumFractionDigits: 2 }).format(n) + " ₽"; }
+  catch { return `${n} ₽`; }
 }
 
-// Replace clear $ amounts with ₽ in the answer (loan context is always RUB).
-function sanitizeCurrency(text: string): string {
+function sanitizeOutput(text: string): string {
   if (!text) return text;
   let out = text;
-  // $1,234.56 / $ 1234 / 1234$
+  // currency
   out = out.replace(/\$\s*([\d][\d\s.,]*)/g, (_m, num) => `${num} ₽`);
   out = out.replace(/([\d][\d\s.,]*)\s*\$/g, (_m, num) => `${num} ₽`);
   out = out.replace(/\bUSD\b/gi, "₽");
   out = out.replace(/\b(долларов|долларах|долларами|доллар(?:а|у|ом)?)\b/gi, "руб.");
+  // internal codes → human
+  const replacements: Array<[RegExp, string]> = [
+    [/\bstatus\s*[:=]\s*active\b/gi, "займ действующий"],
+    [/\bstatus\s*[:=]\s*draft\b/gi, "черновик"],
+    [/\bstatus\s*[:=]\s*fully_signed\b/gi, "договор подписан обеими сторонами"],
+    [/\bstatus\s*[:=]\s*signed_no_debt\b/gi, "договор подписан, деньги ещё не выданы"],
+    [/\bstatus\s*[:=]\s*repaid\b/gi, "займ погашен"],
+    [/\buser_role\s*[:=]\s*borrower\b/gi, "вы — заёмщик"],
+    [/\buser_role\s*[:=]\s*lender\b/gi, "вы — займодавец"],
+    [/\bHIGH\/BLOCKING\b/g, "чек требует ручной проверки или не подходит"],
+    [/\bBLOCKING\b/g, "чек не подходит"],
+    [/\bHIGH\b/g, "нужна ручная проверка"],
+    [/\bMEDIUM\b/g, "есть небольшие замечания"],
+    [/\bLOW\b/g, "низкий риск"],
+    [/\bdisbursement\b/gi, "выдача денег"],
+    [/\brepayment\b/gi, "возврат денег"],
+    [/\bfully_signed\b/gi, "договор подписан обеими сторонами"],
+    [/\bsigned_no_debt\b/gi, "договор подписан, деньги ещё не выданы"],
+    [/\bawaiting_signatures\b/gi, "ожидает подписания"],
+    [/\bsigned_by_lender\b/gi, "подписан займодавцем"],
+    [/\bsigned_by_borrower\b/gi, "подписан заёмщиком"],
+    [/\bactive\b/g, "действующий"],
+    [/\brepaid\b/g, "погашен"],
+    [/\boverdue\b/g, "просрочен"],
+    [/\bpending\b/gi, "в ожидании подтверждения"],
+  ];
+  for (const [re, rep] of replacements) out = out.replace(re, rep);
   if (/\$|USD/i.test(text)) {
     out += "\n\nПримечание: все суммы в этом займе указаны в российских рублях.";
   }
@@ -86,6 +152,8 @@ function computeNextActionHint(params: {
   status: string;
   userRole: "lender" | "borrower";
   lenderDisbSet: boolean;
+  borrowerDisbSet: boolean;
+  lenderRepSet: boolean;
   borrowerRepSet: boolean;
   outstanding: number;
   pendingPayments: number;
@@ -94,66 +162,84 @@ function computeNextActionHint(params: {
   hasConfirmedTranche: boolean;
 }): { hint: string; suggestedActions: string[] } {
   const {
-    status, userRole, lenderDisbSet, borrowerRepSet,
+    status, userRole, lenderDisbSet, borrowerDisbSet, lenderRepSet, borrowerRepSet,
     outstanding, pendingPayments, hasHighRiskCheck, isFullySigned, hasConfirmedTranche,
   } = params;
 
   if (hasHighRiskCheck) {
     return {
-      hint: "Последняя AI-проверка чека помечена как HIGH/BLOCKING. Объясните причину и предложите загрузить корректный чек (российский банк, RUB, статус «исполнено»).",
+      hint: "Последняя проверка чека показала проблему. Нужно открыть детали проверки, понять причину и загрузить корректный чек российского банка с переводом в рублях и подтверждённым статусом исполнения.",
       suggestedActions: ["explain_ai_check", "open_tranches"],
     };
   }
   if (!isFullySigned) {
     return {
-      hint: `Договор ещё не полностью подписан (status=${status}). Подскажите, чья подпись отсутствует, и направьте к разделу подписания.`,
+      hint: `Договор ещё не подписан обеими сторонами (сейчас: ${statusLabel(status)}). Нужно дождаться подписи второй стороны или подписать со своей стороны, если ещё не подписали.`,
       suggestedActions: ["explain_status", "open_documents"],
     };
   }
   if (!lenderDisbSet) {
     return {
-      hint: "Не выбраны реквизиты займодавца для выдачи (disbursement). Транш невозможен, пока займодавец не выберет свои реквизиты в разделе «Реквизиты».",
+      hint: "Займодавец ещё не выбрал реквизиты, с которых будет переводить деньги. До этого выдача невозможна.",
       suggestedActions: ["open_bank_details"],
     };
   }
-  if (!borrowerRepSet) {
+  if (!borrowerDisbSet) {
     return {
-      hint: "Не выбраны реквизиты заёмщика для возврата (repayment). Погашение невозможно, пока заёмщик не выберет свои реквизиты в разделе «Реквизиты».",
+      hint: "Заёмщик ещё не выбрал реквизиты для получения денег. До этого выдача невозможна.",
+      suggestedActions: ["open_bank_details"],
+    };
+  }
+  if (!lenderRepSet) {
+    return {
+      hint: "Займодавец ещё не выбрал реквизиты для приёма возврата. Заёмщик не сможет вернуть деньги, пока эти реквизиты не выбраны.",
       suggestedActions: ["open_bank_details"],
     };
   }
   if (pendingPayments > 0 && userRole === "lender") {
     return {
-      hint: `Есть ${pendingPayments} погашение(й) в статусе pending. Займодавцу нужно открыть раздел «Погашения» и подтвердить факт получения средств.`,
+      hint: `Есть ${pendingPayments} перевод(а) от заёмщика, которые ждут вашего подтверждения. Откройте раздел погашений и подтвердите факт получения денег.`,
+      suggestedActions: ["open_repayments"],
+    };
+  }
+  if (pendingPayments > 0 && userRole === "borrower") {
+    return {
+      hint: `Ваш перевод уже отправлен и ждёт подтверждения от займодавца. Дополнительных действий пока не требуется.`,
       suggestedActions: ["open_repayments"],
     };
   }
   if (!hasConfirmedTranche && userRole === "lender") {
     return {
-      hint: "Договор подписан, реквизиты готовы — займодавцу пора сделать первый транш переводом и затем зафиксировать его в разделе «Транши».",
+      hint: "Договор подписан, реквизиты готовы — займодавцу пора сделать первый перевод и затем зафиксировать его в разделе траншей.",
+      suggestedActions: ["open_tranches"],
+    };
+  }
+  if (!hasConfirmedTranche && userRole === "borrower") {
+    return {
+      hint: "Договор подписан, реквизиты готовы. Ждём, пока займодавец сделает перевод и зафиксирует его в разделе траншей.",
       suggestedActions: ["open_tranches"],
     };
   }
   if (outstanding > 0 && userRole === "borrower") {
     return {
-      hint: `У заёмщика остаток долга ${fmtRub(outstanding)}. Нужно сделать перевод по реквизитам займодавца и зафиксировать погашение в разделе «Погашения».`,
+      hint: `У вас остаток долга ${fmtRub(outstanding)}. Сделайте перевод по реквизитам займодавца и зафиксируйте погашение в соответствующем разделе.`,
       suggestedActions: ["open_repayments"],
     };
   }
   if (outstanding > 0 && userRole === "lender") {
     return {
-      hint: `Остаток долга ${fmtRub(outstanding)}. Займодавец ожидает перевод от заёмщика и подтверждает поступления в разделе «Погашения».`,
+      hint: `Остаток долга заёмщика ${fmtRub(outstanding)}. Ждём перевод от заёмщика — после поступления подтвердите его в разделе погашений.`,
       suggestedActions: ["open_repayments"],
     };
   }
   if (outstanding <= 0 && hasConfirmedTranche) {
     return {
-      hint: "Долг полностью погашен. Можно сформировать итоговое подтверждение полного возврата (Приложение 5) в разделе документов.",
+      hint: "Долг полностью погашен. Можно сформировать итоговое подтверждение полного возврата в разделе документов.",
       suggestedActions: ["open_documents"],
     };
   }
   return {
-    hint: "Чёткого следующего шага нет — кратко опишите текущее состояние займа.",
+    hint: "Чёткого следующего шага нет — кратко опишите текущее состояние займа человеческим языком.",
     suggestedActions: ["explain_status"],
   };
 }
@@ -188,6 +274,11 @@ Deno.serve(async (req) => {
   const loanId = typeof body?.loan_id === "string" ? body.loan_id : null;
   const userMessage = typeof body?.message === "string" ? body.message.trim().slice(0, 2000) : "";
   if (!loanId || !userMessage) return json(400, { ok: false, error: "Требуются loan_id и message" });
+
+  // Detect intent markers from follow-up buttons
+  const intentMatch = userMessage.match(/^INTENT:\s*(explain_ai_check|explain_status)\b/i);
+  const assistantMode = intentMatch ? "deeper_explanation" : "normal";
+  const intent = intentMatch ? intentMatch[1].toLowerCase() : null;
 
   const admin = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
 
@@ -227,6 +318,7 @@ Deno.serve(async (req) => {
   const outstanding = totalDisbursed - totalRepaid;
   const pendingPayments = (payments ?? []).filter((p) => p.status === "pending").length;
   const hasConfirmedTranche = (tranches ?? []).some((t) => t.status === "confirmed");
+  const latestAi = (aiChecks ?? [])[0] ?? null;
   const hasHighRiskCheck = (aiChecks ?? []).some((c) => c.risk_level === "HIGH" || c.risk_level === "BLOCKING");
 
   const lenderDisbSet = (allowedBank ?? []).some((b) => b.party_role === "lender" && b.purpose === "disbursement");
@@ -234,14 +326,23 @@ Deno.serve(async (req) => {
   const lenderRepSet = (allowedBank ?? []).some((b) => b.party_role === "lender" && b.purpose === "repayment");
   const borrowerRepSet = (allowedBank ?? []).some((b) => b.party_role === "borrower" && b.purpose === "repayment");
 
+  // Corrected readiness
+  const trancheReady = lenderDisbSet && borrowerDisbSet;
+  const repaymentReady = lenderRepSet;
+  const mySideReady = userRole === "lender"
+    ? (lenderDisbSet && lenderRepSet)
+    : borrowerDisbSet;
+  const counterpartyReady = userRole === "lender"
+    ? borrowerDisbSet
+    : (lenderDisbSet && lenderRepSet);
+
   const isFullySigned = ["fully_signed", "signed_no_debt", "active", "repaid"].includes(loan.status)
     || ((signatures ?? []).some((s) => s.role === "lender") && (signatures ?? []).some((s) => s.role === "borrower"));
 
   const next = computeNextActionHint({
     status: loan.status,
     userRole,
-    lenderDisbSet,
-    borrowerRepSet,
+    lenderDisbSet, borrowerDisbSet, lenderRepSet, borrowerRepSet,
     outstanding,
     pendingPayments,
     hasHighRiskCheck,
@@ -249,50 +350,91 @@ Deno.serve(async (req) => {
     hasConfirmedTranche,
   });
 
+  // Build human public summary (no internal codes)
+  const youAre = `Вы — ${roleLabel(userRole)}.`;
+  const statusHuman = `Состояние займа: ${statusLabel(loan.status)}.`;
+  const moneyLine = hasConfirmedTranche
+    ? `Сумма займа ${fmtRub(Number(loan.amount))}. Выдано ${fmtRub(totalDisbursed)}, возвращено ${fmtRub(totalRepaid)}, остаток ${fmtRub(outstanding)}.`
+    : `Сумма займа ${fmtRub(Number(loan.amount))}. Денег пока не выдано.`;
+  let aiLine = "";
+  if (latestAi) {
+    const reasons = Array.isArray(latestAi.blocking_reasons) && latestAi.blocking_reasons.length
+      ? ` Причины: ${(latestAi.blocking_reasons as string[]).join("; ")}.`
+      : "";
+    aiLine = ` Последняя проверка чека: ${riskLabel(latestAi.risk_level)}.${reasons}`;
+  }
+  let reqLine = "";
+  if (!mySideReady) reqLine += " Не хватает ваших реквизитов.";
+  else reqLine += " Ваши реквизиты выбраны.";
+  if (!counterpartyReady) reqLine += " Ждём реквизиты второй стороны.";
+  else reqLine += " Реквизиты второй стороны тоже готовы.";
+
+  const publicContextSummary = `${youAre} ${statusHuman} ${moneyLine}${aiLine}${reqLine}`.trim();
+
   const context = {
-    loan_id: loan.id,
+    public_context_summary: publicContextSummary,
     contract_number: loan.contract_number,
-    status: loan.status,
-    user_role: userRole,
+    user_role_label: roleLabel(userRole),
     counterparty_name: userRole === "lender" ? loan.borrower_name : loan.lender_name,
+    status_label: statusLabel(loan.status),
     currency: "RUB",
     currency_symbol: "₽",
-    amount: Number(loan.amount),
     amount_display: fmtRub(Number(loan.amount)),
-    interest_mode: loan.interest_mode,
-    interest_rate: Number(loan.interest_rate),
     repayment_date: loan.repayment_date,
-    signature_scheme: loan.signature_scheme_requested,
-    signature_package: sigPackage ?? null,
-    signatures: (signatures ?? []).map((s) => s.role),
-    bank_details_readiness: {
-      lender_disbursement_set: lenderDisbSet,
-      borrower_disbursement_set: borrowerDisbSet,
-      lender_repayment_set: lenderRepSet,
-      borrower_repayment_set: borrowerRepSet,
-      tranche_ready: lenderDisbSet,
-      repayment_ready: borrowerRepSet,
+    bank_details_human: {
+      my_side_ready: mySideReady,
+      counterparty_ready: counterpartyReady,
+      lender_can_send_money: lenderDisbSet,
+      borrower_can_receive_money: borrowerDisbSet,
+      lender_can_receive_repayment: lenderRepSet,
+      borrower_can_send_repayment: borrowerRepSet,
+      tranche_ready: trancheReady,
+      repayment_ready: repaymentReady,
     },
     totals: {
-      disbursed: totalDisbursed,
-      repaid: totalRepaid,
-      outstanding,
       total_disbursed_display: fmtRub(totalDisbursed),
       total_repaid_display: fmtRub(totalRepaid),
       outstanding_display: fmtRub(outstanding),
     },
     pending_payments_count: pendingPayments,
-    tranches_summary: (tranches ?? []).map((t) => ({ n: t.tranche_number, amount: Number(t.amount), amount_display: fmtRub(Number(t.amount)), status: t.status, ai_risk: t.ai_risk_level })),
-    payments_summary: (payments ?? []).map((p) => ({ amount: Number(p.transfer_amount), amount_display: fmtRub(Number(p.transfer_amount)), status: p.status, date: p.transfer_date, ai_risk: p.ai_risk_level })),
-    schedule_summary: (schedule ?? []).map((s) => ({ n: s.item_number, due: s.due_date, amount: Number(s.total_amount), amount_display: fmtRub(Number(s.total_amount)), status: s.status })),
-    latest_ai_checks: (aiChecks ?? []).map((c) => ({ entity_type: c.entity_type, risk_level: c.risk_level, blocking_reasons: c.blocking_reasons, summary: c.ai_summary })),
+    tranches_human: (tranches ?? []).map((t) => ({
+      n: t.tranche_number, amount_display: fmtRub(Number(t.amount)),
+      state: t.status === "confirmed" ? "подтверждён" : t.status === "sent" ? "отправлен, ждёт подтверждения" : t.status === "planned" ? "запланирован" : t.status,
+      check: riskLabel(t.ai_risk_level),
+    })),
+    payments_human: (payments ?? []).map((p) => ({
+      amount_display: fmtRub(Number(p.transfer_amount)),
+      state: p.status === "confirmed" ? "подтверждён займодавцем" : p.status === "pending" ? "ждёт подтверждения займодавца" : p.status,
+      date: p.transfer_date,
+      check: riskLabel(p.ai_risk_level),
+    })),
+    schedule_human: (schedule ?? []).map((s) => ({
+      n: s.item_number, due: s.due_date, amount_display: fmtRub(Number(s.total_amount)),
+      state: s.status === "paid" ? "оплачен" : s.status === "pending" ? "запланирован" : s.status,
+    })),
+    latest_ai_check_human: latestAi ? {
+      what_was_checked: latestAi.entity_type === "tranche" ? "чек по выдаче транша" : latestAi.entity_type === "payment" ? "чек по возврату" : latestAi.entity_type,
+      verdict: riskLabel(latestAi.risk_level),
+      reasons: Array.isArray(latestAi.blocking_reasons) ? latestAi.blocking_reasons : [],
+      summary: latestAi.ai_summary ?? "",
+    } : null,
     documents_available: (docs ?? []).map((d) => d.document_type),
     next_action_hint: next.hint,
+    assistant_mode: assistantMode,
+    intent: intent,
   };
+
+  const intentInstruction = intent === "explain_ai_check"
+    ? "\nРЕЖИМ: deeper_explanation (explain_ai_check). Не повторяй прошлый ответ. Дай более глубокое объяснение последней проверки чека: что именно не так, почему это важно, блокирует ли это подтверждение, и какой именно файл нужно загрузить (российский банк, рубли, видна сумма/дата/получатель/статус «исполнено»)."
+    : intent === "explain_status"
+    ? "\nРЕЖИМ: deeper_explanation (explain_status). Не повторяй прошлый ответ. Объясни текущее состояние займа человеческим языком: что уже произошло, что осталось, и какой именно следующий шаг для роли пользователя."
+    : "";
 
   const fullPrompt = `${SYSTEM_PROMPT}
 
-КОНТЕКСТ ЗАЙМА (JSON, все суммы в RUB):
+ВАЖНО: Используй public_context_summary как основу ответа. Не цитируй имена JSON-полей и внутренние коды. Все суммы в RUB.${intentInstruction}
+
+КОНТЕКСТ ЗАЙМА (JSON, только для твоего понимания):
 ${JSON.stringify(context, null, 2)}
 
 ВОПРОС ПОЛЬЗОВАТЕЛЯ:
@@ -348,16 +490,28 @@ ${userMessage}`;
   }
 
   const cleanedAnswerRaw = (answer ?? "").replace(/```actions[\s\S]*?```/g, "").trim();
-  const cleanAnswer = sanitizeCurrency(cleanedAnswerRaw);
+  const cleanAnswer = sanitizeOutput(cleanedAnswerRaw);
   const modelActions = extractActions(answer ?? "");
-  // Merge model + deterministic suggestions, dedupe, cap at 3.
-  const suggested_actions = Array.from(new Set([...modelActions, ...next.suggestedActions])).slice(0, 3);
+
+  // Contextual suggested actions
+  const contextual: string[] = [];
+  if (hasHighRiskCheck) contextual.push("explain_ai_check");
+  if (!mySideReady || !counterpartyReady) contextual.push("open_bank_details");
+  if (pendingPayments > 0) contextual.push("open_repayments");
+  if (outstanding > 0 && hasConfirmedTranche) contextual.push("open_repayments");
+  if (!isFullySigned) contextual.push("explain_status");
+  if (!hasConfirmedTranche && isFullySigned) contextual.push("open_tranches");
+
+  const suggested_actions = Array.from(new Set([
+    ...modelActions,
+    ...next.suggestedActions,
+    ...contextual,
+  ])).slice(0, 3);
 
   return json(200, {
     ok: true,
     answer: cleanAnswer,
     suggested_actions,
-    next_action_hint: next.hint,
     usage: { prompt_tokens: promptTokens, completion_tokens: completionTokens, total_tokens: totalTokens },
     duration_ms: duration,
   });
