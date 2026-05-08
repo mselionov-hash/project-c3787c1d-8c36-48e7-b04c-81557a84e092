@@ -9,6 +9,10 @@ import { toast } from 'sonner';
 import { AppLayout } from '@/components/AppLayout';
 import { BankDetailsManager } from '@/components/BankDetailsManager';
 import { Save, Loader2, LogOut } from 'lucide-react';
+import {
+  validateFullName, validatePhone, validateRussianPassportSeries, validateRussianPassportNumber,
+  validateDivisionCode, validateBirthDate, validatePassportIssueDate, validateAddress,
+} from '@/lib/validation';
 
 const Profile = () => {
   const navigate = useNavigate();
@@ -45,6 +49,23 @@ const Profile = () => {
 
   const handleSave = async () => {
     if (!user) return;
+    // Validate only filled-in fields (profile may be incomplete during onboarding).
+    const checks: Array<{ value: string; check: () => { valid: boolean; error?: string; normalizedValue?: string }; setter?: (v: string) => void }> = [
+      { value: fullName, check: () => validateFullName(fullName), setter: setFullName },
+      { value: phone, check: () => validatePhone(phone), setter: setPhone },
+      { value: passportSeries, check: () => validateRussianPassportSeries(passportSeries), setter: setPassportSeries },
+      { value: passportNumber, check: () => validateRussianPassportNumber(passportNumber), setter: setPassportNumber },
+      { value: passportDivisionCode, check: () => validateDivisionCode(passportDivisionCode), setter: setPassportDivisionCode },
+      { value: dateOfBirth, check: () => validateBirthDate(dateOfBirth) },
+      { value: passportIssueDate, check: () => validatePassportIssueDate(passportIssueDate, dateOfBirth) },
+      { value: address, check: () => validateAddress(address), setter: setAddress },
+    ];
+    for (const item of checks) {
+      if (!item.value.trim()) continue;
+      const r = item.check();
+      if (!r.valid) { toast.error(r.error!); return; }
+      if (r.normalizedValue && item.setter) item.setter(r.normalizedValue);
+    }
     setSaving(true);
     try {
       const { error } = await supabase
