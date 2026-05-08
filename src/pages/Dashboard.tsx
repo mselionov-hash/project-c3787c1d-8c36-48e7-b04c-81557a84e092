@@ -384,7 +384,13 @@ const DashboardSection = ({ loans, userId, icon, title, titleClass }: {
       </div>
       <div className="space-y-1.5">
         {loans.map(loan => (
-          <LoanCard key={loan.id} loan={loan} type={loan.lender_id === userId ? 'issued' : 'taken'} />
+          <LoanCard
+            key={loan.id}
+            loan={loan}
+            type={loan.lender_id === userId ? 'issued' : 'taken'}
+            unifiedNext={loan.opState ? { label: loan.opState.nextAction.label, priority: loan.opState.nextAction.priority } : undefined}
+            statusLabelOverride={loan.opState ? { label: loan.opState.statusLabel, tone: loan.opState.tone } : undefined}
+          />
         ))}
       </div>
     </section>
