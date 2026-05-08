@@ -58,6 +58,26 @@ export const TrancheList = ({
     .reduce((s, t) => s + Number(t.amount), 0);
   const limitReached = totalAllTranches >= loanLimit;
 
+  useEffect(() => {
+    const openCreate = (e: Event) => {
+      const d = (e as CustomEvent).detail;
+      if (d?.loanId !== loanId) return;
+      if (canCreateTranche && !limitReached) setShowCreate(true);
+    };
+    const openConfirm = (e: Event) => {
+      const d = (e as CustomEvent).detail;
+      if (d?.loanId !== loanId) return;
+      const target = tranches.find(t => isBorrower && (t.status === 'planned' || t.status === 'sent'));
+      if (target) setConfirmTranche(target);
+    };
+    window.addEventListener('loan-assistant:open-tranche-create', openCreate);
+    window.addEventListener('loan-assistant:open-tranche-confirm', openConfirm);
+    return () => {
+      window.removeEventListener('loan-assistant:open-tranche-create', openCreate);
+      window.removeEventListener('loan-assistant:open-tranche-confirm', openConfirm);
+    };
+  }, [loanId, canCreateTranche, limitReached, tranches, isBorrower]);
+
   return (
     <div>
       <div className="flex items-center justify-between mb-4">
