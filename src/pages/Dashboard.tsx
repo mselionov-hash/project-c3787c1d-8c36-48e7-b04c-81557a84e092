@@ -8,10 +8,13 @@ import { Button } from '@/components/ui/button';
 import { Plus, Send, CheckCircle2, Clock, Wallet, AlertTriangle, CreditCard, Banknote } from 'lucide-react';
 import type { Tables } from '@/integrations/supabase/types';
 import { calculateLoanTotals, isLoanOverdue, overdueDays } from '@/lib/loan-status';
+import { getLoanOperationalState, type OperationalState, type BankReadiness } from '@/lib/loan-next-action';
 
 type Loan = Tables<'loans'>;
 type Tranche = Tables<'loan_tranches'>;
 type Payment = Tables<'loan_payments'>;
+type Signature = Tables<'loan_signatures'>;
+type AllowedBank = Tables<'loan_allowed_bank_details'>;
 
 interface LoanWithPending extends Loan {
   hasPendingTranches?: boolean;
@@ -19,6 +22,7 @@ interface LoanWithPending extends Loan {
   isOverdue?: boolean;
   daysOverdue?: number;
   outstanding?: number;
+  opState?: OperationalState;
 }
 
 const Dashboard = () => {
