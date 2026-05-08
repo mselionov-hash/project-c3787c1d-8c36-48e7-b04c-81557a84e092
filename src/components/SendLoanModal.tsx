@@ -59,6 +59,10 @@ const SendLoanModal = ({ loanId, borrowerName, onClose, onSuccess }: SendLoanMod
 
   const handleSend = async () => {
     if (!foundUser) return;
+    if (user?.id && foundUser.user_id === user.id) {
+      toast.error('Нельзя отправить договор самому себе.');
+      return;
+    }
     setSending(true);
 
     try {
