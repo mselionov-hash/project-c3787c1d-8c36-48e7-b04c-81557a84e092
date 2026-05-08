@@ -319,7 +319,7 @@ const LoanDetails = () => {
               <h1 className="text-lg font-bold font-display truncate">
                 {isLender ? loan.borrower_name : loan.lender_name}
               </h1>
-              <span className={`pill-badge ${status.class}`}>{status.label}</span>
+              <span className={`pill-badge ${effectiveStatus.class}`}>{effectiveStatus.label}</span>
             </div>
             <p className="text-xs text-muted-foreground">
               {loan.contract_number ? `№ ${loan.contract_number}` : `ID: ${loan.id.slice(0, 8)}`}
