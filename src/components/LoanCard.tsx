@@ -50,11 +50,15 @@ function getNextStep(loan: Loan, isLender: boolean): NextStep | null {
   }
 }
 
-export const LoanCard = ({ loan, type }: { loan: Loan; type: 'issued' | 'taken' }) => {
+export const LoanCard = ({ loan, type, overdue }: { loan: Loan; type: 'issued' | 'taken'; overdue?: OverdueMeta }) => {
   const navigate = useNavigate();
-  const status = statusLabels[loan.status] || statusLabels.draft;
+  const isOverdue = !!overdue?.isOverdue;
+  const status = isOverdue ? statusLabels.overdue : (statusLabels[loan.status] || statusLabels.draft);
   const isLender = type === 'issued';
-  const nextStep = getNextStep(loan, isLender);
+  const baseNext = getNextStep(loan, isLender);
+  const nextStep: NextStep | null = isOverdue
+    ? (isLender ? { label: 'Ожидает погашения', urgent: true } : { label: 'Погасить задолженность', urgent: true })
+    : baseNext;
   const daysLeft = Math.ceil(
     (parseDateOnly(loan.repayment_date).getTime() - Date.now()) / (1000 * 60 * 60 * 24)
   );
@@ -62,7 +66,7 @@ export const LoanCard = ({ loan, type }: { loan: Loan; type: 'issued' | 'taken' 
   return (
     <div
       onClick={() => navigate(`/loans/${loan.id}`)}
-      className="card-elevated p-4 hover:border-border transition-all cursor-pointer group"
+      className={`card-elevated p-4 hover:border-border transition-all cursor-pointer group ${isOverdue ? 'border-destructive/40' : ''}`}
     >
       <div className="flex items-start gap-3">
         <div className={`w-10 h-10 rounded-lg flex items-center justify-center flex-shrink-0 ${
@@ -79,23 +83,26 @@ export const LoanCard = ({ loan, type }: { loan: Loan; type: 'issued' | 'taken' 
             </p>
             <ChevronRight className="w-4 h-4 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0" />
           </div>
-          <div className="flex items-center gap-2 mb-2">
+          <div className="flex items-center gap-2 mb-2 flex-wrap">
             <span className="text-lg font-bold font-display">
               {Number(loan.amount).toLocaleString('ru-RU')} ₽
             </span>
             <span className={`pill-badge ${status.class}`}>{status.label}</span>
+            {isOverdue && overdue?.daysOverdue !== undefined && (
+              <span className="text-[10px] text-destructive font-medium">просрочка {overdue.daysOverdue} дн.</span>
+            )}
           </div>
           <div className="flex items-center gap-3 text-xs text-muted-foreground">
             {loan.interest_mode === 'fixed_rate' && (
               <span>{Number(loan.interest_rate)}%</span>
             )}
             <span>до {formatDateSafe(loan.repayment_date, { day: 'numeric', month: 'short' })}</span>
-            {daysLeft > 0 && daysLeft <= 30 && loan.status === 'active' && (
+            {!isOverdue && daysLeft > 0 && daysLeft <= 30 && loan.status === 'active' && (
               <span className="text-warning">{daysLeft} дн.</span>
             )}
           </div>
           {nextStep && (
-            <div className={`mt-2 text-xs font-medium ${nextStep.urgent ? 'text-warning' : 'text-primary'}`}>
+            <div className={`mt-2 text-xs font-medium ${isOverdue ? 'text-destructive' : (nextStep.urgent ? 'text-warning' : 'text-primary')}`}>
               → {nextStep.label}
             </div>
           )}
