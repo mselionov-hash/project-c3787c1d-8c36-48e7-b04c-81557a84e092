@@ -137,11 +137,11 @@ export function LoanAiAssistant({ loanId, onAction }: Props) {
                 <div className="flex flex-wrap gap-1.5">
                   {QUICK_PROMPTS.map((q) => (
                     <button
-                      key={q}
-                      onClick={() => ask(q)}
+                      key={q.label}
+                      onClick={() => ask(q.message ?? q.label, q.intent ? { intent: q.intent, displayText: q.label } : undefined)}
                       className="text-[11px] px-2.5 py-1.5 rounded-md border border-border/60 hover:bg-secondary transition-colors text-left"
                     >
-                      {q}
+                      {q.label}
                     </button>
                   ))}
                 </div>
