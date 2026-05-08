@@ -478,7 +478,7 @@ ${userMessage}`;
     await admin.from("ai_interactions").insert({
       user_id: userId,
       endpoint: "/loan-ai-assistant",
-      request_message: `[loan:${loanId}] ${userMessage}`,
+      request_message: `[loan:${loanId}]${intent ? `[intent:${intent}]` : ""} ${userMessage}`,
       response_text: answer ?? rawText,
       http_status: httpStatus || null,
       error: errorText,
