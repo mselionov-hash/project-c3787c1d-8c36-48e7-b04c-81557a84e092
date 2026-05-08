@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Banknote, Plus, CheckCircle2, Clock, AlertCircle } from 'lucide-react';
 import { CreateTrancheModal } from '@/components/CreateTrancheModal';
@@ -57,6 +57,26 @@ export const TrancheList = ({
     .filter(t => ['planned', 'sent', 'confirmed'].includes(t.status))
     .reduce((s, t) => s + Number(t.amount), 0);
   const limitReached = totalAllTranches >= loanLimit;
+
+  useEffect(() => {
+    const openCreate = (e: Event) => {
+      const d = (e as CustomEvent).detail;
+      if (d?.loanId !== loanId) return;
+      if (canCreateTranche && !limitReached) setShowCreate(true);
+    };
+    const openConfirm = (e: Event) => {
+      const d = (e as CustomEvent).detail;
+      if (d?.loanId !== loanId) return;
+      const target = tranches.find(t => isBorrower && (t.status === 'planned' || t.status === 'sent'));
+      if (target) setConfirmTranche(target);
+    };
+    window.addEventListener('loan-assistant:open-tranche-create', openCreate);
+    window.addEventListener('loan-assistant:open-tranche-confirm', openConfirm);
+    return () => {
+      window.removeEventListener('loan-assistant:open-tranche-create', openCreate);
+      window.removeEventListener('loan-assistant:open-tranche-confirm', openConfirm);
+    };
+  }, [loanId, canCreateTranche, limitReached, tranches, isBorrower]);
 
   return (
     <div>

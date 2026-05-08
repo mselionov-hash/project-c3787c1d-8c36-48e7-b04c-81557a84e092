@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
 import { toast } from 'sonner';
@@ -39,6 +39,16 @@ export const RepaymentList = ({
 }: RepaymentListProps) => {
   const [showCreate, setShowCreate] = useState(false);
   const [confirming, setConfirming] = useState<string | null>(null);
+
+  useEffect(() => {
+    const h = (e: Event) => {
+      const detail = (e as CustomEvent).detail;
+      if (detail?.loanId !== loanId) return;
+      if (canCreate) setShowCreate(true);
+    };
+    window.addEventListener('loan-assistant:open-repayment-create', h);
+    return () => window.removeEventListener('loan-assistant:open-repayment-create', h);
+  }, [loanId, isBorrower, loanStatus]);
 
   const canCreate = isBorrower && ['active'].includes(loanStatus);
   const totalConfirmed = payments

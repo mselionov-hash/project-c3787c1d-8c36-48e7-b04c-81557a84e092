@@ -20,13 +20,24 @@ const QUICK_PROMPTS: Array<{ label: string; intent?: string; message?: string }>
   { label: 'Почему чек не прошёл?' },
 ];
 
-type ActionKind = 'section' | 'navigate' | 'followup';
+type ActionKind = 'section' | 'navigate' | 'modal' | 'followup';
 type FollowupConfig = { intent: string; message: string; displayText: string };
-const ACTION_LABELS: Record<string, { label: string; kind: ActionKind; payload?: string; followup?: FollowupConfig }> = {
-  open_bank_details: { label: 'Открыть реквизиты', kind: 'section', payload: 'bank' },
+type ActionConfig = {
+  label: string;
+  kind: ActionKind;
+  payload?: string; // section id or modal event name
+  followup?: FollowupConfig;
+};
+
+const ACTION_LABELS: Record<string, ActionConfig> = {
+  open_bank_details: { label: 'Выбрать реквизиты', kind: 'section', payload: 'bank' },
   open_tranches: { label: 'Открыть транши', kind: 'section', payload: 'tranches' },
   open_repayments: { label: 'Открыть погашения', kind: 'section', payload: 'repayments' },
   open_documents: { label: 'Открыть документы', kind: 'navigate' },
+  open_tranche_create_modal: { label: 'Сделать транш', kind: 'modal', payload: 'loan-assistant:open-tranche-create' },
+  open_repayment_create_modal: { label: 'Погасить долг', kind: 'modal', payload: 'loan-assistant:open-repayment-create' },
+  open_tranche_confirm_modal: { label: 'Подтвердить транш', kind: 'modal', payload: 'loan-assistant:open-tranche-confirm' },
+  upload_new_proof: { label: 'Загрузить другой чек', kind: 'section', payload: 'tranches' },
   explain_ai_check: {
     label: 'Подробнее о проверке',
     kind: 'followup',
@@ -43,6 +54,15 @@ const ACTION_LABELS: Record<string, { label: string; kind: ActionKind; payload?:
       intent: 'explain_status',
       displayText: 'Подробнее о статусе',
       message: 'Объясни текущий статус займа: что уже произошло, что осталось и какой следующий шаг для моей роли.',
+    },
+  },
+  explain_documents: {
+    label: 'Подробнее о документах',
+    kind: 'followup',
+    followup: {
+      intent: 'explain_documents',
+      displayText: 'Подробнее о документах',
+      message: 'Какие документы по этому займу уже сформированы, какие можно сформировать сейчас, и какие появятся позже?',
     },
   },
 };
@@ -92,14 +112,27 @@ export function LoanAiAssistant({ loanId, onAction }: Props) {
     }
   };
 
+  const SECTION_ANCHORS: Record<string, string> = {
+    bank: 'bank-details-section',
+    tranches: 'tranches-section',
+    repayments: 'repayments-section',
+  };
+
   const handleAction = (action: string) => {
     const cfg = ACTION_LABELS[action];
     if (!cfg) return;
     if (cfg.kind === 'section' && cfg.payload) {
       onAction?.(cfg.payload);
       setOpen(false);
+      const anchor = SECTION_ANCHORS[cfg.payload];
+      if (anchor) setTimeout(() => document.getElementById(anchor)?.scrollIntoView({ behavior: 'smooth' }), 120);
     } else if (cfg.kind === 'navigate') {
       navigate(`/documents?loan=${loanId}`);
+      setOpen(false);
+    } else if (cfg.kind === 'modal' && cfg.payload) {
+      // Dispatch event for the relevant child component to open its modal.
+      // Final confirmation always requires explicit user click inside the modal.
+      window.dispatchEvent(new CustomEvent(cfg.payload, { detail: { loanId } }));
       setOpen(false);
     } else if (cfg.kind === 'followup' && cfg.followup) {
       ask(cfg.followup.message, { intent: cfg.followup.intent, displayText: cfg.followup.displayText });

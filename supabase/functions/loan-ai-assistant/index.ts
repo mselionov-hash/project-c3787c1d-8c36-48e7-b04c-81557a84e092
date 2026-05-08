@@ -220,8 +220,10 @@ active, draft, fully_signed, signed_no_debt, awaiting_signatures, signed_by_lend
 Допустимые действия только из этого списка.`;
 
 const ALLOWED_ACTIONS = new Set([
-  "open_bank_details", "open_tranches", "open_repayments",
-  "open_documents", "explain_ai_check", "explain_status",
+  "open_bank_details", "open_tranches", "open_repayments", "open_documents",
+  "open_tranche_create_modal", "open_repayment_create_modal", "open_tranche_confirm_modal",
+  "upload_new_proof",
+  "explain_ai_check", "explain_status", "explain_documents",
 ]);
 
 function extractActions(answer: string): string[] {
@@ -675,22 +677,49 @@ ${userMessage}`;
     cleanAnswer = sanitizeOutput(lines.filter(Boolean).join("\n"));
   }
 
-  // Contextual suggested actions
-  const contextual: string[] = [];
-  if (hasHighRiskCheck) contextual.push("explain_ai_check");
-  if (!mySideReady || !counterpartyReady) contextual.push("open_bank_details");
-  if (pendingPayments > 0) contextual.push("open_repayments");
-  if (outstanding > 0 && hasConfirmedTranche) contextual.push("open_repayments");
-  if (!isFullySigned) contextual.push("explain_status");
-  if (!hasConfirmedTranche && isFullySigned) contextual.push("open_tranches");
+  // Smart contextual suggested actions — match state, not generic spam
+  const pendingTrancheForBorrower = (tranches ?? []).some((t) => t.status === "planned" || t.status === "sent");
+  const lenderCanIssue = userRole === "lender" && isFullySigned && trancheReady && totalDisbursed < Number(loan.amount);
+  const borrowerHasDebt = userRole === "borrower" && outstanding > 0 && hasConfirmedTranche;
   const docsActionable = docAvailability.generated.length > 0 || docAvailability.available_now.length > 0;
-  if (isDocQuery && docsActionable) contextual.unshift("open_documents");
+
+  const contextual: string[] = [];
+  // 1) Missing requisites
+  if (!mySideReady || !counterpartyReady) contextual.push("open_bank_details");
+  // 6) AI check problem
+  if (hasHighRiskCheck) { contextual.push("explain_ai_check"); contextual.push("upload_new_proof"); }
+  // 4) Pending tranche awaiting borrower
+  if (userRole === "borrower" && pendingTrancheForBorrower) { contextual.push("open_tranche_confirm_modal"); contextual.push("open_tranches"); }
+  // 5) Pending payment awaiting lender
+  if (userRole === "lender" && pendingPayments > 0) contextual.push("open_repayments");
+  // 2) Lender can issue tranche
+  if (lenderCanIssue) { contextual.push("open_tranche_create_modal"); contextual.push("open_tranches"); }
+  // 3) Borrower has debt
+  if (borrowerHasDebt) { contextual.push("open_repayment_create_modal"); contextual.push("open_repayments"); }
+  // 8) Status follow-up if not signed
+  if (!isFullySigned) contextual.push("explain_status");
+  // 7) Documents
+  if (isDocQuery && docsActionable) { contextual.unshift("explain_documents"); contextual.unshift("open_documents"); }
+
+  const ctxAvailable: Record<string, boolean> = {
+    open_bank_details: true,
+    open_tranches: true,
+    open_repayments: true,
+    open_documents: docsActionable,
+    open_tranche_create_modal: lenderCanIssue,
+    open_repayment_create_modal: borrowerHasDebt,
+    open_tranche_confirm_modal: userRole === "borrower" && pendingTrancheForBorrower,
+    upload_new_proof: hasHighRiskCheck,
+    explain_ai_check: !!latestAi,
+    explain_status: true,
+    explain_documents: true,
+  };
 
   const suggested_actions = Array.from(new Set([
+    ...contextual,
     ...modelActions,
     ...next.suggestedActions,
-    ...contextual,
-  ])).filter((a) => a !== "open_documents" || docsActionable).slice(0, 3);
+  ])).filter((a) => ctxAvailable[a] !== false).slice(0, 3);
 
   return json(200, {
     ok: true,
