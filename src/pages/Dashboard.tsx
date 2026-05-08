@@ -5,7 +5,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { AppLayout } from '@/components/AppLayout';
 import { LoanCard } from '@/components/LoanCard';
 import { Button } from '@/components/ui/button';
-import { Plus, Send, CheckCircle2, Clock, Wallet, AlertTriangle, CreditCard, Banknote } from 'lucide-react';
+import { Plus, Send, CheckCircle2, Clock, Wallet, AlertTriangle, CreditCard, Banknote, FileEdit, Archive } from 'lucide-react';
 import type { Tables } from '@/integrations/supabase/types';
 import { calculateLoanTotals, isLoanOverdue, overdueDays } from '@/lib/loan-status';
 import { getLoanOperationalState, type OperationalState, type BankReadiness } from '@/lib/loan-next-action';
@@ -17,13 +17,13 @@ type Signature = Tables<'loan_signatures'>;
 type AllowedBank = Tables<'loan_allowed_bank_details'>;
 
 interface LoanWithPending extends Loan {
-  hasPendingTranches?: boolean;
-  hasPendingPayments?: boolean;
   isOverdue?: boolean;
   daysOverdue?: number;
   outstanding?: number;
   opState?: OperationalState;
 }
+
+const DEV_DEBUG = (import.meta as any).env?.DEV === true;
 
 const Dashboard = () => {
   const navigate = useNavigate();
@@ -41,7 +41,8 @@ const Dashboard = () => {
 
   const fetchLoans = async () => {
     const [loansRes, tranchesRes, paymentsRes, sigsRes, allowedRes] = await Promise.all([
-      supabase.from('loans').select('*').order('updated_at', { ascending: false }),
+      // Exclude archived loans by default
+      supabase.from('loans').select('*').is('archived_at', null).order('updated_at', { ascending: false }),
       supabase.from('loan_tranches').select('loan_id, amount, status, tranche_number'),
       supabase.from('loan_payments').select('loan_id, transfer_amount, status'),
       supabase.from('loan_signatures').select('loan_id, role'),
@@ -79,9 +80,6 @@ const Dashboard = () => {
       allowedByLoan.set(a.loan_id, arr);
     }
 
-    const pendingTrancheLoans = new Set(allTranches.filter(t => t.status === 'sent').map(t => t.loan_id));
-    const pendingPaymentLoans = new Set(allPayments.filter(p => p.status === 'pending').map(p => p.loan_id));
-
     const enriched: LoanWithPending[] = rawLoans.map(l => {
       const ts = tranchesByLoan.get(l.id) || [];
       const ps = paymentsByLoan.get(l.id) || [];
@@ -101,8 +99,6 @@ const Dashboard = () => {
       });
       return {
         ...l,
-        hasPendingTranches: pendingTrancheLoans.has(l.id),
-        hasPendingPayments: pendingPaymentLoans.has(l.id),
         isOverdue: overdueFlag,
         daysOverdue: overdueFlag ? overdueDays(l.repayment_date) : 0,
         outstanding: totals.outstanding,
@@ -118,73 +114,90 @@ const Dashboard = () => {
 
   const displayName = profile?.full_name?.split(' ')[0] || 'Пользователь';
 
-  // --- Categorize loans by operational status ---
-  const isLender = (l: Loan) => l.lender_id === user.id;
-  const isBorrower = (l: Loan) => l.borrower_id === user.id;
+  // === Bucket loans STRICTLY by opState.nextAction.id and opState.isOverdue ===
+  // No more raw loan.status checks for categorization.
 
-  // Overdue (computed)
-  const overdue = loans.filter(l => l.isOverdue);
+  const WAIT_IDS = new Set([
+    'wait_lender_send',
+    'wait_counterparty_signature',
+    'wait_edo_counterparty',
+    'wait_counterparty_bank_details',
+    'wait_tranche',
+    'wait_tranche_confirmation',
+    'wait_repayment',
+    'wait_repayment_confirmation',
+    'wait_overdue_repayment',
+  ]);
 
-  // Awaiting signature
-  const awaitingSignature = loans.filter(l => {
-    if (l.status === 'awaiting_signatures') return true;
-    if (l.status === 'signed_by_lender' && isBorrower(l)) return true;
-    if (l.status === 'signed_by_borrower' && isLender(l)) return true;
-    return false;
-  });
+  // 1. Просрочено — overdue loans (regardless of priority)
+  const overdue = loans.filter(l => l.opState?.isOverdue);
 
-  // Awaiting requisites selection (signed but needs bank details setup)
-  const awaitingRequisites = loans.filter(l =>
-    l.status === 'fully_signed'
+  const remaining = loans.filter(l => !l.opState?.isOverdue);
+
+  // 7. Некорректные / заблокированные (self-loan etc.)
+  const invalid = remaining.filter(l =>
+    l.opState?.nextAction.priority === 'blocked' || l.opState?.nextAction.id === 'invalid_self_loan'
   );
 
-  // Awaiting tranche from lender (signed_no_debt, lender's turn)
-  const awaitingTranche = loans.filter(l =>
-    l.status === 'signed_no_debt' && isLender(l)
+  const remaining2 = remaining.filter(l => !invalid.includes(l));
+
+  // 6. Завершённые
+  const completed = remaining2.filter(l =>
+    l.status === 'repaid' || l.opState?.nextAction.id === 'generate_full_repayment'
   );
 
-  // Awaiting tranche confirmation (borrower needs to confirm)
-  const awaitingTrancheConfirm = loans.filter(l =>
-    l.hasPendingTranches && isBorrower(l) && ['active', 'signed_no_debt'].includes(l.status)
+  const remaining3 = remaining2.filter(l => !completed.includes(l));
+
+  // 5. Черновики
+  const drafts = remaining3.filter(l =>
+    l.opState?.nextAction.id === 'send_to_borrower' || (l.status === 'draft' && l.opState?.nextAction.priority !== 'primary')
   );
 
-  // Awaiting repayment (borrower's turn) — exclude overdue (already in own section)
-  const awaitingRepayment = loans.filter(l =>
-    l.status === 'active' && isBorrower(l) && !l.isOverdue
+  const remaining4 = remaining3.filter(l => !drafts.includes(l));
+
+  // 2. Требует моего действия — primary actions, grouped by nextAction.id
+  const myAction = remaining4.filter(l => l.opState?.nextAction.priority === 'primary');
+
+  const myActionGroups: Record<string, LoanWithPending[]> = {};
+  for (const l of myAction) {
+    const id = l.opState!.nextAction.id;
+    (myActionGroups[id] ||= []).push(l);
+  }
+
+  // 3. Ожидает другую сторону
+  const waiting = remaining4.filter(l =>
+    !myAction.includes(l) && (
+      l.opState?.nextAction.priority === 'info' && WAIT_IDS.has(l.opState.nextAction.id)
+    )
   );
 
-
-  // Awaiting repayment confirmation (lender needs to confirm)
-  const awaitingRepaymentConfirm = loans.filter(l =>
-    l.hasPendingPayments && isLender(l)
+  // 4. Активные — everything else (no urgent action, not waiting on counterparty)
+  const activeLoans = remaining4.filter(l =>
+    !myAction.includes(l) && !waiting.includes(l)
   );
 
-  // Active (not in other categories)
-  const categorizedIds = new Set([
-    ...overdue, ...awaitingSignature, ...awaitingRequisites,
-    ...awaitingTranche, ...awaitingTrancheConfirm,
-    ...awaitingRepayment, ...awaitingRepaymentConfirm,
-  ].map(l => l.id));
-
-  const activeLoans = loans.filter(l =>
-    ['active', 'fully_signed', 'signed_no_debt'].includes(l.status) && !categorizedIds.has(l.id)
-  );
-
-  // Drafts
-  const drafts = loans.filter(l => l.status === 'draft' && isLender(l));
-
-  // Completed
-  const completed = loans.filter(l => l.status === 'repaid');
-
-  // Count all action items
-  const actionCount = overdue.length + awaitingSignature.length + awaitingRequisites.length +
-    awaitingTranche.length + awaitingTrancheConfirm.length + awaitingRepaymentConfirm.length;
+  const actionCount = overdue.length + myAction.length + invalid.length;
 
   // Stats
   const issuedLoans = loans.filter(l => l.lender_id === user.id);
   const totalIssued = issuedLoans.reduce((s, l) => s + Number(l.amount), 0);
   const takenLoans = loans.filter(l => l.borrower_id === user.id);
   const totalTaken = takenLoans.reduce((s, l) => s + Number(l.amount), 0);
+
+  // Group-action labels
+  const ACTION_GROUP_LABELS: Record<string, { title: string; icon: React.ReactNode }> = {
+    sign_contract: { title: 'Нужно подписать', icon: <FileEdit className="w-3.5 h-3.5 text-warning" /> },
+    accept_edo: { title: 'Принять Регламент ЭДО', icon: <FileEdit className="w-3.5 h-3.5 text-warning" /> },
+    choose_my_bank_details: { title: 'Выбрать реквизиты', icon: <CreditCard className="w-3.5 h-3.5 text-warning" /> },
+    create_tranche: { title: 'Сделать транш', icon: <Banknote className="w-3.5 h-3.5 text-primary" /> },
+    confirm_tranche: { title: 'Подтвердить транш', icon: <CheckCircle2 className="w-3.5 h-3.5 text-info" /> },
+    repay_debt: { title: 'Погасить долг', icon: <Banknote className="w-3.5 h-3.5 text-primary" /> },
+    repay_overdue: { title: 'Погасить задолженность', icon: <AlertTriangle className="w-3.5 h-3.5 text-destructive" /> },
+    confirm_repayment: { title: 'Подтвердить погашение', icon: <CheckCircle2 className="w-3.5 h-3.5 text-info" /> },
+    fix_ai_check: { title: 'Проверить чек', icon: <AlertTriangle className="w-3.5 h-3.5 text-warning" /> },
+    send_to_borrower: { title: 'Отправить заёмщику', icon: <Send className="w-3.5 h-3.5 text-primary" /> },
+    wait_overdue_repayment: { title: 'Ожидаем погашение задолженности', icon: <AlertTriangle className="w-3.5 h-3.5 text-destructive" /> },
+  };
 
   return (
     <AppLayout>
@@ -226,30 +239,6 @@ const Dashboard = () => {
           </div>
         </div>
 
-        {/* Quick actions */}
-        <div className="flex gap-2 mb-6 overflow-x-auto pb-1">
-          <Button variant="outline" size="sm" className="rounded-lg text-xs gap-1.5 flex-shrink-0 h-8" onClick={() => navigate('/loans/create')}>
-            <Plus className="w-3.5 h-3.5" />
-            Новый займ
-          </Button>
-          <Button variant="outline" size="sm" className="rounded-lg text-xs gap-1.5 flex-shrink-0 h-8"
-            onClick={() => {
-              const loan = loans.find(l => l.lender_id === user.id && ['fully_signed', 'active', 'signed_no_debt'].includes(l.status));
-              if (loan) navigate(`/loans/${loan.id}`);
-            }}>
-            <Send className="w-3.5 h-3.5" />
-            Выдать транш
-          </Button>
-          <Button variant="outline" size="sm" className="rounded-lg text-xs gap-1.5 flex-shrink-0 h-8"
-            onClick={() => {
-              const loan = loans.find(l => l.borrower_id === user.id && l.status === 'active');
-              if (loan) navigate(`/loans/${loan.id}`);
-            }}>
-            <CheckCircle2 className="w-3.5 h-3.5" />
-            Погасить
-          </Button>
-        </div>
-
         {loadingLoans ? (
           <div className="text-center py-16 text-muted-foreground text-sm">Загрузка...</div>
         ) : loans.length === 0 ? (
@@ -266,7 +255,7 @@ const Dashboard = () => {
           </div>
         ) : (
           <div className="space-y-5">
-            {/* Overdue */}
+            {/* 1. Просрочено */}
             {overdue.length > 0 && (
               <section>
                 <div className="flex items-center gap-2 mb-2">
@@ -278,87 +267,67 @@ const Dashboard = () => {
                   </span>
                 </div>
                 <div className="space-y-1.5">
-                  {overdue.map(loan => (
-                    <LoanCard
-                      key={loan.id}
-                      loan={loan}
-                      type={loan.lender_id === user.id ? 'issued' : 'taken'}
-                      overdue={{ isOverdue: true, daysOverdue: loan.daysOverdue }}
-                      unifiedNext={loan.opState ? { label: loan.opState.nextAction.label, priority: loan.opState.nextAction.priority } : undefined}
-                      statusLabelOverride={loan.opState ? { label: loan.opState.statusLabel, tone: loan.opState.tone } : undefined}
-                    />
-                  ))}
+                  {overdue.map(loan => renderCard(loan, user.id))}
                 </div>
               </section>
             )}
 
-            {/* Awaiting signature */}
-            <DashboardSection
-              loans={awaitingSignature}
-              userId={user.id}
-              icon={<Clock className="w-3.5 h-3.5 text-warning" />}
-              title="Ожидает подписания"
-            />
+            {/* 7. Некорректные */}
+            {invalid.length > 0 && (
+              <DashboardSection
+                loans={invalid}
+                userId={user.id}
+                icon={<AlertTriangle className="w-3.5 h-3.5 text-destructive" />}
+                title="Некорректные договоры"
+                titleClass="text-destructive"
+              />
+            )}
 
-            {/* Awaiting requisites */}
-            <DashboardSection
-              loans={awaitingRequisites}
-              userId={user.id}
-              icon={<CreditCard className="w-3.5 h-3.5 text-warning" />}
-              title="Ожидает выбора реквизитов"
-            />
+            {/* 2. Требует моего действия — grouped */}
+            {Object.entries(myActionGroups).map(([id, ls]) => {
+              const meta = ACTION_GROUP_LABELS[id] || { title: ls[0].opState!.nextAction.label, icon: <Clock className="w-3.5 h-3.5 text-warning" /> };
+              return (
+                <DashboardSection
+                  key={id}
+                  loans={ls}
+                  userId={user.id}
+                  icon={meta.icon}
+                  title={meta.title}
+                />
+              );
+            })}
 
-            {/* Awaiting tranche */}
-            <DashboardSection
-              loans={awaitingTranche}
-              userId={user.id}
-              icon={<Banknote className="w-3.5 h-3.5 text-primary" />}
-              title="Ожидает выдачи транша"
-            />
+            {/* 3. Ожидает другую сторону */}
+            {waiting.length > 0 && (
+              <DashboardSection
+                loans={waiting}
+                userId={user.id}
+                icon={<Clock className="w-3.5 h-3.5 text-info" />}
+                title="Ожидает другую сторону"
+              />
+            )}
 
-            {/* Awaiting tranche confirmation */}
-            <DashboardSection
-              loans={awaitingTrancheConfirm}
-              userId={user.id}
-              icon={<CheckCircle2 className="w-3.5 h-3.5 text-info" />}
-              title="Ожидает подтверждения транша"
-            />
-
-            {/* Awaiting repayment confirmation */}
-            <DashboardSection
-              loans={awaitingRepaymentConfirm}
-              userId={user.id}
-              icon={<CheckCircle2 className="w-3.5 h-3.5 text-info" />}
-              title="Ожидает подтверждения погашения"
-            />
-
-            {/* Awaiting repayment */}
-            <DashboardSection
-              loans={awaitingRepayment}
-              userId={user.id}
-              icon={<Banknote className="w-3.5 h-3.5 text-primary" />}
-              title="Активные (ожидает погашения)"
-            />
-
-            {/* Other active */}
+            {/* 4. Активные */}
             <DashboardSection
               loans={activeLoans}
               userId={user.id}
               title="Активные"
             />
 
-            {/* Drafts */}
+            {/* 5. Черновики */}
             <DashboardSection
               loans={drafts}
               userId={user.id}
+              icon={<FileEdit className="w-3.5 h-3.5 text-muted-foreground" />}
               title="Черновики"
             />
 
-            {/* Completed */}
+            {/* 6. Завершённые */}
             <DashboardSection
               loans={completed}
               userId={user.id}
-              title="Погашённые"
+              icon={<Archive className="w-3.5 h-3.5 text-muted-foreground" />}
+              title="Завершённые"
             />
           </div>
         )}
@@ -366,6 +335,21 @@ const Dashboard = () => {
     </AppLayout>
   );
 };
+
+function renderCard(loan: LoanWithPending, userId: string) {
+  const op = loan.opState;
+  return (
+    <div key={loan.id} title={DEV_DEBUG && op ? `[dev] action=${op.nextAction.id} status=${op.statusKey}` : undefined}>
+      <LoanCard
+        loan={loan}
+        type={loan.lender_id === userId ? 'issued' : 'taken'}
+        overdue={loan.isOverdue ? { isOverdue: true, daysOverdue: loan.daysOverdue } : undefined}
+        unifiedNext={op ? { label: op.nextAction.label, priority: op.nextAction.priority } : undefined}
+        statusLabelOverride={op ? { label: op.statusLabel, tone: op.tone } : undefined}
+      />
+    </div>
+  );
+}
 
 const DashboardSection = ({ loans, userId, icon, title, titleClass }: {
   loans: LoanWithPending[];
@@ -383,15 +367,7 @@ const DashboardSection = ({ loans, userId, icon, title, titleClass }: {
         <span className="text-[10px] text-muted-foreground">({loans.length})</span>
       </div>
       <div className="space-y-1.5">
-        {loans.map(loan => (
-          <LoanCard
-            key={loan.id}
-            loan={loan}
-            type={loan.lender_id === userId ? 'issued' : 'taken'}
-            unifiedNext={loan.opState ? { label: loan.opState.nextAction.label, priority: loan.opState.nextAction.priority } : undefined}
-            statusLabelOverride={loan.opState ? { label: loan.opState.statusLabel, tone: loan.opState.tone } : undefined}
-          />
-        ))}
+        {loans.map(loan => renderCard(loan, userId))}
       </div>
     </section>
   );
