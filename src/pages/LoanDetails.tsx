@@ -209,7 +209,19 @@ const LoanDetails = () => {
 
   const handleSign = async (signatureDataUrl: string) => {
     if (!user || !loan) return;
+    if (loan.borrower_id && loan.lender_id === loan.borrower_id) {
+      toast.error('Нельзя подписать договор: займодавец и заёмщик совпадают.');
+      return;
+    }
     const role = loan.lender_id === user.id ? 'lender' : 'borrower';
+    if (role === 'lender' && user.id !== loan.lender_id) {
+      toast.error('Подписывать как займодавец может только сам займодавец.');
+      return;
+    }
+    if (role === 'borrower' && user.id !== loan.borrower_id) {
+      toast.error('Подписывать как заёмщик может только указанный заёмщик.');
+      return;
+    }
     try {
       let ip = '';
       try { const res = await fetch('https://api.ipify.org?format=json'); ip = (await res.json()).ip; } catch {}
@@ -241,10 +253,11 @@ const LoanDetails = () => {
   const isLender = user?.id === loan.lender_id;
   const isBorrower = user?.id === loan.borrower_id;
   const isUnepFlow = loan.signature_scheme_requested === 'UNEP_WITH_APPENDIX_6';
+  const isSelfLoan = !!loan.borrower_id && loan.lender_id === loan.borrower_id;
   const baseCanSign = (isLender && !lenderSig) || (isBorrower && !borrowerSig);
   const unepReady = !isUnepFlow || (edoAcceptedByUser && edoAcceptedByCounterparty);
-  const canSign = baseCanSign && unepReady;
-  const canSend = isLender && !loan.borrower_id;
+  const canSign = baseCanSign && unepReady && !isSelfLoan;
+  const canSend = isLender && !loan.borrower_id && !isSelfLoan;
   const hasSchedule = ['installments_fixed', 'installments_variable'].includes(loan.repayment_schedule_type);
 
   const confirmedTranches = tranches.filter(t => t.status === 'confirmed');
@@ -266,6 +279,11 @@ const LoanDetails = () => {
   return (
     <AppLayout>
       <div className="max-w-3xl mx-auto px-4 sm:px-6 py-6 sm:py-8 space-y-3">
+        {isSelfLoan && (
+          <div className="rounded-lg border border-destructive/40 bg-destructive/10 px-4 py-3 text-sm text-destructive">
+            Этот займ некорректен: займодавец и заёмщик — один и тот же пользователь. Действия по договору заблокированы. Обратитесь в поддержку для очистки данных.
+          </div>
+        )}
         {/* Header */}
         <div className="flex items-center gap-3">
           <button onClick={() => navigate(-1)} className="p-2 rounded-lg hover:bg-secondary transition-colors text-muted-foreground">

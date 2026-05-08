@@ -6,6 +6,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { toast } from 'sonner';
 import { Plus, Trash2, Star, StarOff, Loader2, Link2, Image, X, Eye } from 'lucide-react';
+import { validateCardNumber, validatePhone, validateTransferLink, validateBankName } from '@/lib/validation';
 
 interface BankDetail {
   id: string;
@@ -38,14 +39,6 @@ function detectBank(url: string): string | null {
   return null;
 }
 
-function isValidUrl(s: string): boolean {
-  try {
-    new URL(s);
-    return true;
-  } catch {
-    return false;
-  }
-}
 
 export const BankDetailsManager = () => {
   const { user } = useAuth();
@@ -105,15 +98,32 @@ export const BankDetailsManager = () => {
     const hasLink = transferLink.trim().length > 0;
     const hasQr = !!qrFile;
     const hasCard = cardNumber.trim().length > 0;
+    const hasPhone = phone.trim().length > 0;
 
-    if (!hasLink && !hasQr && !hasCard) {
-      toast.error('Укажите ссылку, номер карты или загрузите QR-код');
+    if (!hasLink && !hasQr && !hasCard && !hasPhone) {
+      toast.error('Укажите ссылку, номер карты, телефон СБП или загрузите QR-код');
       return;
     }
 
-    if (hasLink && !isValidUrl(transferLink.trim())) {
-      toast.error('Введите корректную ссылку (URL)');
-      return;
+    let normalizedCard: string | null = null;
+    if (hasCard) {
+      const cardCheck = validateCardNumber(cardNumber);
+      if (!cardCheck.valid) { toast.error(cardCheck.error!); return; }
+      normalizedCard = cardCheck.normalizedValue!;
+    }
+
+    let normalizedPhone: string | null = null;
+    if (hasPhone) {
+      const phoneCheck = validatePhone(phone);
+      if (!phoneCheck.valid) { toast.error(phoneCheck.error!); return; }
+      normalizedPhone = phoneCheck.normalizedValue!;
+    }
+
+    let normalizedLink: string | null = null;
+    if (hasLink) {
+      const linkCheck = validateTransferLink(transferLink);
+      if (!linkCheck.valid) { toast.error(linkCheck.error!); return; }
+      normalizedLink = linkCheck.normalizedValue || null;
     }
 
     setSaving(true);
@@ -136,20 +146,22 @@ export const BankDetailsManager = () => {
       }
 
       const bankPreset = BANK_PRESETS.find(b => b.id === selectedBank);
-      const detectedBank = hasLink ? detectBank(transferLink.trim()) : null;
+      const detectedBank = normalizedLink ? detectBank(normalizedLink) : null;
       const bankName = detectedBank || bankPreset?.label || 'Другой банк';
+      const bankNameCheck = validateBankName(bankName);
+      if (!bankNameCheck.valid) { toast.error(bankNameCheck.error!); return; }
       const isFirst = details.length === 0;
 
       const { error } = await supabase.from('bank_details').insert({
         user_id: user.id,
-        label: bankName,
-        bank_name: bankName,
+        label: bankNameCheck.normalizedValue!,
+        bank_name: bankNameCheck.normalizedValue!,
         detail_type: 'general',
-        transfer_link: hasLink ? transferLink.trim() : null,
+        transfer_link: normalizedLink,
         qr_image_url: qrImageUrl,
         recipient_display_name: recipientName.trim() || null,
-        card_number: hasCard ? cardNumber.trim() : null,
-        phone: phone.trim() || null,
+        card_number: normalizedCard,
+        phone: normalizedPhone,
         is_default: isFirst,
       });
       if (error) throw error;
