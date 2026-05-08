@@ -6,6 +6,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { toast } from 'sonner';
 import { Plus, Trash2, Star, StarOff, Loader2, Link2, Image, X, Eye } from 'lucide-react';
+import { validateCardNumber, validatePhone, validateTransferLink, validateBankName } from '@/lib/validation';
 
 interface BankDetail {
   id: string;
@@ -105,15 +106,32 @@ export const BankDetailsManager = () => {
     const hasLink = transferLink.trim().length > 0;
     const hasQr = !!qrFile;
     const hasCard = cardNumber.trim().length > 0;
+    const hasPhone = phone.trim().length > 0;
 
-    if (!hasLink && !hasQr && !hasCard) {
-      toast.error('Укажите ссылку, номер карты или загрузите QR-код');
+    if (!hasLink && !hasQr && !hasCard && !hasPhone) {
+      toast.error('Укажите ссылку, номер карты, телефон СБП или загрузите QR-код');
       return;
     }
 
-    if (hasLink && !isValidUrl(transferLink.trim())) {
-      toast.error('Введите корректную ссылку (URL)');
-      return;
+    let normalizedCard: string | null = null;
+    if (hasCard) {
+      const cardCheck = validateCardNumber(cardNumber);
+      if (!cardCheck.valid) { toast.error(cardCheck.error!); return; }
+      normalizedCard = cardCheck.normalizedValue!;
+    }
+
+    let normalizedPhone: string | null = null;
+    if (hasPhone) {
+      const phoneCheck = validatePhone(phone);
+      if (!phoneCheck.valid) { toast.error(phoneCheck.error!); return; }
+      normalizedPhone = phoneCheck.normalizedValue!;
+    }
+
+    let normalizedLink: string | null = null;
+    if (hasLink) {
+      const linkCheck = validateTransferLink(transferLink);
+      if (!linkCheck.valid) { toast.error(linkCheck.error!); return; }
+      normalizedLink = linkCheck.normalizedValue || null;
     }
 
     setSaving(true);
