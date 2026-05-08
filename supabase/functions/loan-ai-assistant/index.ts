@@ -408,9 +408,9 @@ Deno.serve(async (req) => {
   if (!loanId || !rawMessage) return json(400, { ok: false, error: "Требуются loan_id и message" });
 
   // Intent: prefer explicit body.intent; fall back to legacy "INTENT:" prefix for backward compatibility.
-  const ALLOWED_INTENTS = new Set(["explain_ai_check", "explain_status"]);
+  const ALLOWED_INTENTS = new Set(["explain_ai_check", "explain_status", "explain_documents"]);
   const explicitIntent = typeof body?.intent === "string" && ALLOWED_INTENTS.has(body.intent) ? body.intent : null;
-  const legacyMatch = rawMessage.match(/^INTENT:\s*(explain_ai_check|explain_status)\b[.,\s-]*/i);
+  const legacyMatch = rawMessage.match(/^INTENT:\s*(explain_ai_check|explain_status|explain_documents)\b[.,\s-]*/i);
   const intent: string | null = explicitIntent ?? (legacyMatch ? legacyMatch[1].toLowerCase() : null);
   // Strip any legacy INTENT prefix from the user-visible/logged message.
   const userMessage = legacyMatch ? rawMessage.slice(legacyMatch[0].length).trim() || rawMessage : rawMessage;
