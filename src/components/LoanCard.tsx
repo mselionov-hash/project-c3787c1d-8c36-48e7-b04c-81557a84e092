@@ -50,13 +50,35 @@ function getNextStep(loan: Loan, isLender: boolean): NextStep | null {
   }
 }
 
-export const LoanCard = ({ loan, type, overdue }: { loan: Loan; type: 'issued' | 'taken'; overdue?: OverdueMeta }) => {
+interface UnifiedNext {
+  label: string;
+  priority?: 'primary' | 'secondary' | 'blocked' | 'info';
+}
+
+export const LoanCard = ({ loan, type, overdue, unifiedNext, statusLabelOverride }: {
+  loan: Loan;
+  type: 'issued' | 'taken';
+  overdue?: OverdueMeta;
+  unifiedNext?: UnifiedNext;
+  statusLabelOverride?: { label: string; tone: 'neutral' | 'success' | 'warning' | 'danger' | 'info' };
+}) => {
   const navigate = useNavigate();
   const isOverdue = !!overdue?.isOverdue;
-  const status = isOverdue ? statusLabels.overdue : (statusLabels[loan.status] || statusLabels.draft);
+  const toneClassMap: Record<string, string> = {
+    neutral: 'bg-muted text-muted-foreground',
+    success: 'bg-primary/15 text-primary',
+    warning: 'bg-warning/15 text-warning',
+    danger: 'bg-destructive/15 text-destructive',
+    info: 'bg-info/15 text-info',
+  };
+  const status = statusLabelOverride
+    ? { label: statusLabelOverride.label, class: toneClassMap[statusLabelOverride.tone] }
+    : (isOverdue ? statusLabels.overdue : (statusLabels[loan.status] || statusLabels.draft));
   const isLender = type === 'issued';
-  const baseNext = getNextStep(loan, isLender);
-  const nextStep: NextStep | null = isOverdue
+  const baseNext = unifiedNext
+    ? { label: unifiedNext.label, urgent: unifiedNext.priority === 'primary' || unifiedNext.priority === 'blocked' }
+    : getNextStep(loan, isLender);
+  const nextStep: NextStep | null = isOverdue && !unifiedNext
     ? (isLender ? { label: 'Ожидает погашения', urgent: true } : { label: 'Погасить задолженность', urgent: true })
     : baseNext;
   const daysLeft = Math.ceil(
