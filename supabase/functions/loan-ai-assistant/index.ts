@@ -282,101 +282,136 @@ function sanitizeOutput(text: string): string {
   return out;
 }
 
-function computeNextActionHint(params: {
+// === Unified operational state (mirror of src/lib/loan-next-action.ts) ===
+type OpAction = {
+  id: string;
+  label: string;
+  description: string;
+  priority: "primary" | "secondary" | "blocked" | "info";
+  uiAction: string | null;
+};
+type OpAvailable = { id: string; uiAction: string };
+type OpState = {
+  statusLabel: string;
+  isOverdue: boolean;
+  overdueDays: number;
+  outstanding: number;
+  totalDisbursed: number;
+  totalRepaid: number;
+  nextAction: OpAction;
+  availableActions: OpAvailable[];
+  humanSummary: string;
+};
+
+function pluralDays(n: number): string {
+  const m10 = n % 10, m100 = n % 100;
+  if (m10 === 1 && m100 !== 11) return "день";
+  if ([2, 3, 4].includes(m10) && ![12, 13, 14].includes(m100)) return "дня";
+  return "дней";
+}
+
+function computeOperationalState(p: {
   status: string;
   userRole: "lender" | "borrower";
+  isSelfLoan: boolean;
+  isFullySigned: boolean;
+  userSigned: boolean;
+  edoRequired: boolean;
+  edoAcceptedByUser: boolean;
+  edoAcceptedByCounterparty: boolean;
   lenderDisbSet: boolean;
   borrowerDisbSet: boolean;
   lenderRepSet: boolean;
   borrowerRepSet: boolean;
-  outstanding: number;
+  hasConfirmedTranche: boolean;
+  pendingTranches: number;
   pendingPayments: number;
   hasHighRiskCheck: boolean;
-  isFullySigned: boolean;
-  hasConfirmedTranche: boolean;
-}): { hint: string; suggestedActions: string[] } {
-  const {
-    status, userRole, lenderDisbSet, borrowerDisbSet, lenderRepSet, borrowerRepSet,
-    outstanding, pendingPayments, hasHighRiskCheck, isFullySigned, hasConfirmedTranche,
-  } = params;
+  latestAiEntity: string | null;
+  outstanding: number;
+  totalDisbursed: number;
+  totalRepaid: number;
+  loanAmount: number;
+  isOverdue: boolean;
+  overdueDays: number;
+  loanStatusLabel: string;
+}): { nextAction: OpAction; availableActions: OpAvailable[]; statusLabel: string } {
+  const r = p.userRole;
+  const mySideReady = r === "lender" ? (p.lenderDisbSet && p.lenderRepSet) : p.borrowerDisbSet;
+  const counterpartyReady = r === "lender" ? p.borrowerDisbSet : (p.lenderDisbSet && p.lenderRepSet);
+  const trancheReady = p.lenderDisbSet && p.borrowerDisbSet;
+  const canIssueMore = p.totalDisbursed < p.loanAmount;
+  const odN = p.overdueDays;
 
-  if (hasHighRiskCheck) {
-    return {
-      hint: "Последняя проверка чека показала проблему. Нужно открыть детали проверки, понять причину и загрузить корректный чек российского банка с переводом в рублях и подтверждённым статусом исполнения.",
-      suggestedActions: ["explain_ai_check", "open_tranches"],
-    };
+  let next: OpAction;
+  if (p.isSelfLoan) {
+    next = { id: "invalid_self_loan", label: "Договор требует исправления данных", description: "Займодавец и заёмщик — один и тот же пользователь. Действия по договору заблокированы.", priority: "blocked", uiAction: null };
+  } else if (p.status === "draft" && r === "lender") {
+    next = { id: "send_to_borrower", label: "Отправить заёмщику", description: "Договор сохранён как черновик. Отправьте его заёмщику.", priority: "primary", uiAction: "open_send_modal" };
+  } else if (p.status === "draft") {
+    next = { id: "wait_lender_send", label: "Ожидаем отправку договора", description: "Займодавец готовит договор и отправит его вам.", priority: "info", uiAction: null };
+  } else if (!p.isFullySigned && !p.userSigned) {
+    if (p.edoRequired && !p.edoAcceptedByUser) {
+      next = { id: "accept_edo", label: "Принять Регламент ЭДО", description: "Для подписания по схеме УНЭП обе стороны должны принять Регламент ЭДО.", priority: "primary", uiAction: "open_edo_acceptance" };
+    } else if (p.edoRequired && !p.edoAcceptedByCounterparty) {
+      next = { id: "wait_edo_counterparty", label: "Ожидаем принятие Регламента второй стороной", description: "Вы приняли Регламент ЭДО. Ждём вторую сторону.", priority: "info", uiAction: null };
+    } else {
+      next = { id: "sign_contract", label: "Подписать договор", description: "Договор готов к подписанию.", priority: "primary", uiAction: "open_signature_modal" };
+    }
+  } else if (!p.isFullySigned && p.userSigned) {
+    next = { id: "wait_counterparty_signature", label: "Ожидаем подпись второй стороны", description: "Вы уже подписали договор. Ждём подпись второй стороны.", priority: "info", uiAction: null };
+  } else if (!mySideReady) {
+    next = { id: "choose_my_bank_details", label: "Выбрать реквизиты", description: r === "lender" ? "Выберите свои реквизиты для перечисления и для приёма возврата." : "Укажите реквизиты, на которые займодавец перечислит деньги.", priority: "primary", uiAction: "open_bank_details" };
+  } else if (!counterpartyReady) {
+    next = { id: "wait_counterparty_bank_details", label: "Ожидаем реквизиты второй стороны", description: "Ваши реквизиты выбраны. Ждём реквизиты второй стороны.", priority: "info", uiAction: null };
+  } else if (p.hasHighRiskCheck) {
+    next = { id: "fix_ai_check", label: r === "lender" && p.latestAiEntity !== "tranche" ? "Проверить чек по возврату" : "Загрузить корректный чек", description: "Последняя проверка чека показала проблемы. Откройте детали и при необходимости загрузите другой чек.", priority: "primary", uiAction: "explain_ai_check" };
+  } else if (p.pendingTranches > 0 && r === "borrower") {
+    next = { id: "confirm_tranche", label: "Подтвердить транш", description: "Займодавец отметил перевод. Проверьте поступление и подтвердите получение.", priority: "primary", uiAction: "open_tranche_confirm_modal" };
+  } else if (p.pendingTranches > 0 && r === "lender") {
+    next = { id: "wait_tranche_confirmation", label: "Ожидаем подтверждение транша", description: "Вы отметили перевод. Ждём подтверждение от заёмщика.", priority: "info", uiAction: "open_tranches" };
+  } else if (!p.hasConfirmedTranche && trancheReady && r === "lender" && canIssueMore) {
+    next = { id: "create_tranche", label: "Сделать транш", description: "Реквизиты сторон выбраны. Создайте транш и переведите деньги заёмщику.", priority: "primary", uiAction: "open_tranche_create_modal" };
+  } else if (!p.hasConfirmedTranche && trancheReady && r === "borrower") {
+    next = { id: "wait_tranche", label: "Ожидаем перевод от займодавца", description: "Реквизиты сторон выбраны. Ждём, пока займодавец сделает перевод.", priority: "info", uiAction: null };
+  } else if (p.pendingPayments > 0 && r === "lender") {
+    next = { id: "confirm_repayment", label: "Подтвердить погашение", description: "Заёмщик отметил погашение. Проверьте поступление и подтвердите его.", priority: "primary", uiAction: "open_repayments" };
+  } else if (p.pendingPayments > 0 && r === "borrower") {
+    next = { id: "wait_repayment_confirmation", label: "Ожидаем подтверждение погашения", description: "Вы зафиксировали погашение. Ждём подтверждение от займодавца.", priority: "info", uiAction: "open_repayments" };
+  } else if (p.isOverdue && p.outstanding > 0 && r === "borrower") {
+    next = { id: "repay_overdue", label: "Погасить задолженность", description: `Срок возврата прошёл ${odN} ${pluralDays(odN)} назад. Остаток долга — ${fmtRub(p.outstanding)}.`, priority: "primary", uiAction: "open_repayment_create_modal" };
+  } else if (p.isOverdue && p.outstanding > 0 && r === "lender") {
+    next = { id: "wait_overdue_repayment", label: "Ожидаем погашение", description: `Срок возврата прошёл ${odN} ${pluralDays(odN)} назад. Остаток — ${fmtRub(p.outstanding)}.`, priority: "primary", uiAction: "open_repayments" };
+  } else if (p.outstanding > 0 && r === "borrower") {
+    next = { id: "repay_debt", label: "Погасить долг", description: `Текущий остаток долга — ${fmtRub(p.outstanding)}.`, priority: "primary", uiAction: "open_repayment_create_modal" };
+  } else if (p.outstanding > 0 && r === "lender") {
+    next = { id: "wait_repayment", label: "Ожидаем погашение", description: `Остаток долга заёмщика — ${fmtRub(p.outstanding)}.`, priority: "info", uiAction: "open_repayments" };
+  } else if (p.status === "repaid" || (p.outstanding <= 0 && p.hasConfirmedTranche && p.totalDisbursed >= p.loanAmount)) {
+    next = { id: "generate_full_repayment", label: "Сформировать подтверждение полного погашения", description: "Долг полностью погашен. Откройте раздел документов и сформируйте итоговое подтверждение.", priority: "secondary", uiAction: "open_documents" };
+  } else {
+    next = { id: "all_good", label: "Всё в порядке", description: "Срочных действий нет.", priority: "info", uiAction: null };
   }
-  if (!isFullySigned) {
-    return {
-      hint: `Договор ещё не подписан обеими сторонами (сейчас: ${statusLabel(status)}). Нужно дождаться подписи второй стороны или подписать со своей стороны, если ещё не подписали.`,
-      suggestedActions: ["explain_status", "open_documents"],
-    };
+
+  const av: OpAvailable[] = [];
+  if (p.isSelfLoan) {
+    // none
+  } else {
+    if (r === "lender" && p.isFullySigned && trancheReady && canIssueMore) av.push({ id: "create_tranche", uiAction: "open_tranche_create_modal" });
+    if (r === "borrower" && p.pendingTranches > 0) av.push({ id: "confirm_tranche", uiAction: "open_tranche_confirm_modal" });
+    if (r === "borrower" && p.outstanding > 0) av.push({ id: "repay", uiAction: "open_repayment_create_modal" });
+    if (r === "lender" && p.pendingPayments > 0) av.push({ id: "confirm_repayment", uiAction: "open_repayments" });
+    if (!mySideReady && p.isFullySigned) av.push({ id: "choose_bank_details", uiAction: "open_bank_details" });
+    if (p.hasHighRiskCheck) {
+      av.push({ id: "explain_ai_check", uiAction: "explain_ai_check" });
+      av.push({ id: "upload_new_proof", uiAction: "upload_new_proof" });
+    }
+    av.push({ id: "open_documents", uiAction: "open_documents" });
   }
-  if (!lenderDisbSet) {
-    return {
-      hint: "Займодавец ещё не выбрал реквизиты, с которых будет переводить деньги. До этого выдача невозможна.",
-      suggestedActions: ["open_bank_details"],
-    };
-  }
-  if (!borrowerDisbSet) {
-    return {
-      hint: "Заёмщик ещё не выбрал реквизиты для получения денег. До этого выдача невозможна.",
-      suggestedActions: ["open_bank_details"],
-    };
-  }
-  if (!lenderRepSet) {
-    return {
-      hint: "Займодавец ещё не выбрал реквизиты для приёма возврата. Заёмщик не сможет вернуть деньги, пока эти реквизиты не выбраны.",
-      suggestedActions: ["open_bank_details"],
-    };
-  }
-  if (pendingPayments > 0 && userRole === "lender") {
-    return {
-      hint: `Есть ${pendingPayments} перевод(а) от заёмщика, которые ждут вашего подтверждения. Откройте раздел погашений и подтвердите факт получения денег.`,
-      suggestedActions: ["open_repayments"],
-    };
-  }
-  if (pendingPayments > 0 && userRole === "borrower") {
-    return {
-      hint: `Ваш перевод уже отправлен и ждёт подтверждения от займодавца. Дополнительных действий пока не требуется.`,
-      suggestedActions: ["open_repayments"],
-    };
-  }
-  if (!hasConfirmedTranche && userRole === "lender") {
-    return {
-      hint: "Договор подписан, реквизиты готовы — займодавцу пора сделать первый перевод и затем зафиксировать его в разделе траншей.",
-      suggestedActions: ["open_tranches"],
-    };
-  }
-  if (!hasConfirmedTranche && userRole === "borrower") {
-    return {
-      hint: "Договор подписан, реквизиты готовы. Ждём, пока займодавец сделает перевод и зафиксирует его в разделе траншей.",
-      suggestedActions: ["open_tranches"],
-    };
-  }
-  if (outstanding > 0 && userRole === "borrower") {
-    return {
-      hint: `У вас остаток долга ${fmtRub(outstanding)}. Сделайте перевод по реквизитам займодавца и зафиксируйте погашение в соответствующем разделе.`,
-      suggestedActions: ["open_repayments"],
-    };
-  }
-  if (outstanding > 0 && userRole === "lender") {
-    return {
-      hint: `Остаток долга заёмщика ${fmtRub(outstanding)}. Ждём перевод от заёмщика — после поступления подтвердите его в разделе погашений.`,
-      suggestedActions: ["open_repayments"],
-    };
-  }
-  if (outstanding <= 0 && hasConfirmedTranche) {
-    return {
-      hint: "Долг полностью погашен. Можно сформировать итоговое подтверждение полного возврата в разделе документов.",
-      suggestedActions: ["open_documents"],
-    };
-  }
-  return {
-    hint: "Чёткого следующего шага нет — кратко опишите текущее состояние займа человеческим языком.",
-    suggestedActions: ["explain_status"],
-  };
+
+  const statusLabel = p.isOverdue ? "Просрочен" : p.loanStatusLabel;
+  return { nextAction: next, availableActions: av, statusLabel };
 }
+
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
